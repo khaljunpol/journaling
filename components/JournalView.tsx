@@ -25,6 +25,12 @@ export default function JournalView() {
           >
             Previous
           </button>
+          <button
+            className="rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            onClick={() => setSelectedDate(today)}
+          >
+            Today
+          </button>
           <input
             type="date"
             className="rounded border px-2 py-1"

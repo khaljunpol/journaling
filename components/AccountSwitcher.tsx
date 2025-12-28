@@ -25,12 +25,14 @@ export default function AccountSwitcher() {
       localStorage.setItem("account", a);
       // Notify other components quickly
       window.dispatchEvent(new StorageEvent("storage", { key: "account", newValue: a } as any));
+      // Also set a readable cookie so server components can read the selection
+      const maxAge = 60 * 60 * 24 * 30; // 30 days
+      document.cookie = `account=${encodeURIComponent(a)}; path=/; max-age=${maxAge}; samesite=lax`;
     } catch {}
   };
 
   return (
     <label className="inline-flex items-center gap-3 text-sm">
-      <span className="font-medium text-neutral-700 dark:text-neutral-300">Account</span>
       <select
         value={account}
         onChange={onChange}

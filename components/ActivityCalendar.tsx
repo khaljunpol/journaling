@@ -145,13 +145,16 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                             : ''
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => toggle(dateISO, a.id, e.target.checked)}
-                        onFocus={() => selectDay(d)}
-                        aria-label={`Toggle ${a.name} on ${dateISO}`}
-                      />
+                      <label className="inline-flex cursor-pointer select-none items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5 accent-blue-600"
+                          checked={checked}
+                          onChange={(e) => toggle(dateISO, a.id, e.target.checked)}
+                          onFocus={() => selectDay(d)}
+                          aria-label={`Toggle ${a.name} on ${dateISO}`}
+                        />
+                      </label>
                     </td>
                   );
                 })}
