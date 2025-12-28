@@ -4,8 +4,14 @@ import { useMemo, useState } from 'react';
 import ActivityCalendar from '@/components/ActivityCalendar';
 import DailyHighlight from '@/components/DailyHighlight';
 
+function pad(n: number) { return String(n).padStart(2, '0'); }
+function localTodayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export default function JournalView() {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => localTodayISO(), []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
 
   return (
@@ -19,15 +25,15 @@ export default function JournalView() {
             className="rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => {
               const d = new Date(selectedDate);
-              d.setUTCDate(d.getUTCDate() - 1);
-              setSelectedDate(d.toISOString().slice(0, 10));
+              d.setDate(d.getDate() - 1);
+              setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
             }}
           >
             Previous
           </button>
           <button
             className="rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            onClick={() => setSelectedDate(today)}
+            onClick={() => setSelectedDate(localTodayISO())}
           >
             Today
           </button>
@@ -41,8 +47,8 @@ export default function JournalView() {
             className="rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={() => {
               const d = new Date(selectedDate);
-              d.setUTCDate(d.getUTCDate() + 1);
-              setSelectedDate(d.toISOString().slice(0, 10));
+              d.setDate(d.getDate() + 1);
+              setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
             }}
           >
             Next

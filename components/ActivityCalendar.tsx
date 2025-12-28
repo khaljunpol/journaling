@@ -6,21 +6,24 @@ type Activity = { id: string; name: string };
  type Log = { date: string; activityId: string; completed: boolean };
 
 function daysInMonth(year: number, month: number) {
-  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(year, month + 1, 0).getDate();
 }
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
+function toLocalISO(y: number, m: number, d: number) {
+  return `${y}-${pad(m + 1)}-${pad(d)}`;
+}
 
 export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { selectedDateISO?: string; onSelectDate?: (dateISO: string) => void }) {
   const now = new Date();
-  const [year, setYear] = useState(now.getUTCFullYear());
-  const [month, setMonth] = useState(now.getUTCMonth());
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
   const [activities, setActivities] = useState<Activity[]>([]);
   const [logs, setLogs] = useState<Record<string, boolean>>({});
   const today = new Date();
-  const todayY = today.getUTCFullYear();
-  const todayM = today.getUTCMonth();
-  const todayD = today.getUTCDate();
+  const todayY = today.getFullYear();
+  const todayM = today.getMonth();
+  const todayD = today.getDate();
   const [account, setAccount] = useState<string>('Alex');
 
   useEffect(() => {
@@ -71,13 +74,19 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }
 
   function prevMonth() {
-    setMonth((m) => (m === 0 ? 11 : m - 1));
-    setYear((y) => (month === 0 ? y - 1 : y));
+    setMonth((m) => {
+      const nm = m === 0 ? 11 : m - 1;
+      setYear((y) => (m === 0 ? y - 1 : y));
+      return nm;
+    });
   }
 
   function nextMonth() {
-    setMonth((m) => (m === 11 ? 0 : m + 1));
-    setYear((y) => (month === 11 ? y + 1 : y));
+    setMonth((m) => {
+      const nm = m === 11 ? 0 : m + 1;
+      setYear((y) => (m === 11 ? y + 1 : y));
+      return nm;
+    });
   }
 
   const selectedDay = useMemo(() => {
@@ -88,7 +97,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [selectedDateISO, year, month]);
 
   function selectDay(day: number) {
-    const dateISO = `${year}-${pad(month + 1)}-${pad(day)}`;
+    const dateISO = toLocalISO(year, month, day);
     onSelectDate?.(dateISO);
   }
 
@@ -130,7 +139,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
               <tr key={a.id}>
                 <td className="sticky left-0 bg-white p-2 text-sm dark:bg-neutral-950">{a.name}</td>
                 {days.map((d) => {
-                  const dateISO = `${year}-${pad(month + 1)}-${pad(d)}`;
+                  const dateISO = toLocalISO(year, month, d);
                   const checked = cellChecked(dateISO, a.id);
                   const isSelected = selectedDay === d;
                   const isToday = year === todayY && month === todayM && d === todayD;

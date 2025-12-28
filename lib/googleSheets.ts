@@ -65,7 +65,7 @@ export async function listActivities(account: string) {
   const values = res.data.values || [];
   return values
     .filter((row) => row && row[0] && String(row[0]).trim() !== '')
-    .map(([id, name]) => ({ id, name }));
+    .map(([id, name]) => ({ id: String(id).trim(), name: String(name || '').trim() }));
 }
 
 export async function createActivity(account: string, name: string) {
@@ -160,8 +160,12 @@ export async function getLogsForDate(account: string, dateISO: string) {
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
   const values = res.data.values || [];
   return values
-    .filter((row) => row[0] === dateISO)
-    .map(([date, activityId, completed]) => ({ date, activityId, completed: completed === '1' }));
+    .map(([date, activityId, completed]) => ({
+      date: String(date).trim(),
+      activityId: String(activityId).trim(),
+      completed: String(completed).trim() === '1',
+    }))
+    .filter((row) => row.date === dateISO);
 }
 
 export async function getLogsBetween(account: string, fromISO: string, toISO: string) {
@@ -174,11 +178,15 @@ export async function getLogsBetween(account: string, fromISO: string, toISO: st
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
   return values
-    .filter(([date]) => {
+    .map(([date, activityId, completed]) => ({
+      date: String(date).trim(),
+      activityId: String(activityId).trim(),
+      completed: String(completed).trim() === '1',
+    }))
+    .filter(({ date }) => {
       const t = new Date(date).getTime();
       return !Number.isNaN(t) && t >= from && t <= to;
-    })
-    .map(([date, activityId, completed]) => ({ date, activityId, completed: completed === '1' }));
+    });
 }
 
 export async function setHighlight(account: string, dateISO: string, text: string) {
