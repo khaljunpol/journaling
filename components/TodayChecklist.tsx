@@ -10,26 +10,51 @@ export default function TodayChecklist() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [account, setAccount] = useState<string>('Alex');
+
+  useEffect(() => {
+    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
+    setAccount(init || 'Alex');
+    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   async function fetchActivities() {
-    const res = await fetch('/api/activities');
-    const data = await res.json();
-    setActivities(data);
+    try {
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`);
+      if (!res.ok) { setActivities([]); return; }
+      const data = await res.json();
+      setActivities(Array.isArray(data) ? data : []);
+    } catch {
+      setActivities([]);
+    }
   }
 
   async function fetchLogs() {
-    const res = await fetch(`/api/logs?date=${today}`);
-    const data = await res.json();
-    setLogs(data);
+    try {
+      const res = await fetch(`/api/logs?date=${today}&account=${encodeURIComponent(account)}`);
+      if (!res.ok) { setLogs([]); return; }
+      const data = await res.json();
+      setLogs(Array.isArray(data) ? data : []);
+    } catch {
+      setLogs([]);
+    }
   }
 
   useEffect(() => {
     fetchActivities();
     fetchLogs();
-  }, []);
+  }, [account]);
 
   async function toggle(activityId: string, checked: boolean) {
-    await fetch('/api/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today, activityId, completed: checked }) });
+    const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today, activityId, completed: checked }) });
+    if (!res.ok) {
+      let msg = 'Failed to update log';
+      try { const j = await res.json(); msg = j?.error || msg; } catch {}
+      console.error(msg);
+      return;
+    }
     fetchLogs();
   }
 

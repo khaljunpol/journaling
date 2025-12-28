@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createActivity, listActivities } from '@/lib/googleSheets';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const data = await listActivities();
+    const url = new URL(req.url);
+    const account = url.searchParams.get('account') || 'Alex';
+    const data = await listActivities(account);
     return NextResponse.json(data);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    // Fallback to empty list if Sheets config is missing or fails
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -15,9 +18,18 @@ export async function POST(req: Request) {
     const body = await req.json();
     const name = String(body?.name || '').trim();
     if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });
-    const created = await createActivity(name);
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_SPREADSHEET_ID) {
+      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
+    }
+    const url = new URL(req.url);
+    const account = url.searchParams.get('account') || 'Alex';
+    const created = await createActivity(account, name);
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const msg = String(e?.message || 'Unknown error');
+    if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
+      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
