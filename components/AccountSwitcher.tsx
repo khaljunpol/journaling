@@ -8,7 +8,13 @@ export default function AccountSwitcher() {
   const [account, setAccount] = useState<string>("Alex");
 
   useEffect(() => {
-    const initial = typeof window !== "undefined" ? localStorage.getItem("account") : null;
+    const cookieAccount = (() => {
+      try {
+        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : null;
+      } catch { return null; }
+    })();
+    const initial = cookieAccount || (typeof window !== "undefined" ? localStorage.getItem("account") : null);
     setAccount(initial || "Alex");
     const onStorage = () => {
       const a = localStorage.getItem("account") || "Alex";
@@ -25,6 +31,7 @@ export default function AccountSwitcher() {
       localStorage.setItem("account", a);
       // Notify other components quickly
       window.dispatchEvent(new StorageEvent("storage", { key: "account", newValue: a } as any));
+      window.dispatchEvent(new CustomEvent("account-change", { detail: a }));
       // Also set a readable cookie so server components can read the selection
       const maxAge = 60 * 60 * 24 * 30; // 30 days
       document.cookie = `account=${encodeURIComponent(a)}; path=/; max-age=${maxAge}; samesite=lax`;

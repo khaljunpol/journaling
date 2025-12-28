@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Activity = { id: string; name: string };
 type Log = { date: string; activityId: string; completed: boolean };
@@ -34,7 +34,13 @@ export default function Dashboard() {
     const [thisWeekRate, setThisWeekRate] = useState(0);
     const [lastWeekRate, setLastWeekRate] = useState(0);
     const [topActivities30, setTopActivities30] = useState<Array<{ name: string; count: number }>>([]);
-    const [recentCompletions, setRecentCompletions] = useState<Array<{ date: string; name: string }>>([]);
+    const [recentCompletions, setRecentCompletions] = useState<Array<{ date: string; activityId: string; name: string }>>([]);
+    const fetchVersionRef = useRef(0);
+    const actsCtrlRef = useRef<AbortController | null>(null);
+    const logsTodayCtrlRef = useRef<AbortController | null>(null);
+    const logs7CtrlRef = useRef<AbortController | null>(null);
+    const logs30CtrlRef = useRef<AbortController | null>(null);
+    const metricsCtrlRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         // Try cookie first, then localStorage
@@ -46,35 +52,81 @@ export default function Dashboard() {
         })();
         const lsAccount = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
         setAccount(cookieAccount || lsAccount || 'Alex');
+
+        const setFromSources = (detail?: string) => {
+            const cookieAcc = (() => {
+                try {
+                    const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
+                    return m ? decodeURIComponent(m[1]) : null;
+                } catch { return null; }
+            })();
+            const lsAcc = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
+            setAccount(detail || cookieAcc || lsAcc || 'Alex');
+        };
+        const onAccountChange = (e: Event) => setFromSources((e as CustomEvent<string>).detail);
+        const onStorage = () => setFromSources();
+        window.addEventListener('account-change', onAccountChange as EventListener);
+        window.addEventListener('storage', onStorage as EventListener);
+        return () => {
+            window.removeEventListener('account-change', onAccountChange as EventListener);
+            window.removeEventListener('storage', onStorage as EventListener);
+        };
     }, []);
 
     useEffect(() => {
+        // On account change, abort in-flight requests and clear state before reloading
+        fetchVersionRef.current += 1;
+        if (actsCtrlRef.current) actsCtrlRef.current.abort();
+        if (logsTodayCtrlRef.current) logsTodayCtrlRef.current.abort();
+        if (logs7CtrlRef.current) logs7CtrlRef.current.abort();
+        if (logs30CtrlRef.current) logs30CtrlRef.current.abort();
+        if (metricsCtrlRef.current) metricsCtrlRef.current.abort();
+        setActivities([]);
+        setDoneToday(0);
+        setStreakDays(0);
+        setLast7Done(0);
+        setLast30Done(0);
+        setAvgWeeklyRate(0);
+        setBestWeekLabel(undefined);
+        setBestWeekRate(0);
+        setThisWeekRate(0);
+        setLastWeekRate(0);
+        setTopActivities30([]);
+        setRecentCompletions([]);
+    }, [account]);
+
+    useEffect(() => {
         async function load() {
+            const v = fetchVersionRef.current;
             let currentActs: Activity[] = [];
             try {
-                const actsRes = await fetch(`/api/activities?account=${encodeURIComponent(account)}`);
+                actsCtrlRef.current = new AbortController();
+                const actsRes = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
                 const acts: Activity[] = actsRes.ok ? await actsRes.json() : [];
                 currentActs = Array.isArray(acts) ? acts : [];
-                setActivities(currentActs);
+                if (v === fetchVersionRef.current) setActivities(currentActs);
             } catch { setActivities([]); }
 
             try {
-                const logsTodayRes = await fetch(`/api/logs?date=${todayISO}&account=${encodeURIComponent(account)}`);
+                logsTodayCtrlRef.current = new AbortController();
+                const logsTodayRes = await fetch(`/api/logs?date=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logsTodayCtrlRef.current.signal });
                 const logsToday: Log[] = logsTodayRes.ok ? await logsTodayRes.json() : [];
-                setDoneToday((logsToday || []).filter((l) => l.completed).length);
+                if (v === fetchVersionRef.current) setDoneToday((logsToday || []).filter((l) => l.completed).length);
             } catch { setDoneToday(0); }
 
             try {
-                const logs7Res = await fetch(`/api/logs?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
+                logs7CtrlRef.current = new AbortController();
+                const logs7Res = await fetch(`/api/logs?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logs7CtrlRef.current.signal });
                 const logs7: Log[] = logs7Res.ok ? await logs7Res.json() : [];
-                setLast7Done((logs7 || []).filter((l) => l.completed).length);
+                if (v === fetchVersionRef.current) setLast7Done((logs7 || []).filter((l) => l.completed).length);
             } catch { setLast7Done(0); }
 
             try {
-                const logs30Res = await fetch(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
+                logs30CtrlRef.current = new AbortController();
+                const logs30Res = await fetch(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logs30CtrlRef.current.signal });
                 const logs30: Log[] = logs30Res.ok ? await logs30Res.json() : [];
                 const done = (logs30 || []).filter((l) => l.completed);
-                setLast30Done(done.length);
+                if (v === fetchVersionRef.current) setLast30Done(done.length);
                 const nameMap: Record<string, string> = Object.fromEntries((currentActs || []).map((a) => [String(a.id), a.name]));
                 const byAct: Record<string, number> = {};
                 for (const l of done) {
@@ -85,28 +137,41 @@ export default function Dashboard() {
                     .map(([id, count]) => ({ name: nameMap[id] || id, count }))
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 3);
-                setTopActivities30(top);
+                if (v === fetchVersionRef.current) setTopActivities30(top);
 
-                // Build recent completions (latest 5 by date)
-                const recent = done
+                // Build recent completions (latest 5 unique by date+activity)
+                const seen = new Set<string>();
+                const recent: Array<{ date: string; activityId: string; name: string }> = [];
+                for (const l of done
                     .slice()
-                    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
-                    .slice(0, 5)
-                    .map((l) => ({ date: String(l.date), name: nameMap[String(l.activityId)] || String(l.activityId) }));
-                setRecentCompletions(recent);
+                    .sort((a, b) => String(b.date).localeCompare(String(a.date)))) {
+                    const date = String(l.date);
+                    const actId = String(l.activityId);
+                    const k = `${date}-${actId}`;
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    recent.push({ date, activityId: actId, name: nameMap[actId] || actId });
+                    if (recent.length >= 5) break;
+                }
+                if (v === fetchVersionRef.current) setRecentCompletions(recent);
             } catch { setLast30Done(0); setTopActivities30([]); setRecentCompletions([]); }
 
             try {
-                const metricsRes = await fetch(`/api/metrics?account=${encodeURIComponent(account)}`);
+                metricsCtrlRef.current = new AbortController();
+                const metricsRes = await fetch(`/api/metrics?account=${encodeURIComponent(account)}`, { signal: metricsCtrlRef.current.signal });
                 const metrics = metricsRes.ok ? await metricsRes.json() : null;
-                setAvgWeeklyRate(metrics?.summary?.avgRate || 0);
-                setStreakDays(metrics?.summary?.currentStreakDays || 0);
-                setBestWeekLabel(metrics?.summary?.bestWeek?.week);
-                setBestWeekRate(metrics?.summary?.bestWeek?.rate || 0);
+                if (v === fetchVersionRef.current) {
+                    setAvgWeeklyRate(metrics?.summary?.avgRate || 0);
+                    setStreakDays(metrics?.summary?.currentStreakDays || 0);
+                    setBestWeekLabel(metrics?.summary?.bestWeek?.week);
+                    setBestWeekRate(metrics?.summary?.bestWeek?.rate || 0);
+                }
                 const weeks: Week[] = Array.isArray(metrics?.weeks) ? metrics.weeks : [];
                 const n = weeks.length;
-                setThisWeekRate(n ? weeks[n - 1]?.rate || 0 : 0);
-                setLastWeekRate(n > 1 ? weeks[n - 2]?.rate || 0 : 0);
+                if (v === fetchVersionRef.current) {
+                    setThisWeekRate(n ? weeks[n - 1]?.rate || 0 : 0);
+                    setLastWeekRate(n > 1 ? weeks[n - 2]?.rate || 0 : 0);
+                }
             } catch { setAvgWeeklyRate(0); setStreakDays(0); setBestWeekLabel(undefined); setBestWeekRate(0); setThisWeekRate(0); setLastWeekRate(0); }
         }
         if (account) load();
@@ -115,7 +180,7 @@ export default function Dashboard() {
     const last7Expected = activities.length * 7;
 
     return (
-        <main className="space-y-8">
+        <main key={account} className="space-y-8">
             <h2 className="text-xl font-semibold">Dashboard</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="rounded border p-4">
@@ -131,7 +196,7 @@ export default function Dashboard() {
                     <div className="text-sm text-neutral-500">Recent Completions</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {recentCompletions.length ? recentCompletions.map((r) => (
-                            <li key={`${r.date}-${r.name}`} className="flex justify-between">
+                            <li key={`${r.date}-${r.activityId}`} className="flex justify-between">
                                 <span className="truncate max-w-[60%]" title={r.name}>{r.name}</span>
                                 <span className="text-neutral-500">{r.date}</span>
                             </li>
