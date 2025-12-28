@@ -34,6 +34,7 @@ export default function Dashboard() {
     const [thisWeekRate, setThisWeekRate] = useState(0);
     const [lastWeekRate, setLastWeekRate] = useState(0);
     const [topActivities30, setTopActivities30] = useState<Array<{ name: string; count: number }>>([]);
+    const [recentCompletions, setRecentCompletions] = useState<Array<{ date: string; name: string }>>([]);
 
     useEffect(() => {
         // Try cookie first, then localStorage
@@ -85,7 +86,15 @@ export default function Dashboard() {
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 3);
                 setTopActivities30(top);
-            } catch { setLast30Done(0); setTopActivities30([]); }
+
+                // Build recent completions (latest 5 by date)
+                const recent = done
+                    .slice()
+                    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+                    .slice(0, 5)
+                    .map((l) => ({ date: String(l.date), name: nameMap[String(l.activityId)] || String(l.activityId) }));
+                setRecentCompletions(recent);
+            } catch { setLast30Done(0); setTopActivities30([]); setRecentCompletions([]); }
 
             try {
                 const metricsRes = await fetch(`/api/metrics?account=${encodeURIComponent(account)}`);
@@ -117,6 +126,17 @@ export default function Dashboard() {
                     <div className="text-sm text-neutral-500">Today</div>
                     <div className="text-2xl font-semibold">{doneToday}/{activities.length} done</div>
                     <div className="text-xs text-neutral-500">Streak: {streakDays} days</div>
+                </div>
+                <div className="rounded border p-4">
+                    <div className="text-sm text-neutral-500">Recent Completions</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {recentCompletions.length ? recentCompletions.map((r) => (
+                            <li key={`${r.date}-${r.name}`} className="flex justify-between">
+                                <span className="truncate max-w-[60%]" title={r.name}>{r.name}</span>
+                                <span className="text-neutral-500">{r.date}</span>
+                            </li>
+                        )) : <li className="text-neutral-500">No recent activity</li>}
+                    </ul>
                 </div>
             </div>
 
