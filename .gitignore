@@ -30,6 +30,5 @@ dist/
 Thumbs.db
 
 ### Misc logs
-logs/
 *.log
 lerna-debug.log*
