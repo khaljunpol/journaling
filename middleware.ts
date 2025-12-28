@@ -14,6 +14,7 @@ export async function middleware(req: NextRequest) {
     if (
         pathname.startsWith('/login') ||
         pathname.startsWith('/api/login') ||
+        pathname.startsWith('/api') ||
         pathname.startsWith('/_next') ||
         pathname.startsWith('/favicon.ico') ||
         pathname.startsWith('/public')
@@ -59,5 +60,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/((?!api/login|_next|favicon.ico|public).*)'],
+    matcher: ['/((?!api|_next|favicon.ico|public).*)'],
 };

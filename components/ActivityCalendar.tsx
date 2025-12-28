@@ -92,8 +92,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const selectedDay = useMemo(() => {
     if (!selectedDateISO) return undefined;
     const d = new Date(selectedDateISO);
-    if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month) return undefined;
-    return d.getUTCDate();
+    if (d.getFullYear() !== year || d.getMonth() !== month) return undefined;
+    return d.getDate();
   }, [selectedDateISO, year, month]);
 
   function selectDay(day: number) {
@@ -105,7 +105,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     <section className="space-y-4">
       <div className="flex items-center gap-2">
         <button className="rounded border px-2 py-1" onClick={prevMonth}>Prev</button>
-        <div className="font-medium">{new Date(Date.UTC(year, month, 1)).toLocaleString(undefined, { month: 'long' })} {year}</div>
+        <div className="font-medium">{new Date(year, month, 1).toLocaleString(undefined, { month: 'long' })} {year}</div>
         <button className="rounded border px-2 py-1" onClick={nextMonth}>Next</button>
       </div>
 
