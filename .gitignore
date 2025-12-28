@@ -1,0 +1,36 @@
+### Node & package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Next.js build output
+.next/
+out/
+
+### Build artifacts & coverage
+coverage/
+dist/
+*.tsbuildinfo
+
+### Environment files
+.env
+.env.*
+!.env.example
+
+### Vercel
+.vercel/
+
+### Editor & IDE
+.vscode/
+.idea/
+
+### OS junk
+.DS_Store
+Thumbs.db
+
+### Misc logs
+logs/
+*.log
+lerna-debug.log*
