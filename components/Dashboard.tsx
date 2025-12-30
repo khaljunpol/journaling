@@ -1,13 +1,8 @@
 "use client";
 
+import type { Activity, CatalogItem, Log, Week, WeightPoint } from '@/lib/types';
 import { useEffect, useRef, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-type Activity = { id: string; name: string; status?: 'active' | 'stopped'; catalogId?: string };
-type CatalogItem = { id: string; name: string; category: string; tags?: string };
-type Log = { date: string; activityId: string; completed: boolean };
-type Week = { week: string; rate: number };
-type WeightPoint = { date: string; weight: number };
 
 export default function Dashboard() {
     const now = new Date();
@@ -43,6 +38,9 @@ export default function Dashboard() {
     const [highlights30, setHighlights30] = useState<Array<{ date: string; text: string }>>([]);
     const [insights, setInsights] = useState<string[]>([]);
     const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+    // Removed stoppedTop7 in favor of explicit To Stop / To Continue lists
+    const [toStopActs, setToStopActs] = useState<Array<{ name: string; count: number; prev: number }>>([]);
+    const [toContinueActs, setToContinueActs] = useState<Array<{ name: string; count: number }>>([]);
     const fetchVersionRef = useRef(0);
     const actsCtrlRef = useRef<AbortController | null>(null);
     const catalogCtrlRef = useRef<AbortController | null>(null);
@@ -121,12 +119,16 @@ export default function Dashboard() {
             let weightSeries: WeightPoint[] = [];
             let highlightsItems: Array<{ date: string; text: string }> = [];
             let streakLocal = 0;
+            // Keep local copies of logs for filtering stop-target ticks later
+            let logsTodayItems: Log[] = [];
+            let logs7Items: Log[] = [];
+            let logs30Items: Log[] = [];
             try {
                 actsCtrlRef.current = new AbortController();
                 const actsRes = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
                 const acts: Activity[] = actsRes.ok ? await actsRes.json() : [];
                 allActs = Array.isArray(acts) ? acts : [];
-                currentActs = allActs.filter((a) => (a.status || 'active') !== 'stopped');
+                currentActs = allActs.filter((a) => (a.status || 'to continue') === 'to continue');
                 if (v === fetchVersionRef.current) setActivities(currentActs);
             } catch { setActivities([]); }
 
@@ -143,21 +145,24 @@ export default function Dashboard() {
                 logsTodayCtrlRef.current = new AbortController();
                 const logsTodayRes = await fetch(`/api/logs?date=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logsTodayCtrlRef.current.signal });
                 const logsToday: Log[] = logsTodayRes.ok ? await logsTodayRes.json() : [];
-                if (v === fetchVersionRef.current) setDoneToday((logsToday || []).filter((l) => l.completed).length);
+                logsTodayItems = Array.isArray(logsToday) ? logsToday : [];
+                if (v === fetchVersionRef.current) setDoneToday((logsTodayItems || []).filter((l) => l.completed).length);
             } catch { setDoneToday(0); }
 
             try {
                 logs7CtrlRef.current = new AbortController();
                 const logs7Res = await fetch(`/api/logs?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logs7CtrlRef.current.signal });
                 const logs7: Log[] = logs7Res.ok ? await logs7Res.json() : [];
-                if (v === fetchVersionRef.current) setLast7Done((logs7 || []).filter((l) => l.completed).length);
+                logs7Items = Array.isArray(logs7) ? logs7 : [];
+                if (v === fetchVersionRef.current) setLast7Done((logs7Items || []).filter((l) => l.completed).length);
             } catch { setLast7Done(0); }
 
             try {
                 logs30CtrlRef.current = new AbortController();
                 const logs30Res = await fetch(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`, { signal: logs30CtrlRef.current.signal });
                 const logs30: Log[] = logs30Res.ok ? await logs30Res.json() : [];
-                const done = (logs30 || []).filter((l) => l.completed);
+                logs30Items = Array.isArray(logs30) ? logs30 : [];
+                const done = (logs30Items || []).filter((l) => l.completed);
                 if (v === fetchVersionRef.current) setLast30Done(done.length);
                 const nameMap: Record<string, string> = Object.fromEntries((currentActs || []).map((a) => [String(a.id), a.name]));
                 const byAct: Record<string, number> = {};
@@ -244,14 +249,8 @@ export default function Dashboard() {
                     const nameLowerMap: Record<string, string> = {};
                     for (const a of allActs) nameLowerMap[a.id] = a.name.toLowerCase();
 
-                    // Build frequency maps from the already computed 'recentCompletions' and logs last 30 via topActivities30 source
-                    // Since we have only counts aggregated, do a quick fetch of logs30 again for accurate per-day sets
-                    let logs30Full: Log[] = [];
-                    try {
-                        const res = await fetch(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-                        logs30Full = res.ok ? await res.json() : [];
-                    } catch { }
-                    for (const l of logs30Full.filter((x) => x.completed)) {
+                    // Build per-day sets from local logs30Items
+                    for (const l of logs30Items.filter((x) => x.completed)) {
                         const day = String(l.date);
                         const set = (doneByDay[day] ||= new Set<string>());
                         set.add(String(l.activityId));
@@ -265,13 +264,23 @@ export default function Dashboard() {
                             last7Days.push(dd.toISOString().slice(0, 10));
                         }
                     }
+                    const prev7Days: string[] = []; {
+                        const d = new Date(todayISO);
+                        for (let i = 13; i >= 7; i--) {
+                            const dd = new Date(d);
+                            dd.setUTCDate(dd.getUTCDate() - i);
+                            prev7Days.push(dd.toISOString().slice(0, 10));
+                        }
+                    }
 
                     const freq7: Record<string, number> = {};
                     const freq30: Record<string, number> = {};
+                    const freqPrev7: Record<string, number> = {};
                     for (const [day, set] of Object.entries(doneByDay)) {
                         for (const id of set) {
                             freq30[id] = (freq30[id] || 0) + 1;
                             if (last7Days.includes(day)) freq7[id] = (freq7[id] || 0) + 1;
+                            if (prev7Days.includes(day)) freqPrev7[id] = (freqPrev7[id] || 0) + 1;
                         }
                     }
 
@@ -318,7 +327,7 @@ export default function Dashboard() {
                         addDefaults('alcohol', ['alcohol', 'beer', 'wine', 'cocktail', 'drinks']);
                         addDefaults('leisure', ['video games', 'gaming', 'ps5', 'xbox', 'steam', 'switch', 'game']);
                         addDefaults('content', ['post', 'story', 'reel', 'video', 'content', 'upload']);
-                        addDefaults('habit', ['sleep early', 'sleep', 'early']);
+                        addDefaults('habit', ['sleep late', 'sleep early', 'sleep', 'late']);
                         for (const k of Object.keys(map)) {
                             map[k] = Array.from(new Set(map[k]));
                         }
@@ -352,6 +361,18 @@ export default function Dashboard() {
                     const habitIds = idsForCategory('habit');
                     const habitIdsFinal = withKeywords(habitIds, 'habit');
 
+                    // Stop targets: activities to reduce (by tags or category: caffeine, alcohol, leisure)
+                    // Stop targets purely by status: activities with status "to stop"
+                    const stopIdsFinal = allActs
+                        .filter((a) => (a.status || 'to continue') === 'to stop')
+                        .map((a) => a.id);
+
+                    // Exclude stop-target activities from "positive" activity list (expected ticks)
+                    if (v === fetchVersionRef.current) {
+                        const filteredActs = currentActs.filter((a) => !stopIdsFinal.includes(a.id));
+                        setActivities(filteredActs);
+                    }
+
                     // Counts using final ID sets
                     // Per-activity frequency (days per activity in last 7)
                     const countForIds = (ids: string[]) => ids.reduce((acc, id) => acc + (freq7[id] || 0), 0);
@@ -365,14 +386,71 @@ export default function Dashboard() {
                         }
                         return days;
                     };
-                    const gymDays7 = daysCountForIds(gymIdsFinal);
-                    const coffeeDays7 = daysCountForIds(coffeeIdsFinal);
-                    const supp7 = countForIds(suppIdsFinal);
-                    let contentDays7 = daysCountForIds(contentIdsFinal);
-                    const alcoholDays7 = daysCountForIds(alcoholIdsFinal);
-                    const vgDays7 = daysCountForIds(vgIdsFinal);
-                    const habitDays7 = daysCountForIds(habitIdsFinal);
+                    const daysCountForIdsInSet = (ids: string[], days: string[]) => {
+                        const idsSet = new Set(ids);
+                        let cnt = 0;
+                        for (const day of days) {
+                            const set = doneByDay[day];
+                            if (set && Array.from(set).some((id) => idsSet.has(id))) cnt += 1;
+                        }
+                        return cnt;
+                    };
+                    // Consider only "to continue" activities for positive metrics
+                    const continueIdsAll = allActs.filter((a) => (a.status || 'to continue') === 'to continue').map((a) => a.id);
+                    const continueSet = new Set(continueIdsAll);
+                    const onlyContinue = (ids: string[]) => ids.filter((id) => continueSet.has(id));
+
+                    const gymDays7 = daysCountForIds(onlyContinue(gymIdsFinal));
+                    const coffeeDays7 = daysCountForIds(onlyContinue(coffeeIdsFinal));
+                    const supp7 = countForIds(onlyContinue(suppIdsFinal));
+                    let contentDays7 = daysCountForIds(onlyContinue(contentIdsFinal));
+                    const alcoholDays7 = daysCountForIds(onlyContinue(alcoholIdsFinal));
+                    const vgDays7 = daysCountForIds(onlyContinue(vgIdsFinal));
+                    const habitDays7 = daysCountForIds(onlyContinue(habitIdsFinal));
+                    const stopDays7 = daysCountForIds(stopIdsFinal);
+                    const stopDaysPrev7 = daysCountForIdsInSet(stopIdsFinal, prev7Days);
                     const adherence = suppIdsFinal.length ? Math.round((supp7 / (7 * suppIdsFinal.length)) * 100) : 0;
+
+                    // Recompute today/7d/30d positive completion counts excluding stop targets
+                    const stopSet = new Set(stopIdsFinal.map(String));
+                    const doneTodayPos = (logsTodayItems || []).filter((l) => l.completed && !stopSet.has(String(l.activityId))).length;
+                    const done7Pos = (logs7Items || []).filter((l) => l.completed && !stopSet.has(String(l.activityId))).length;
+                    const done30Pos = (logs30Items || []).filter((l) => l.completed && !stopSet.has(String(l.activityId))).length;
+                    setDoneToday(doneTodayPos);
+                    setLast7Done(done7Pos);
+                    setLast30Done(done30Pos);
+
+                    // Count of logs for to-stop activities in last 7 (for summary tile)
+                    const toStopCount = Object.entries(freq7).reduce((acc, [id, c]) => acc + (stopSet.has(id) ? (c || 0) : 0), 0);
+
+                    // Recompute Top Activities (30d) and Recent Completions excluding stop targets
+                    const nameMapFiltered: Record<string, string> = Object.fromEntries((currentActs || []).map((a) => [String(a.id), a.name]));
+                    const doneFiltered = (logs30Items || []).filter((l) => l.completed && !stopSet.has(String(l.activityId)));
+                    const byActFiltered: Record<string, number> = {};
+                    for (const l of doneFiltered) {
+                        const key = String(l.activityId);
+                        byActFiltered[key] = (byActFiltered[key] || 0) + 1;
+                    }
+                    const topFiltered = Object.entries(byActFiltered)
+                        .map(([id, count]) => ({ name: nameMapFiltered[id] || id, count }))
+                        .sort((a, b) => b.count - a.count)
+                        .slice(0, 3);
+                    setTopActivities30(topFiltered);
+
+                    const seenFiltered = new Set<string>();
+                    const recentFiltered: Array<{ date: string; activityId: string; name: string }> = [];
+                    for (const l of doneFiltered
+                        .slice()
+                        .sort((a, b) => String(b.date).localeCompare(String(a.date)))) {
+                        const date = String(l.date);
+                        const actId = String(l.activityId);
+                        const k = `${date}-${actId}`;
+                        if (seenFiltered.has(k)) continue;
+                        seenFiltered.add(k);
+                        recentFiltered.push({ date, activityId: actId, name: nameMapFiltered[actId] || actId });
+                        if (recentFiltered.length >= 5) break;
+                    }
+                    setRecentCompletions(recentFiltered);
 
                     // Also infer content posts from highlights text in last 7 days
                     const last7Set = new Set(last7Days);
@@ -409,15 +487,28 @@ export default function Dashboard() {
                     suggestions.push(`Content posts: ${content7}/7`);
                     if (contentIdsFinal.length && content7 < 3) suggestions.push(`Plan at least 3 posts next week.`);
 
-                    // Sleep Early / Habit insights
-                    const sleepEarlyIds = habitIdsFinal.filter((id) => (nameLowerMap[id] || '').includes('sleep early'));
-                    const sleepEarly7 = daysCountForIds(sleepEarlyIds);
-                    if (sleepEarlyIds.length) {
-                        suggestions.push(`Sleep early nights: ${sleepEarly7}/7`);
-                        if (sleepEarly7 <= 3) suggestions.push(`Aim for ≥4 early nights next week.`);
+                    // Sleep Late / Habit insights (stop-oriented)
+                    const sleepLateIds = stopIdsFinal.filter((id) => (nameLowerMap[id] || '').includes('sleep late'));
+                    const sleepLate7 = daysCountForIds(sleepLateIds);
+                    if (sleepLateIds.length) {
+                        suggestions.push(`Sleep late nights: ${sleepLate7}/7`);
+                        if (sleepLate7 >= 3) suggestions.push(`Aim for ≤2 late nights next week.`);
                     } else if (habitIdsFinal.length) {
                         suggestions.push(`Habit days: ${habitDays7}/7`);
                     }
+
+                    // Build explicit activity status lists: To Stop vs To Continue
+                    const toStopList = stopIdsFinal
+                        .map((id) => ({ name: actNameMap[id] || id, count: freq7[id] || 0, prev: freqPrev7[id] || 0 }))
+                        .sort((a, b) => b.count - a.count);
+                    const continueIds = allActs
+                        .filter((a) => (a.status || 'to continue') === 'to continue' && !stopIdsFinal.includes(a.id))
+                        .map((a) => a.id);
+                    const toContinueList = continueIds
+                        .map((id) => ({ name: actNameMap[id] || id, count: freq7[id] || 0 }))
+                        .sort((a, b) => b.count - a.count);
+                    setToStopActs(toStopList);
+                    setToContinueActs(toContinueList);
 
                     // Highlight engagement
                     const highlightDays = highlightsItems.length;
@@ -425,26 +516,15 @@ export default function Dashboard() {
                     if (highlightDays < 10) suggestions.push(`Try logging more highlights (<10/30).`);
 
                     // Low-activity focus (last 7)
-                    const lowActs = Object.keys(freq7)
-                        .map((id) => ({ id, count: freq7[id], name: actNameMap[id] || id }))
+                    const lowActs = continueIdsAll
+                        .map((id) => ({ id, count: freq7[id] || 0, name: actNameMap[id] || id }))
                         .sort((a, b) => a.count - b.count)
                         .slice(0, 3);
                     for (const la of lowActs) {
                         suggestions.push(`${la.name}: ${la.count}/7 (low). Add a session.`);
                     }
 
-                    // Stopped habits: logs in last 7
-                    const stoppedIds = new Set(allActs.filter((a) => (a.status || 'active') === 'stopped').map((a) => a.id));
-                    const stoppedCount = Object.entries(freq7).reduce((acc, [id, c]) => acc + (stoppedIds.has(id) ? (c || 0) : 0), 0);
-                    if (stoppedCount > 0) {
-                        const topStopped = Array.from(stoppedIds)
-                            .map((id) => ({ id, count: freq7[id] || 0, name: actNameMap[id] || id }))
-                            .filter((x) => x.count > 0)
-                            .sort((a, b) => b.count - a.count)
-                            .slice(0, 3);
-                        suggestions.push(`Stopped habits: ${stoppedCount} logs in 7 days`);
-                        for (const s of topStopped) suggestions.push(`• ${s.name}: ${s.count}/7 — plan a replacement.`);
-                    }
+                    // Removed "Stopped habits" logic; use explicit To Stop list above
 
                     // Next 7-day plan (simple forecast)
                     if (gymIdsFinal.length && gymDays7 < 3) suggestions.push(`Plan: 3 exercise days next week.`);
@@ -457,7 +537,7 @@ export default function Dashboard() {
                     if (coffeeDays7 >= 6 && streakLocal < 3) suggestions.push(`Caffeine ≥6/7 with low streak — try an earlier cut-off.`);
 
                     // Update summary cards
-                    setSummary7({ exercise: gymDays7, caffeine: coffeeDays7, supplements: adherence, alcohol: alcoholDays7, leisure: vgDays7, content: content7, stopped: stoppedCount });
+                    setSummary7({ exercise: gymDays7, caffeine: coffeeDays7, supplements: adherence, alcohol: alcoholDays7, leisure: vgDays7, content: content7, stopped: toStopCount });
 
                     setInsights(suggestions);
                 }
@@ -572,9 +652,13 @@ export default function Dashboard() {
                             <div className="text-xs text-neutral-500">Content Posts</div>
                             <div className="text-lg font-semibold">{summary7.content}</div>
                         </div>
+                        <div className="rounded border p-3">
+                            <div className="text-xs text-neutral-500">To Stop Logs</div>
+                            <div className="text-lg font-semibold">{summary7.stopped}</div>
+                        </div>
                     </div>
                     {summary7.stopped > 0 && (
-                        <div className="mt-2 text-xs text-red-600 dark:text-red-400">Stopped habits logged: {summary7.stopped} in last 7 days</div>
+                        <div className="mt-2 text-xs text-red-600 dark:text-red-400">To-stop logs: {summary7.stopped} in last 7 days</div>
                     )}
                 </div>
                 <div className="rounded border p-4 sm:col-span-2">
@@ -588,6 +672,29 @@ export default function Dashboard() {
                         )) : <li className="text-neutral-500">No recent completions</li>}
                     </ul>
                 </div>
+                <div className="rounded border p-4 sm:col-span-2">
+                    <div className="text-sm text-neutral-500">To Stop (7d)</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {toStopActs.length ? toStopActs.map((s) => (
+                            <li key={s.name} className="flex justify-between">
+                                <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
+                                <span className="text-neutral-500">{s.count} (prev {s.prev})</span>
+                            </li>
+                        )) : <li className="text-neutral-500">No activities marked to stop</li>}
+                    </ul>
+                </div>
+                <div className="rounded border p-4 sm:col-span-2">
+                    <div className="text-sm text-neutral-500">To Continue (7d)</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {toContinueActs.length ? toContinueActs.map((s) => (
+                            <li key={s.name} className="flex justify-between">
+                                <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
+                                <span className="text-neutral-500">{s.count}</span>
+                            </li>
+                        )) : <li className="text-neutral-500">No activities marked to continue</li>}
+                    </ul>
+                </div>
+                {/* Removed Stopped Habits card: statuses use To Stop / To Continue */}
             </div>
 
             <div className="rounded border p-4">

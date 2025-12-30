@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ActivityStatus, Activity, Log } from '@/lib/types';
 
-type Activity = { id: string; name: string; status?: 'active' | 'stopped' };
- type Log = { date: string; activityId: string; completed: boolean };
+// Types are imported from shared lib
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -184,7 +184,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
               <tr key={a.id}>
                 <td className="sticky left-0 bg-white p-2 text-sm dark:bg-neutral-950">
                   <div className="flex items-center gap-2">
-                    <span className={(a.status || 'active') === 'stopped' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
+                    <span className={(a.status || 'to continue') === 'to stop' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
                       {a.name}
                     </span>
                   </div>

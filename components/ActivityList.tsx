@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import type { ActivityStatus, Activity, CatalogItem } from '@/lib/types';
 
-type Activity = { id: string; name: string; status?: 'active' | 'stopped'; catalogId?: string };
-type CatalogItem = { id: string; name: string; category: string; tags?: string };
+// Types now imported from shared lib
 
 export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
@@ -70,7 +70,7 @@ export default function ActivityList() {
 
   async function add() {
     if (!name.trim()) return;
-    const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name }), headers: { 'Content-Type': 'application/json' } });
+    const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name, status: 'to continue' }), headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) {
       let msg = 'Failed to create activity';
       try { const j = await res.json(); msg = j?.error || msg; } catch { }
@@ -85,7 +85,7 @@ export default function ActivityList() {
     if (!n.trim()) return;
     setAddingId(n);
     try {
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: n }), headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: n, status: 'to continue' }), headers: { 'Content-Type': 'application/json' } });
       if (!res.ok) return;
       refresh();
     } finally {
@@ -98,7 +98,7 @@ export default function ActivityList() {
     refresh();
   }
 
-  async function updateStatus(id: string, status: 'active' | 'stopped') {
+  async function updateStatus(id: string, status: ActivityStatus) {
     await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'Content-Type': 'application/json' } });
     refresh();
   }
@@ -109,7 +109,7 @@ export default function ActivityList() {
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: c.name, catalogId: c.id, status: 'active' }),
+        body: JSON.stringify({ name: c.name, catalogId: c.id, status: 'to continue' }),
       });
       if (res.ok) refresh();
     } finally {
@@ -168,31 +168,65 @@ export default function ActivityList() {
 
       <div className="rounded border p-4">
         <div className="mb-3 text-sm text-neutral-500">Your Activities</div>
-        <ul className="space-y-2">
-          {items.map((a, i) => (
-            <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
-              <input
-                className={`flex-1 rounded border px-2 py-1 ${((a.status || 'active') === 'stopped') ? 'text-red-600 line-through italic dark:text-red-400' : ''}`}
-                defaultValue={a.name}
-                onBlur={(e) => updateName(a.id, e.target.value)}
-              />
-              {a.catalogId && (
-                <span className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
-                  {catalog.find((c) => c.id === a.catalogId)?.category || '—'}
-                </span>
-              )}
-              <select
-                className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
-                value={a.status || 'active'}
-                onChange={(e) => updateStatus(a.id, (e.target.value as 'active' | 'stopped'))}
-              >
-                <option value="active">Continue</option>
-                <option value="stopped">Stop</option>
-              </select>
-              <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
-            </li>
-          ))}
-        </ul>
+        {/* Grouped by status */}
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2 text-xs font-semibold">To Continue</div>
+            <ul className="space-y-2">
+              {items.filter((a) => (a.status || 'to continue') === 'to continue').map((a, i) => (
+                <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
+                  <input
+                    className="flex-1 rounded border px-2 py-1"
+                    defaultValue={a.name}
+                    onBlur={(e) => updateName(a.id, e.target.value)}
+                  />
+                  {a.catalogId && (
+                    <span className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
+                      {catalog.find((c) => c.id === a.catalogId)?.category || '—'}
+                    </span>
+                  )}
+                  <select
+                    className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
+                    value={a.status || 'to continue'}
+                    onChange={(e) => updateStatus(a.id, (e.target.value as ActivityStatus))}
+                  >
+                    <option value="to continue">To Continue</option>
+                    <option value="to stop">To Stop</option>
+                  </select>
+                  <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-xs font-semibold">To Stop</div>
+            <ul className="space-y-2">
+              {items.filter((a) => (a.status || 'to continue') === 'to stop').map((a, i) => (
+                <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
+                  <input
+                    className="flex-1 rounded border px-2 py-1 text-red-600 line-through italic dark:text-red-400"
+                    defaultValue={a.name}
+                    onBlur={(e) => updateName(a.id, e.target.value)}
+                  />
+                  {a.catalogId && (
+                    <span className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
+                      {catalog.find((c) => c.id === a.catalogId)?.category || '—'}
+                    </span>
+                  )}
+                  <select
+                    className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
+                    value={a.status || 'to continue'}
+                    onChange={(e) => updateStatus(a.id, (e.target.value as ActivityStatus))}
+                  >
+                    <option value="to continue">To Continue</option>
+                    <option value="to stop">To Stop</option>
+                  </select>
+                  <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   );
