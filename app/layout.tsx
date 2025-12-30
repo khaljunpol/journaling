@@ -1,5 +1,6 @@
 import AppHeader from '@/components/AppHeader';
 import type { ReactNode } from 'react';
+// @ts-ignore: side-effect global CSS import for Next.js
 import './globals.css';
 
 export const metadata = {

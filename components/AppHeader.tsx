@@ -22,6 +22,7 @@ export default function AppHeader() {
           <Link href="/" className="whitespace-nowrap underline-offset-2 hover:underline">Dashboard</Link>
           <Link href="/journal" className="whitespace-nowrap underline-offset-2 hover:underline">Journal</Link>
           <Link href="/activities" className="whitespace-nowrap underline-offset-2 hover:underline">Activities</Link>
+          <Link href="/catalog" className="whitespace-nowrap underline-offset-2 hover:underline">Catalog</Link>
           <Link href="/metrics" className="whitespace-nowrap underline-offset-2 hover:underline">Metrics</Link>
           <LogoutButton />
         </nav>

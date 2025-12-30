@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { SUGGESTED_ACTIVITIES } from '@/lib/activityCatalog';
 
-type Activity = { id: string; name: string };
+type Activity = { id: string; name: string; status?: 'active' | 'stopped'; catalogId?: string };
+type CatalogItem = { id: string; name: string; category: string; tags?: string };
 
 export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
@@ -12,6 +12,7 @@ export default function ActivityList() {
   const fetchVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
 
   useEffect(() => {
     const cookieAccount = (() => {
@@ -57,6 +58,14 @@ export default function ActivityList() {
     if (actsCtrlRef.current) actsCtrlRef.current.abort();
     setItems([]);
     refresh();
+    // Also refresh catalog (shared)
+    (async () => {
+      try {
+        const res = await fetch('/api/catalog');
+        const data = await res.json();
+        setCatalog(Array.isArray(data) ? data : []);
+      } catch { setCatalog([]); }
+    })();
   }, [account]);
 
   async function add() {
@@ -64,7 +73,7 @@ export default function ActivityList() {
     const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name }), headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) {
       let msg = 'Failed to create activity';
-      try { const j = await res.json(); msg = j?.error || msg; } catch {}
+      try { const j = await res.json(); msg = j?.error || msg; } catch { }
       console.error(msg);
       return;
     }
@@ -84,9 +93,28 @@ export default function ActivityList() {
     }
   }
 
-  async function update(id: string, newName: string) {
+  async function updateName(id: string, newName: string) {
     await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
     refresh();
+  }
+
+  async function updateStatus(id: string, status: 'active' | 'stopped') {
+    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'Content-Type': 'application/json' } });
+    refresh();
+  }
+
+  async function addFromCatalog(c: CatalogItem) {
+    setAddingId(c.id);
+    try {
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: c.name, catalogId: c.id, status: 'active' }),
+      });
+      if (res.ok) refresh();
+    } finally {
+      setAddingId(null);
+    }
   }
 
   async function remove(id: string) {
@@ -95,36 +123,77 @@ export default function ActivityList() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-medium">Activities</h2>
-      <div className="flex gap-2">
-        <input className="flex-1 rounded border px-2 py-1" placeholder="New activity" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="rounded bg-black px-3 py-1 text-white dark:bg-white dark:text-black" onClick={add}>Add</button>
+    <section className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Activities</h2>
+        <a href="/catalog" className="text-sm underline underline-offset-2 hover:no-underline">Manage Catalog</a>
       </div>
-      <div className="rounded border p-3">
-        <div className="text-sm text-neutral-600">Suggested</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {SUGGESTED_ACTIVITIES.map((s) => (
-            <button
-              key={s.name}
-              className={`rounded border px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 ${addingId === s.name ? 'opacity-60' : ''}`}
-              onClick={() => quickAdd(s.name)}
-              disabled={addingId === s.name}
-              title={s.insight}
-            >
-              {s.name}
-            </button>
-          ))}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded border p-4">
+          <div className="text-sm text-neutral-500">Add New Activity</div>
+          <div className="mt-2 flex gap-2">
+            <input className="flex-1 rounded border px-2 py-2" placeholder="Activity name" value={name} onChange={(e) => setName(e.target.value)} />
+            <button className="rounded bg-black px-3 py-2 text-white dark:bg-white dark:text-black" onClick={add}>Add</button>
+          </div>
+          <p className="mt-2 text-xs text-neutral-500">Use Catalog below for quick adds</p>
+        </div>
+
+        <div className="rounded border p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-neutral-500">Add from Catalog</div>
+            <a href="/catalog" className="text-xs underline underline-offset-2 hover:no-underline">Edit Catalog</a>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {catalog
+              .filter((c) => {
+                const byCatalogId = items.some((a) => (a.catalogId || '') === c.id);
+                const byName = items.some((a) => a.name.trim().toLowerCase() === c.name.trim().toLowerCase());
+                return !byCatalogId && !byName;
+              })
+              .map((c) => (
+                <button
+                  key={c.id}
+                  className={`rounded border px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 ${addingId === c.id ? 'opacity-60' : ''}`}
+                  onClick={() => addFromCatalog(c)}
+                  disabled={addingId === c.id}
+                  title={`${c.category}${c.tags ? ` • ${c.tags}` : ''}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+          </div>
         </div>
       </div>
-      <ul className="space-y-2">
-        {items.map((a, i) => (
-          <li key={a.id || i} className="flex items-center gap-2">
-            <input className="flex-1 rounded border px-2 py-1" defaultValue={a.name} onBlur={(e) => update(a.id, e.target.value)} />
-            <button className="rounded border px-2 py-1" onClick={() => remove(a.id)}>Delete</button>
-          </li>
-        ))}
-      </ul>
+
+      <div className="rounded border p-4">
+        <div className="mb-3 text-sm text-neutral-500">Your Activities</div>
+        <ul className="space-y-2">
+          {items.map((a, i) => (
+            <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
+              <input
+                className={`flex-1 rounded border px-2 py-1 ${((a.status || 'active') === 'stopped') ? 'text-red-600 line-through italic dark:text-red-400' : ''}`}
+                defaultValue={a.name}
+                onBlur={(e) => updateName(a.id, e.target.value)}
+              />
+              {a.catalogId && (
+                <span className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
+                  {catalog.find((c) => c.id === a.catalogId)?.category || '—'}
+                </span>
+              )}
+              <select
+                className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
+                value={a.status || 'active'}
+                onChange={(e) => updateStatus(a.id, (e.target.value as 'active' | 'stopped'))}
+              >
+                <option value="active">Continue</option>
+                <option value="stopped">Stop</option>
+              </select>
+              <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

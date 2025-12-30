@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type Activity = { id: string; name: string };
+type Activity = { id: string; name: string; status?: 'active' | 'stopped' };
  type Log = { date: string; activityId: string; completed: boolean };
 
 function daysInMonth(year: number, month: number) {
@@ -69,7 +69,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
-      if (vActs === actsVersionRef.current) setActivities(Array.isArray(data) ? data : []);
+      const arr: Activity[] = Array.isArray(data) ? data : [];
+      if (vActs === actsVersionRef.current) setActivities(arr);
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
   }
 
@@ -181,7 +182,13 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
           <tbody>
             {activities.map((a) => (
               <tr key={a.id}>
-                <td className="sticky left-0 bg-white p-2 text-sm dark:bg-neutral-950">{a.name}</td>
+                <td className="sticky left-0 bg-white p-2 text-sm dark:bg-neutral-950">
+                  <div className="flex items-center gap-2">
+                    <span className={(a.status || 'active') === 'stopped' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
+                      {a.name}
+                    </span>
+                  </div>
+                </td>
                 {days.map((d) => {
                   const dateISO = toLocalISO(year, month, d);
                   const checked = cellChecked(dateISO, a.id);
