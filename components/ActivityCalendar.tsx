@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Activity = { id: string; name: string };
  type Log = { date: string; activityId: string; completed: boolean };
@@ -25,13 +25,36 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const todayM = today.getMonth();
   const todayD = today.getDate();
   const [account, setAccount] = useState<string>('Alex');
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const todayBtnRef = useRef<HTMLButtonElement | null>(null);
+  const actsVersionRef = useRef(0);
+  const logsVersionRef = useRef(0);
+  const actsCtrlRef = useRef<AbortController | null>(null);
+  const logsCtrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
+    const cookieAccount = (() => {
+      try {
+        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : null;
+      } catch { return null; }
+    })();
+    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
     const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
+    const onAccountChange = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      const cookieAcc = (() => {
+        try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
+      })();
+      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('account-change', onAccountChange as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('account-change', onAccountChange as EventListener);
+    };
   }, []);
 
   const days = useMemo(() => Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1), [year, month]);
@@ -39,29 +62,49 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const toISO = useMemo(() => `${year}-${pad(month + 1)}-${pad(daysInMonth(year, month))}`, [year, month]);
 
   async function fetchActivities() {
+    const vActs = ++actsVersionRef.current;
     try {
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`);
-      if (!res.ok) { setActivities([]); return; }
+      if (actsCtrlRef.current) actsCtrlRef.current.abort();
+      actsCtrlRef.current = new AbortController();
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
+      if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
-      setActivities(Array.isArray(data) ? data : []);
-    } catch { setActivities([]); }
+      if (vActs === actsVersionRef.current) setActivities(Array.isArray(data) ? data : []);
+    } catch { if (vActs === actsVersionRef.current) setActivities([]); }
   }
 
   async function fetchRangeLogs() {
+    const vLogs = ++logsVersionRef.current;
     try {
-      const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`);
-      if (!res.ok) { setLogs({}); return; }
+      if (logsCtrlRef.current) logsCtrlRef.current.abort();
+      logsCtrlRef.current = new AbortController();
+      const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: logsCtrlRef.current.signal });
+      if (!res.ok) { if (vLogs === logsVersionRef.current) setLogs({}); return; }
       const data: Log[] = await res.json();
       const map: Record<string, boolean> = {};
       for (const l of Array.isArray(data) ? data : []) {
         map[`${l.date}|${l.activityId}`] = !!l.completed;
       }
-      setLogs(map);
-    } catch { setLogs({}); }
+      if (vLogs === logsVersionRef.current) setLogs(map);
+    } catch { if (vLogs === logsVersionRef.current) setLogs({}); }
   }
 
-  useEffect(() => { fetchActivities(); }, [account]);
+  useEffect(() => {
+    // Clear on account change and abort in-flight requests
+    if (actsCtrlRef.current) actsCtrlRef.current.abort();
+    if (logsCtrlRef.current) logsCtrlRef.current.abort();
+    setActivities([]);
+    setLogs({});
+    fetchActivities();
+  }, [account]);
   useEffect(() => { fetchRangeLogs(); }, [fromISO, toISO, account]);
+
+  // On load and when month/year changes, scroll horizontally to today's column if visible
+  useEffect(() => {
+    if (year === todayY && month === todayM && todayBtnRef.current) {
+      todayBtnRef.current.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }
+  }, [year, month]);
 
   async function toggle(dateISO: string, activityId: string, checked: boolean) {
     const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: dateISO, activityId, completed: checked }) });
@@ -109,7 +152,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         <button className="rounded border px-2 py-1" onClick={nextMonth}>Next</button>
       </div>
 
-      <div className="overflow-auto rounded border">
+      <div ref={scrollRef} className="overflow-auto rounded border">
         <table className="min-w-full border-collapse">
           <thead>
             <tr>
@@ -117,6 +160,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
               {days.map((d) => (
                 <th key={d} className={`p-2 text-xs font-medium ${selectedDay === d ? 'bg-neutral-100 dark:bg-neutral-900' : ''}`}>
                   <button
+                    ref={year === todayY && month === todayM && d === todayD ? (el) => { todayBtnRef.current = el; } : undefined}
                     className={`cursor-pointer rounded-full px-3 py-1 transition-colors ${
                       selectedDay === d
                         ? 'bg-black text-white ring-2 ring-blue-500 dark:bg-white dark:text-black dark:ring-blue-400'

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Activity = { id: string; name: string };
 
@@ -8,27 +8,54 @@ export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
   const [name, setName] = useState('');
   const [account, setAccount] = useState<string>('Alex');
+  const fetchVersionRef = useRef(0);
+  const actsCtrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
+    const cookieAccount = (() => {
+      try {
+        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : null;
+      } catch { return null; }
+    })();
+    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
     const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
+    const onAccountChange = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      const cookieAcc = (() => {
+        try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
+      })();
+      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('account-change', onAccountChange as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('account-change', onAccountChange as EventListener);
+    };
   }, []);
 
   async function refresh() {
+    const v = ++fetchVersionRef.current;
     try {
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`);
-      if (!res.ok) { setItems([]); return; }
+      if (actsCtrlRef.current) actsCtrlRef.current.abort();
+      actsCtrlRef.current = new AbortController();
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
+      if (!res.ok) { if (v === fetchVersionRef.current) setItems([]); return; }
       const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
+      if (v === fetchVersionRef.current) setItems(Array.isArray(data) ? data : []);
     } catch {
-      setItems([]);
+      if (v === fetchVersionRef.current) setItems([]);
     }
   }
 
-  useEffect(() => { refresh(); }, [account]);
+  useEffect(() => {
+    // Clear items and abort in-flight requests on account change, then refresh
+    if (actsCtrlRef.current) actsCtrlRef.current.abort();
+    setItems([]);
+    refresh();
+  }, [account]);
 
   async function add() {
     if (!name.trim()) return;
