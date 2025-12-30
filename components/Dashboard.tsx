@@ -127,7 +127,17 @@ export default function Dashboard() {
                 actsCtrlRef.current = new AbortController();
                 const actsRes = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
                 const acts: Activity[] = actsRes.ok ? await actsRes.json() : [];
-                allActs = Array.isArray(acts) ? acts : [];
+                allActs = Array.isArray(acts)
+                    ? (acts as any[]).map((a: any) => ({
+                          ...a,
+                          status:
+                              a?.status === 'stopped'
+                                  ? 'to stop'
+                                  : a?.status === 'active'
+                                  ? 'to continue'
+                                  : ((a?.status as Activity['status']) || 'to continue'),
+                      }))
+                    : [];
                 currentActs = allActs.filter((a) => (a.status || 'to continue') === 'to continue');
                 if (v === fetchVersionRef.current) setActivities(currentActs);
             } catch { setActivities([]); }

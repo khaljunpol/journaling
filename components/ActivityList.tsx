@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, CatalogItem } from '@/lib/types';
+import { normalizeStatus, toBackendStatus } from '@/lib/status';
 
 // Types now imported from shared lib
 
@@ -47,7 +48,8 @@ export default function ActivityList() {
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (v === fetchVersionRef.current) setItems([]); return; }
       const data = await res.json();
-      if (v === fetchVersionRef.current) setItems(Array.isArray(data) ? data : []);
+      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+      if (v === fetchVersionRef.current) setItems(arr);
     } catch {
       if (v === fetchVersionRef.current) setItems([]);
     }
@@ -68,9 +70,17 @@ export default function ActivityList() {
     })();
   }, [account]);
 
+  const [category, setCategory] = useState('');
+  const [tags, setTags] = useState('');
+
   async function add() {
-    if (!name.trim()) return;
-    const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name, status: 'to continue' }), headers: { 'Content-Type': 'application/json' } });
+    const nm = name.trim();
+    if (!nm) return;
+    // Try auto-link to catalog by name match
+    const match = catalog.find((c) => c.name.trim().toLowerCase() === nm.toLowerCase());
+    const payload: any = { name: nm, status: toBackendStatus('to continue') };
+    if (match) payload.catalogId = match.id;
+    const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) {
       let msg = 'Failed to create activity';
       try { const j = await res.json(); msg = j?.error || msg; } catch { }
@@ -78,6 +88,8 @@ export default function ActivityList() {
       return;
     }
     setName('');
+    setCategory('');
+    setTags('');
     refresh();
   }
 
@@ -85,7 +97,7 @@ export default function ActivityList() {
     if (!n.trim()) return;
     setAddingId(n);
     try {
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: n, status: 'to continue' }), headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: n, status: toBackendStatus('to continue') }), headers: { 'Content-Type': 'application/json' } });
       if (!res.ok) return;
       refresh();
     } finally {
@@ -99,7 +111,7 @@ export default function ActivityList() {
   }
 
   async function updateStatus(id: string, status: ActivityStatus) {
-    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'Content-Type': 'application/json' } });
+    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ status: toBackendStatus(status) }), headers: { 'Content-Type': 'application/json' } });
     refresh();
   }
 
@@ -135,6 +147,41 @@ export default function ActivityList() {
           <div className="mt-2 flex gap-2">
             <input className="flex-1 rounded border px-2 py-2" placeholder="Activity name" value={name} onChange={(e) => setName(e.target.value)} />
             <button className="rounded bg-black px-3 py-2 text-white dark:bg-white dark:text-black" onClick={add}>Add</button>
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <input
+                className="w-full rounded border px-2 py-2"
+                placeholder="Category (suggested)"
+                list="categoriesList"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              />
+              <datalist id="categoriesList">
+                {Array.from(new Set(catalog.map((c) => c.category))).map((cat) => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <input
+                className="w-full rounded border px-2 py-2"
+                placeholder="Tags (comma-separated, suggested)"
+                list="tagsList"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+              <datalist id="tagsList">
+                {Array.from(new Set(
+                  catalog.flatMap((c) => (c.tags || '')
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean))
+                )).map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+            </div>
           </div>
           <p className="mt-2 text-xs text-neutral-500">Use Catalog below for quick adds</p>
         </div>

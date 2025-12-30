@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
+import { normalizeStatus } from '@/lib/status';
 
 // Types are imported from shared lib
 
@@ -69,7 +70,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
-      const arr: Activity[] = Array.isArray(data) ? data : [];
+      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
       if (vActs === actsVersionRef.current) setActivities(arr);
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
   }
