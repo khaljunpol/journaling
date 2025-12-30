@@ -233,6 +233,51 @@ export async function getHighlight(account: string, dateISO: string) {
   return '';
 }
 
+// Weights per account
+// Sheet "Weights_<account>": columns [date ISO, weight]
+export async function getWeight(account: string, dateISO: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Weights_${account}`;
+  await ensureSheetExists(title, ['date', 'weight']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === dateISO) {
+      const w = parseFloat(String(values[i][1] || '').trim());
+      return Number.isFinite(w) ? w : null;
+    }
+  }
+  return null;
+}
+
+export async function setWeight(account: string, dateISO: string, weight: number) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Weights_${account}`;
+  await ensureSheetExists(title, ['date', 'weight']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex === -1) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${title}!A1:B`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[dateISO, String(weight)]] },
+    });
+  } else {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${title}!B${rowIndex}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[String(weight)]] },
+    });
+  }
+}
 export async function getConsistencyMetrics(account: string) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();

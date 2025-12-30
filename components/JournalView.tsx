@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import ActivityCalendar from '@/components/ActivityCalendar';
 import DailyHighlight from '@/components/DailyHighlight';
+import DailyWeight from '@/components/DailyWeight';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() {
@@ -60,6 +61,7 @@ export default function JournalView() {
 
       <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={setSelectedDate} />
       <DailyHighlight dateISO={selectedDate} />
+      <DailyWeight dateISO={selectedDate} />
     </div>
   );
 }
