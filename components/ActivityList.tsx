@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { SUGGESTED_ACTIVITIES } from '@/lib/activityCatalog';
 
 type Activity = { id: string; name: string };
 
@@ -10,6 +11,7 @@ export default function ActivityList() {
   const [account, setAccount] = useState<string>('Alex');
   const fetchVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => {
@@ -70,6 +72,18 @@ export default function ActivityList() {
     refresh();
   }
 
+  async function quickAdd(n: string) {
+    if (!n.trim()) return;
+    setAddingId(n);
+    try {
+      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: n }), headers: { 'Content-Type': 'application/json' } });
+      if (!res.ok) return;
+      refresh();
+    } finally {
+      setAddingId(null);
+    }
+  }
+
   async function update(id: string, newName: string) {
     await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
     refresh();
@@ -86,6 +100,22 @@ export default function ActivityList() {
       <div className="flex gap-2">
         <input className="flex-1 rounded border px-2 py-1" placeholder="New activity" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="rounded bg-black px-3 py-1 text-white dark:bg-white dark:text-black" onClick={add}>Add</button>
+      </div>
+      <div className="rounded border p-3">
+        <div className="text-sm text-neutral-600">Suggested</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SUGGESTED_ACTIVITIES.map((s) => (
+            <button
+              key={s.name}
+              className={`rounded border px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 ${addingId === s.name ? 'opacity-60' : ''}`}
+              onClick={() => quickAdd(s.name)}
+              disabled={addingId === s.name}
+              title={s.insight}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
       </div>
       <ul className="space-y-2">
         {items.map((a, i) => (

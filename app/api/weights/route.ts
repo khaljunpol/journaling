@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getWeight, setWeight } from '@/lib/googleSheets';
+import { getWeight, setWeight, getWeightsBetween } from '@/lib/googleSheets';
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const account = url.searchParams.get('account') || 'Alex';
     const date = url.searchParams.get('date');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    if (from && to) {
+      const series = await getWeightsBetween(account, from, to);
+      return NextResponse.json(series);
+    }
     if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
     const weight = await getWeight(account, date);
     return NextResponse.json({ weight });

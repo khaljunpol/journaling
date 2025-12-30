@@ -278,6 +278,43 @@ export async function setWeight(account: string, dateISO: string, weight: number
     });
   }
 }
+
+export async function getWeightsBetween(account: string, fromISO: string, toISO: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Weights_${account}`;
+  await ensureSheetExists(title, ['date', 'weight']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return values
+    .map(([date, weight]) => ({
+      date: String(date).trim(),
+      weight: parseFloat(String(weight ?? '').trim()),
+    }))
+    .filter(({ date, weight }) => {
+      const t = new Date(date).getTime();
+      return !Number.isNaN(t) && t >= from && t <= to && Number.isFinite(weight);
+    });
+}
+
+export async function getHighlightsBetween(account: string, fromISO: string, toISO: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Highlights_${account}`;
+  await ensureSheetExists(title, ['date', 'text']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return values
+    .map(([date, text]) => ({ date: String(date).trim(), text: String(text ?? '').trim() }))
+    .filter(({ date }) => {
+      const t = new Date(date).getTime();
+      return !Number.isNaN(t) && t >= from && t <= to;
+    });
+}
 export async function getConsistencyMetrics(account: string) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
