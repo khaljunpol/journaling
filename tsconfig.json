@@ -10,7 +10,6 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "resolveJsonModule": true,
-    "allowArbitraryExtensions": true,
     "isolatedModules": true,
     "noEmit": true,
     "strict": true,
@@ -28,7 +27,6 @@
     },
     "allowJs": true,
     "incremental": true,
-    "ignoreDeprecations": "6.0",
     "plugins": [
       {
         "name": "next"
@@ -39,7 +37,6 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "**/*.d.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
