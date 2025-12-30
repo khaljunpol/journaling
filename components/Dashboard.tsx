@@ -281,8 +281,8 @@ export default function Dashboard() {
                         const w0 = weightSeries[0].weight;
                         const wN = weightSeries[weightSeries.length - 1].weight;
                         weightTrend = wN - w0;
-                        const changeStr = `${weightTrend >= 0 ? '+' : ''}${Math.round(weightTrend * 10) / 10} kg over 30d`;
-                        suggestions.push(`Weight trend: ${changeStr}`);
+                        const changeStr = `${weightTrend >= 0 ? '+' : ''}${Math.round(weightTrend * 10) / 10} kg in 30 days`;
+                        suggestions.push(`Weight change: ${changeStr}`);
                     }
 
                     // Compute category frequencies
@@ -352,15 +352,26 @@ export default function Dashboard() {
                     const habitIds = idsForCategory('habit');
                     const habitIdsFinal = withKeywords(habitIds, 'habit');
 
-                    // Counts using final ID sets (include keyword-matched activities)
+                    // Counts using final ID sets
+                    // Per-activity frequency (days per activity in last 7)
                     const countForIds = (ids: string[]) => ids.reduce((acc, id) => acc + (freq7[id] || 0), 0);
-                    const gym7 = countForIds(gymIdsFinal);
-                    const coffee7 = countForIds(coffeeIdsFinal);
+                    // Per-category day count (unique days with any matching activity)
+                    const daysCountForIds = (ids: string[]) => {
+                        const idsSet = new Set(ids);
+                        let days = 0;
+                        for (const day of last7Days) {
+                            const set = doneByDay[day];
+                            if (set && Array.from(set).some((id) => idsSet.has(id))) days += 1;
+                        }
+                        return days;
+                    };
+                    const gymDays7 = daysCountForIds(gymIdsFinal);
+                    const coffeeDays7 = daysCountForIds(coffeeIdsFinal);
                     const supp7 = countForIds(suppIdsFinal);
-                    let content7 = countForIds(contentIdsFinal);
-                    const alcohol7 = countForIds(alcoholIdsFinal);
-                    const vg7 = countForIds(vgIdsFinal);
-                    const habit7 = countForIds(habitIdsFinal);
+                    let contentDays7 = daysCountForIds(contentIdsFinal);
+                    const alcoholDays7 = daysCountForIds(alcoholIdsFinal);
+                    const vgDays7 = daysCountForIds(vgIdsFinal);
+                    const habitDays7 = daysCountForIds(habitIdsFinal);
                     const adherence = suppIdsFinal.length ? Math.round((supp7 / (7 * suppIdsFinal.length)) * 100) : 0;
 
                     // Also infer content posts from highlights text in last 7 days
@@ -372,46 +383,46 @@ export default function Dashboard() {
                             const txt = norm(h.text || '');
                             return acc + (contentKWs.some((kw) => txt.includes(kw)) ? 1 : 0);
                         }, 0);
-                    content7 = Math.max(content7, content7FromHighlights);
+                    const content7 = Math.max(contentDays7, content7FromHighlights);
 
                     // Suggestions based on categories
                     if (gymIdsFinal.length) {
-                        suggestions.push(`Exercise: ${gym7} of last 7 days`);
-                        if (gym7 <= 2) suggestions.push(`Consider scheduling more exercise days (≤2 of last 7).`);
+                        suggestions.push(`Exercise days: ${gymDays7}/7`);
+                        if (gymDays7 <= 2) suggestions.push(`Try more exercise this week (≤2/7).`);
                     }
                     if (coffeeIdsFinal.length) {
-                        suggestions.push(`Caffeine: ${coffee7} of last 7 days`);
-                        if (coffee7 >= 6) suggestions.push(`High caffeine frequency (≥6 of 7). Consider reducing for balance.`);
+                        suggestions.push(`Caffeine days: ${coffeeDays7}/7`);
+                        if (coffeeDays7 >= 6) suggestions.push(`Caffeine is high (≥6/7). Try cutting back.`);
                     }
                     if (suppIdsFinal.length) {
-                        suggestions.push(`Supplements: ${adherence}% adherence (last 7 days)`);
-                        if (adherence < 60) suggestions.push(`Supplements adherence is low (<60%). Plan daily reminders.`);
+                        suggestions.push(`Supplements adherence: ${adherence}% (7 days)`);
+                        if (adherence < 60) suggestions.push(`Adherence is low (<60%). Set a daily reminder.`);
                     }
                     if (alcoholIdsFinal.length) {
-                        suggestions.push(`Alcohol: ${alcohol7} of last 7 days`);
-                        if (alcohol7 >= 3) suggestions.push(`Consider reducing alcohol (≥3 of 7) to support recovery.`);
-                        if (weightTrend > 0 && alcohol7 >= 2) suggestions.push(`Weight increasing with alcohol ≥2 of 7; reduce intake.`);
+                        suggestions.push(`Alcohol days: ${alcoholDays7}/7`);
+                        if (alcoholDays7 >= 3) suggestions.push(`Alcohol is frequent (≥3/7). Consider reducing.`);
+                        if (weightTrend > 0 && alcoholDays7 >= 2) suggestions.push(`Weight is rising with alcohol (≥2/7). Try less.`);
                     }
-                    if (vgIdsFinal.length && vg7 >= 5) {
-                        suggestions.push(`High leisure (≥5/7). Consider a digital detox day.`);
+                    if (vgIdsFinal.length && vgDays7 >= 5) {
+                        suggestions.push(`Leisure is high (≥5/7). Try a digital detox day.`);
                     }
-                    suggestions.push(`Content: ${content7} posts in last 7 days`);
-                    if (contentIdsFinal.length && content7 < 3) suggestions.push(`Plan ≥3 content posts in the next 7 days.`);
+                    suggestions.push(`Content posts: ${content7}/7`);
+                    if (contentIdsFinal.length && content7 < 3) suggestions.push(`Plan at least 3 posts next week.`);
 
                     // Sleep Early / Habit insights
                     const sleepEarlyIds = habitIdsFinal.filter((id) => (nameLowerMap[id] || '').includes('sleep early'));
-                    const sleepEarly7 = countForIds(sleepEarlyIds);
+                    const sleepEarly7 = daysCountForIds(sleepEarlyIds);
                     if (sleepEarlyIds.length) {
-                        suggestions.push(`Sleep Early: ${sleepEarly7} of last 7 nights`);
-                        if (sleepEarly7 <= 3) suggestions.push(`Next 7 plan: Sleep early ≥4 nights.`);
+                        suggestions.push(`Sleep early nights: ${sleepEarly7}/7`);
+                        if (sleepEarly7 <= 3) suggestions.push(`Aim for ≥4 early nights next week.`);
                     } else if (habitIdsFinal.length) {
-                        suggestions.push(`Habit: ${habit7} of last 7 days`);
+                        suggestions.push(`Habit days: ${habitDays7}/7`);
                     }
 
                     // Highlight engagement
                     const highlightDays = highlightsItems.length;
-                    suggestions.push(`Highlights: ${highlightDays} of last 30 days logged`);
-                    if (highlightDays < 10) suggestions.push(`Consider journaling highlights more often (<10 of last 30).`);
+                    suggestions.push(`Highlights logged: ${highlightDays}/30`);
+                    if (highlightDays < 10) suggestions.push(`Try logging more highlights (<10/30).`);
 
                     // Low-activity focus (last 7)
                     const lowActs = Object.keys(freq7)
@@ -419,7 +430,7 @@ export default function Dashboard() {
                         .sort((a, b) => a.count - b.count)
                         .slice(0, 3);
                     for (const la of lowActs) {
-                        suggestions.push(`${la.name}: ${la.count} of last 7 days (low). Schedule sessions.`);
+                        suggestions.push(`${la.name}: ${la.count}/7 (low). Add a session.`);
                     }
 
                     // Stopped habits: logs in last 7
@@ -431,22 +442,22 @@ export default function Dashboard() {
                             .filter((x) => x.count > 0)
                             .sort((a, b) => b.count - a.count)
                             .slice(0, 3);
-                        suggestions.push(`Stopped habits logged: ${stoppedCount} times in last 7 days`);
-                        for (const s of topStopped) suggestions.push(`• ${s.name}: ${s.count} of last 7 — plan replacement.`);
+                        suggestions.push(`Stopped habits: ${stoppedCount} logs in 7 days`);
+                        for (const s of topStopped) suggestions.push(`• ${s.name}: ${s.count}/7 — plan a replacement.`);
                     }
 
                     // Next 7-day plan (simple forecast)
-                    if (gymIdsFinal.length && gym7 < 3) suggestions.push(`Next 7 plan: Aim for 3 exercise days.`);
-                    if (coffeeIdsFinal.length && coffee7 > 4) suggestions.push(`Next 7 plan: Keep caffeine ≤4 days.`);
-                    if (suppIdsFinal.length && adherence < 80) suggestions.push(`Next 7 plan: Take supplements daily (7 of 7 days).`);
-                    if (contentIdsFinal.length && content7 < 3) suggestions.push(`Next 7 plan: Post ≥3 stories/reels.`);
+                    if (gymIdsFinal.length && gymDays7 < 3) suggestions.push(`Plan: 3 exercise days next week.`);
+                    if (coffeeIdsFinal.length && coffeeDays7 > 4) suggestions.push(`Plan: caffeine ≤4 days.`);
+                    if (suppIdsFinal.length && adherence < 80) suggestions.push(`Plan: take supplements daily (7/7).`);
+                    if (contentIdsFinal.length && content7 < 3) suggestions.push(`Plan: ≥3 posts next week.`);
 
                     // Positive reinforcement / simple correlations
-                    if (gym7 >= 4 && weightTrend <= 0) suggestions.push(`Great consistency: High exercise (≥4/7) with weight trending ${weightTrend <= 0 ? 'down' : 'stable'}.`);
-                    if (coffee7 >= 6 && streakLocal < 3) suggestions.push(`High caffeine (≥6/7) with low streak — consider earlier cut-off to support routine.`);
+                    if (gymDays7 >= 4 && weightTrend <= 0) suggestions.push(`Great job: exercise ≥4/7 and weight ${weightTrend <= 0 ? 'stable/down' : 'stable'}.`);
+                    if (coffeeDays7 >= 6 && streakLocal < 3) suggestions.push(`Caffeine ≥6/7 with low streak — try an earlier cut-off.`);
 
                     // Update summary cards
-                    setSummary7({ exercise: gym7, caffeine: coffee7, supplements: adherence, alcohol: alcohol7, leisure: vg7, content: content7, stopped: stoppedCount });
+                    setSummary7({ exercise: gymDays7, caffeine: coffeeDays7, supplements: adherence, alcohol: alcoholDays7, leisure: vgDays7, content: content7, stopped: stoppedCount });
 
                     setInsights(suggestions);
                 }
