@@ -21,6 +21,7 @@ export default function AppHeader() {
         <nav className="-mx-2 flex items-center gap-2 overflow-x-auto px-2 text-xs sm:mx-0 sm:gap-4 sm:text-sm">
           <Link href="/" className="whitespace-nowrap underline-offset-2 hover:underline">Dashboard</Link>
           <Link href="/journal" className="whitespace-nowrap underline-offset-2 hover:underline">Journal</Link>
+          <Link href="/mood" className="whitespace-nowrap underline-offset-2 hover:underline">Mood</Link>
           <Link href="/activities" className="whitespace-nowrap underline-offset-2 hover:underline">Activities</Link>
           <Link href="/catalog" className="whitespace-nowrap underline-offset-2 hover:underline">Catalog</Link>
           <Link href="/metrics" className="whitespace-nowrap underline-offset-2 hover:underline">Metrics</Link>

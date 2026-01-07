@@ -403,6 +403,72 @@ export async function getWeightsBetween(account: string, fromISO: string, toISO:
     });
 }
 
+// Moods per account (0..10)
+// Sheet "Moods_<account>": columns [date ISO, score]
+export async function getMood(account: string, dateISO: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Moods_${account}`;
+  await ensureSheetExists(title, ['date', 'score']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === dateISO) {
+      const s = parseInt(String(values[i][1] || '').trim(), 10);
+      return Number.isFinite(s) ? s : null;
+    }
+  }
+  return null;
+}
+
+export async function setMood(account: string, dateISO: string, score: number) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Moods_${account}`;
+  await ensureSheetExists(title, ['date', 'score']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex === -1) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${title}!A1:B`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[dateISO, String(score)]] },
+    });
+  } else {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${title}!B${rowIndex}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[String(score)]] },
+    });
+  }
+}
+
+export async function getMoodsBetween(account: string, fromISO: string, toISO: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Moods_${account}`;
+  await ensureSheetExists(title, ['date', 'score']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  const values = res.data.values || [];
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return values
+    .map(([date, score]) => ({
+      date: String(date).trim(),
+      score: parseInt(String(score ?? '').trim(), 10),
+    }))
+    .filter(({ date, score }) => {
+      const t = new Date(date).getTime();
+      return !Number.isNaN(t) && t >= from && t <= to && Number.isFinite(score);
+    });
+}
+
 export async function getHighlightsBetween(account: string, fromISO: string, toISO: string) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();

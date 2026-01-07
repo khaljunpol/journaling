@@ -2,7 +2,7 @@
 
 import type { Activity, CatalogItem, Log, Week, WeightPoint } from '@/lib/types';
 import { useEffect, useRef, useState } from 'react';
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from 'recharts';
 
 export default function Dashboard() {
     const now = new Date();
@@ -41,6 +41,16 @@ export default function Dashboard() {
     // Removed stoppedTop7 in favor of explicit To Stop / To Continue lists
     const [toStopActs, setToStopActs] = useState<Array<{ name: string; count: number; prev: number }>>([]);
     const [toContinueActs, setToContinueActs] = useState<Array<{ name: string; count: number }>>([]);
+    const [moodToday, setMoodToday] = useState<number | null>(null);
+    const [moodAvg7, setMoodAvg7] = useState<number | null>(null);
+    const [mood7, setMood7] = useState<Array<{ date: string; score: number }>>([]);
+    const moodEmoji = (s: number) => {
+        const map: Record<number, string> = {
+            0: '😭', 1: '😢', 2: '☹️', 3: '🙁', 4: '😕',
+            5: '😐', 6: '🙂', 7: '😊', 8: '😃', 9: '😁', 10: '🤩'
+        };
+        return map[Math.max(0, Math.min(10, Math.round(s)))] || '😐';
+    };
     const fetchVersionRef = useRef(0);
     const actsCtrlRef = useRef<AbortController | null>(null);
     const catalogCtrlRef = useRef<AbortController | null>(null);
@@ -50,6 +60,7 @@ export default function Dashboard() {
     const metricsCtrlRef = useRef<AbortController | null>(null);
     const weightsCtrlRef = useRef<AbortController | null>(null);
     const highlightsCtrlRef = useRef<AbortController | null>(null);
+    const moodsCtrlRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         // Try cookie first, then localStorage
@@ -93,6 +104,7 @@ export default function Dashboard() {
         if (metricsCtrlRef.current) metricsCtrlRef.current.abort();
         if (weightsCtrlRef.current) weightsCtrlRef.current.abort();
         if (highlightsCtrlRef.current) highlightsCtrlRef.current.abort();
+        if (moodsCtrlRef.current) moodsCtrlRef.current.abort();
         setActivities([]);
         setDoneToday(0);
         setStreakDays(0);
@@ -108,6 +120,9 @@ export default function Dashboard() {
         setWeights30([]);
         setHighlights30([]);
         setInsights([]);
+        setMoodToday(null);
+        setMoodAvg7(null);
+        setMood7([]);
     }, [account]);
 
     useEffect(() => {
@@ -223,6 +238,26 @@ export default function Dashboard() {
                 highlightsItems = clean;
                 if (v === fetchVersionRef.current) setHighlights30(clean);
             } catch { highlightsItems = []; setHighlights30([]); }
+
+            // Mood: today and last 7 avg
+            try {
+                moodsCtrlRef.current = new AbortController();
+                const mRes = await fetch(`/api/moods?date=${todayISO}&account=${encodeURIComponent(account)}`, { signal: moodsCtrlRef.current.signal });
+                const mData = mRes.ok ? await mRes.json() : null;
+                const scoreToday = typeof mData?.score === 'number' ? mData.score : null;
+                if (v === fetchVersionRef.current) setMoodToday(scoreToday);
+            } catch { setMoodToday(null); }
+            try {
+                const m7Res = await fetch(`/api/moods?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
+                const items: Array<{ date: string; score: number }> = m7Res.ok ? await m7Res.json() : [];
+                const valid = items.filter((i) => typeof i?.score === 'number');
+                const sorted = valid.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+                const avg = valid.length ? (valid.reduce((acc, i) => acc + (i.score || 0), 0) / valid.length) : null;
+                if (v === fetchVersionRef.current) {
+                    setMoodAvg7(avg !== null ? Math.round(avg * 10) / 10 : null);
+                    setMood7(sorted);
+                }
+            } catch { setMoodAvg7(null); }
 
             try {
                 metricsCtrlRef.current = new AbortController();
@@ -570,7 +605,7 @@ export default function Dashboard() {
     return (
         <main key={account} className="space-y-8">
             <h2 className="text-xl font-semibold">Dashboard</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">Activities</div>
                     <div className="text-2xl font-semibold">{activities.length}</div>
@@ -593,7 +628,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">Last 7 Days</div>
                     <div className="text-2xl font-semibold">{last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0}%</div>
@@ -611,7 +646,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">Last 30 Days</div>
                     <div className="text-2xl font-semibold">{last30Done}</div>
@@ -635,7 +670,45 @@ export default function Dashboard() {
                         ) : null}
                     </div>
                 </div>
-                <div className="rounded border p-4 sm:col-span-2">
+                <div className="rounded border p-4">
+                    <div className="text-sm text-neutral-500">Mood</div>
+                    <div className="text-2xl font-semibold">
+                        {typeof moodToday === 'number' ? (
+                            <span title={`${moodToday}/10`}>{moodEmoji(moodToday)} {moodToday}/10</span>
+                        ) : '-'}
+                    </div>
+                    <div className="text-xs text-neutral-500">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
+                    {/* Embedded mood insight inside the card */}
+                    <div className="mt-1 text-xs text-neutral-600">
+                        {typeof moodToday === 'number' && typeof moodAvg7 === 'number' ? (() => {
+                            const delta = Math.round((moodToday - moodAvg7) * 10) / 10;
+                            if (Math.abs(delta) < 0.1) return 'Today is on your weekly average.';
+                            return `Today is ${delta > 0 ? 'above' : 'below'} avg by ${Math.abs(delta)}`;
+                        })() : (mood7.length >= 2 ? (() => {
+                            const first = mood7[0].score;
+                            const last = mood7[mood7.length - 1].score;
+                            const trend = Math.round((last - first) * 10) / 10;
+                            return `7-day trend ${trend >= 0 ? 'up' : 'down'} by ${Math.abs(trend)}`;
+                        })() : 'Log your mood to see trends.')}
+                    </div>
+                    {/* Mood sparkline (last 7 days) */}
+                    <div className="mt-2 h-12 w-full">
+                        {mood7.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={mood7} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="date" tick={false} axisLine={false} />
+                                    <YAxis tick={false} axisLine={false} domain={[0, 10]} />
+                                    <Tooltip formatter={(v: any) => [`${v}/10`, 'Mood']} labelFormatter={(l: any) => new Date(l).toLocaleDateString()} />
+                                    {typeof moodAvg7 === 'number' ? (
+                                      <ReferenceLine y={moodAvg7} stroke="#9CA3AF" strokeDasharray="3 3" />
+                                    ) : null}
+                                    <Line type="monotone" dataKey="score" stroke="#16a34a" strokeWidth={1.8} dot={false} activeDot={{ r: 3 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : null}
+                    </div>
+                </div>
+                <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">Category Summary (7d)</div>
                     <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         <div className="rounded border p-3">
@@ -671,7 +744,7 @@ export default function Dashboard() {
                         <div className="mt-2 text-xs text-red-600 dark:text-red-400">To-stop logs: {summary7.stopped} in last 7 days</div>
                     )}
                 </div>
-                <div className="rounded border p-4 sm:col-span-2">
+                <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">Top Activities (30d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {topActivities30.length ? topActivities30.map((t) => (
@@ -682,7 +755,7 @@ export default function Dashboard() {
                         )) : <li className="text-neutral-500">No recent completions</li>}
                     </ul>
                 </div>
-                <div className="rounded border p-4 sm:col-span-2">
+                <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">To Stop (7d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {toStopActs.length ? toStopActs.map((s) => (
@@ -693,7 +766,7 @@ export default function Dashboard() {
                         )) : <li className="text-neutral-500">No activities marked to stop</li>}
                     </ul>
                 </div>
-                <div className="rounded border p-4 sm:col-span-2">
+                <div className="rounded border p-4">
                     <div className="text-sm text-neutral-500">To Continue (7d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {toContinueActs.length ? toContinueActs.map((s) => (
