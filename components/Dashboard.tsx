@@ -6,19 +6,20 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceL
 
 export default function Dashboard() {
     const now = new Date();
-    const y = now.getUTCFullYear();
-    const m = now.getUTCMonth() + 1;
     const pad = (n: number) => String(n).padStart(2, '0');
+    const localISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
     const fromISO = `${y}-${pad(m)}-01`;
-    const toISO = `${y}-${pad(m)}-${pad(new Date(Date.UTC(y, m, 0)).getUTCDate())}`;
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const todayISO = today.toISOString().slice(0, 10);
-    const d7 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    d7.setUTCDate(d7.getUTCDate() - 6);
-    const from7ISO = d7.toISOString().slice(0, 10);
-    const d30 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    d30.setUTCDate(d30.getUTCDate() - 29);
-    const from30ISO = d30.toISOString().slice(0, 10);
+    const toISO = `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayISO = localISO(today);
+    const d7 = new Date(today);
+    d7.setDate(d7.getDate() - 6);
+    const from7ISO = localISO(d7);
+    const d30 = new Date(today);
+    d30.setDate(d30.getDate() - 29);
+    const from30ISO = localISO(d30);
 
     const [account, setAccount] = useState<string>('Alex');
     const [activities, setActivities] = useState<Activity[]>([]);
@@ -302,19 +303,19 @@ export default function Dashboard() {
                     }
 
                     const last7Days: string[] = []; {
-                        const d = new Date(todayISO);
+                        const d = new Date(today);
                         for (let i = 6; i >= 0; i--) {
                             const dd = new Date(d);
-                            dd.setUTCDate(dd.getUTCDate() - i);
-                            last7Days.push(dd.toISOString().slice(0, 10));
+                            dd.setDate(dd.getDate() - i);
+                            last7Days.push(localISO(dd));
                         }
                     }
                     const prev7Days: string[] = []; {
-                        const d = new Date(todayISO);
+                        const d = new Date(today);
                         for (let i = 13; i >= 7; i--) {
                             const dd = new Date(d);
-                            dd.setUTCDate(dd.getUTCDate() - i);
-                            prev7Days.push(dd.toISOString().slice(0, 10));
+                            dd.setDate(dd.getDate() - i);
+                            prev7Days.push(localISO(dd));
                         }
                     }
 
@@ -605,57 +606,57 @@ export default function Dashboard() {
     return (
         <main key={account} className="space-y-8">
             <h2 className="text-xl font-semibold">Dashboard</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Activities</div>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Activities</div>
                     <div className="text-2xl font-semibold">{activities.length}</div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Today</div>
+                <div className="card p-4">
+                    <div className="card-title">Today</div>
                     <div className="text-2xl font-semibold">{doneToday}/{activities.length} done</div>
-                    <div className="text-xs text-neutral-500">Streak: {streakDays} days</div>
+                    <div className="subtle">Streak: {streakDays} days</div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Recent Completions</div>
+                <div className="card p-4">
+                    <div className="card-title">Recent Completions</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {recentCompletions.length ? recentCompletions.map((r) => (
                             <li key={`${r.date}-${r.activityId}`} className="flex justify-between">
                                 <span className="truncate max-w-[60%]" title={r.name}>{r.name}</span>
-                                <span className="text-neutral-500">{r.date}</span>
+                                <span className="muted">{r.date}</span>
                             </li>
-                        )) : <li className="text-neutral-500">No recent activity</li>}
+                        )) : <li className="muted">No recent activity</li>}
                     </ul>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Last 7 Days</div>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Last 7 Days</div>
                     <div className="text-2xl font-semibold">{last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0}%</div>
-                    <div className="text-xs text-neutral-500">{last7Done}/{last7Expected} completions</div>
+                    <div className="subtle">{last7Done}/{last7Expected} completions</div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Avg Weekly Rate</div>
+                <div className="card p-4">
+                    <div className="card-title">Avg Weekly Rate</div>
                     <div className="text-2xl font-semibold">{Math.round(avgWeeklyRate * 100)}%</div>
-                    <div className="text-xs text-neutral-500">Best: {bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '-'}</div>
+                    <div className="subtle">Best: {bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '-'}</div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">This vs Last Week</div>
+                <div className="card p-4">
+                    <div className="card-title">This vs Last Week</div>
                     <div className="text-2xl font-semibold">{Math.round(thisWeekRate * 100)}% / {Math.round(lastWeekRate * 100)}%</div>
-                    <div className="text-xs text-neutral-500">current / previous</div>
+                    <div className="subtle">current / previous</div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Last 30 Days</div>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Last 30 Days</div>
                     <div className="text-2xl font-semibold">{last30Done}</div>
-                    <div className="text-xs text-neutral-500">total completions</div>
+                    <div className="subtle">total completions</div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Weight Trend (30d)</div>
+                <div className="card p-4">
+                    <div className="card-title">Weight Trend (30d)</div>
                     <div className="text-2xl font-semibold">{weights30.length >= 2 ? `${(Math.round((weights30[weights30.length - 1].weight - weights30[0].weight) * 10) / 10)} kg` : '-'}</div>
-                    <div className="text-xs text-neutral-500">latest - earliest</div>
+                    <div className="subtle">latest - earliest</div>
                     <div className="mt-2 h-20 w-full">
                         {weights30.length ? (
                             <ResponsiveContainer width="100%" height="100%">
@@ -670,16 +671,16 @@ export default function Dashboard() {
                         ) : null}
                     </div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Mood</div>
+                <div className="card p-4">
+                    <div className="card-title">Mood</div>
                     <div className="text-2xl font-semibold">
                         {typeof moodToday === 'number' ? (
                             <span title={`${moodToday}/10`}>{moodEmoji(moodToday)} {moodToday}/10</span>
                         ) : '-'}
                     </div>
-                    <div className="text-xs text-neutral-500">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
+                    <div className="subtle">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
                     {/* Embedded mood insight inside the card */}
-                    <div className="mt-1 text-xs text-neutral-600">
+                    <div className="mt-1 subtle">
                         {typeof moodToday === 'number' && typeof moodAvg7 === 'number' ? (() => {
                             const delta = Math.round((moodToday - moodAvg7) * 10) / 10;
                             if (Math.abs(delta) < 0.1) return 'Today is on your weekly average.';
@@ -708,35 +709,35 @@ export default function Dashboard() {
                         ) : null}
                     </div>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Category Summary (7d)</div>
+                <div className="card p-4">
+                    <div className="card-title">Category Summary (7d)</div>
                     <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Exercise Days</div>
+                        <div className="card p-3">
+                            <div className="subtle">Exercise Days</div>
                             <div className="text-lg font-semibold">{summary7.exercise}</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Caffeine Days</div>
+                        <div className="card p-3">
+                            <div className="subtle">Caffeine Days</div>
                             <div className="text-lg font-semibold">{summary7.caffeine}</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Supplements Adherence</div>
+                        <div className="card p-3">
+                            <div className="subtle">Supplements Adherence</div>
                             <div className="text-lg font-semibold">{summary7.supplements}%</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Alcohol Days</div>
+                        <div className="card p-3">
+                            <div className="subtle">Alcohol Days</div>
                             <div className="text-lg font-semibold">{summary7.alcohol}</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Leisure Days</div>
+                        <div className="card p-3">
+                            <div className="subtle">Leisure Days</div>
                             <div className="text-lg font-semibold">{summary7.leisure}</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">Content Posts</div>
+                        <div className="card p-3">
+                            <div className="subtle">Content Posts</div>
                             <div className="text-lg font-semibold">{summary7.content}</div>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-neutral-500">To Stop Logs</div>
+                        <div className="card p-3">
+                            <div className="subtle">To Stop Logs</div>
                             <div className="text-lg font-semibold">{summary7.stopped}</div>
                         </div>
                     </div>
@@ -744,52 +745,53 @@ export default function Dashboard() {
                         <div className="mt-2 text-xs text-red-600 dark:text-red-400">To-stop logs: {summary7.stopped} in last 7 days</div>
                     )}
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">Top Activities (30d)</div>
+                <div className="card p-4">
+                    <div className="card-title">Top Activities (30d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {topActivities30.length ? topActivities30.map((t) => (
                             <li key={t.name} className="flex justify-between">
                                 <span>{t.name}</span>
-                                <span className="text-neutral-500">{t.count}</span>
+                                <span className="muted">{t.count}</span>
                             </li>
-                        )) : <li className="text-neutral-500">No recent completions</li>}
+                        )) : <li className="muted">No recent completions</li>}
                     </ul>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">To Stop (7d)</div>
+                <div className="card p-4">
+                    <div className="card-title">To Stop (7d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {toStopActs.length ? toStopActs.map((s) => (
                             <li key={s.name} className="flex justify-between">
                                 <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
-                                <span className="text-neutral-500">{s.count} (prev {s.prev})</span>
+                                <span className="muted">{s.count} (prev {s.prev})</span>
                             </li>
-                        )) : <li className="text-neutral-500">No activities marked to stop</li>}
+                        )) : <li className="muted">No activities marked to stop</li>}
                     </ul>
                 </div>
-                <div className="rounded border p-4">
-                    <div className="text-sm text-neutral-500">To Continue (7d)</div>
+                <div className="card p-4">
+                    <div className="card-title">To Continue (7d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {toContinueActs.length ? toContinueActs.map((s) => (
                             <li key={s.name} className="flex justify-between">
                                 <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
-                                <span className="text-neutral-500">{s.count}</span>
+                                <span className="muted">{s.count}</span>
                             </li>
-                        )) : <li className="text-neutral-500">No activities marked to continue</li>}
+                        )) : <li className="muted">No activities marked to continue</li>}
+                    </ul>
+                </div>
+                {/* Insights card placed within the grid to avoid empty columns */}
+                <div className="card p-4">
+                    <div className="card-title">Insights & Suggestions</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {insights.length ? insights.map((s, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                                <span>•</span><span>{s}</span>
+                            </li>
+                        )) : <li className="muted">No insights yet</li>}
                     </ul>
                 </div>
                 {/* Removed Stopped Habits card: statuses use To Stop / To Continue */}
             </div>
-
-            <div className="rounded border p-4">
-                <div className="text-sm text-neutral-500">Insights & Suggestions</div>
-                <ul className="mt-2 space-y-1 text-sm">
-                    {insights.length ? insights.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                            <span>•</span><span>{s}</span>
-                        </li>
-                    )) : <li className="text-neutral-500">No insights yet</li>}
-                </ul>
-            </div>
+            
         </main>
     );
 }

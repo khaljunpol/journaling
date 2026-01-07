@@ -43,23 +43,23 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   const pretty = new Date(dateISO).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <section className="rounded border p-4">
+    <section className="card p-4">
       <div className="mb-3">
         <h2 className="text-lg font-medium">Highlight for {pretty}</h2>
-        <p className="text-sm text-neutral-500">Write a short note that captures the best moment of this day.</p>
+        <p className="card-title">Write a short note that captures the best moment of this day.</p>
       </div>
       <textarea
-        className="w-full rounded border p-2"
+        className="w-full input"
         rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={`Highlight for ${pretty}`}
       />
       <div className="mt-2 flex items-center gap-2">
-        <button className="rounded bg-black px-3 py-1 text-white disabled:opacity-60 dark:bg-white dark:text-black" onClick={save} disabled={saving || loading}>
+        <button className="btn disabled:opacity-60" onClick={save} disabled={saving || loading}>
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {loading && <span className="text-sm text-neutral-500">Loading…</span>}
+        {loading && <span className="subtle">Loading…</span>}
       </div>
     </section>
   );

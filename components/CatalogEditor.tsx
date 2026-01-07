@@ -48,19 +48,21 @@ export default function CatalogEditor() {
   return (
     <section className="space-y-3">
       <h3 className="text-base font-medium">Activity Catalog Editor</h3>
-      <div className="flex flex-wrap gap-2">
-        <input className="rounded border px-2 py-1" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input className="rounded border px-2 py-1" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-        <input className="rounded border px-2 py-1" placeholder="Tags (comma-separated)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
-        <button className="rounded bg-black px-3 py-1 text-white dark:bg-white dark:text-black" onClick={add}>Add to Catalog</button>
+      <div className="card p-4">
+        <div className="flex flex-wrap gap-2">
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="input" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+          <input className="input" placeholder="Tags (comma-separated)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+          <button className="btn" onClick={add}>Add to Catalog</button>
+        </div>
       </div>
       <ul className="space-y-2">
         {items.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center gap-2">
-            <input className="min-w-48 flex-1 rounded border px-2 py-1" defaultValue={c.name} onBlur={(e) => update(c.id, { name: e.target.value })} />
-            <input className="min-w-40 rounded border px-2 py-1" defaultValue={c.category} onBlur={(e) => update(c.id, { category: e.target.value })} />
-            <input className="min-w-48 rounded border px-2 py-1" defaultValue={c.tags || ''} onBlur={(e) => update(c.id, { tags: e.target.value })} />
-            <button className="rounded border px-2 py-1" onClick={() => remove(c.id)}>Delete</button>
+            <input className="min-w-48 flex-1 input" defaultValue={c.name} onBlur={(e) => update(c.id, { name: e.target.value })} />
+            <input className="min-w-40 input" defaultValue={c.category} onBlur={(e) => update(c.id, { category: e.target.value })} />
+            <input className="min-w-48 input" defaultValue={c.tags || ''} onBlur={(e) => update(c.id, { tags: e.target.value })} />
+            <button className="btn-outline" onClick={() => remove(c.id)}>Delete</button>
           </li>
         ))}
       </ul>

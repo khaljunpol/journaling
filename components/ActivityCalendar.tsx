@@ -149,16 +149,16 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-2">
-        <button className="rounded border px-2 py-1" onClick={prevMonth}>Prev</button>
+        <button className="btn-outline" onClick={prevMonth}>Prev</button>
         <div className="font-medium">{new Date(year, month, 1).toLocaleString(undefined, { month: 'long' })} {year}</div>
-        <button className="rounded border px-2 py-1" onClick={nextMonth}>Next</button>
+        <button className="btn-outline" onClick={nextMonth}>Next</button>
       </div>
 
-      <div ref={scrollRef} className="overflow-auto rounded border">
+      <div ref={scrollRef} className="overflow-auto card">
         <table className="min-w-full border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 bg-white p-2 text-left dark:bg-neutral-950">Activity</th>
+              <th className="sticky left-0 bg-(--surface) p-2 text-left">Activity</th>
               {days.map((d) => (
                 <th key={d} className={`p-2 text-xs font-medium ${selectedDay === d ? 'bg-neutral-100 dark:bg-neutral-900' : ''}`}>
                   <button
@@ -183,7 +183,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
           <tbody>
             {activities.map((a) => (
               <tr key={a.id}>
-                <td className="sticky left-0 bg-white p-2 text-sm dark:bg-neutral-950">
+                <td className="sticky left-0 bg-(--surface) p-2 text-sm">
                   <div className="flex items-center gap-2">
                     <span className={(a.status || 'to continue') === 'to stop' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
                       {a.name}

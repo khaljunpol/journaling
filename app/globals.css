@@ -2,6 +2,16 @@
 
 :root {
   color-scheme: light dark;
+  /* Theme tokens */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --muted: #6b7280; /* neutral-500 */
+  --muted-foreground: #6b7280;
+  --text: #0b0f14;
+  --border: #e5e7eb; /* neutral-200 */
+  --ring: #c7d2fe; /* indigo-200 */
+  --accent: #2563eb; /* blue-600 */
+  --accent-foreground: #ffffff;
 }
 
 html, body {
@@ -10,4 +20,92 @@ html, body {
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  background: var(--bg);
+  color: var(--text);
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0a0a; /* neutral-950-ish */
+    --surface: #0f1113; /* near-neutral-900 */
+    --muted: #9ca3af;
+    --muted-foreground: #9ca3af;
+    --text: #e5e7eb;
+    --border: #1f2937; /* neutral-800 */
+    --ring: #1e40af; /* blue-800 */
+    --accent: #60a5fa; /* blue-400 */
+    --accent-foreground: #0b1220;
+  }
+}
+
+/* Explicit theme overrides. Apply via: document.documentElement.dataset.theme = 'light' | 'dark' */
+:root[data-theme="light"] {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --muted-foreground: #6b7280;
+  --text: #0b0f14;
+  --border: #e5e7eb;
+  --ring: #c7d2fe;
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --surface: #0f1113;
+  --muted: #9ca3af;
+  --muted-foreground: #9ca3af;
+  --text: #e5e7eb;
+  --border: #1f2937;
+  --ring: #1e40af;
+  --accent: #60a5fa;
+  --accent-foreground: #0b1220;
+}
+
+/* Reusable UI primitives */
+.card {
+  @apply rounded-xl border shadow-sm;
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.card-title {
+  @apply text-sm;
+  color: var(--muted-foreground);
+}
+
+.muted {
+  color: var(--muted-foreground);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.btn:hover { filter: brightness(0.95); }
+.btn:disabled { @apply opacity-60; }
+.btn-outline {
+  @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium border transition;
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+.btn-outline:hover { @apply bg-neutral-50 dark:bg-neutral-900; }
+
+.input {
+  @apply rounded-md border px-3 py-2 text-sm outline-none transition;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.input:focus { box-shadow: 0 0 0 3px var(--ring); }
+
+.subtle {
+  @apply text-xs;
+  color: var(--muted-foreground);
+}
+
+/* Smooth hover transitions globally for a welcoming feel */
+* { transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }

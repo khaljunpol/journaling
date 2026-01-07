@@ -52,28 +52,28 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
   const pretty = new Date(dateISO).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <section className="rounded border p-4">
+    <section className="card p-4">
       <div className="mb-3">
         <h2 className="text-lg font-medium">Weight for {pretty}</h2>
-        <p className="text-sm text-neutral-500">Log today\'s weight.</p>
+        <p className="card-title">Log today's weight.</p>
       </div>
       <div className="flex items-center gap-2">
         <input
           type="number"
           step="0.1"
           inputMode="decimal"
-          className="w-32 rounded border p-2"
+          className="w-32 input"
           placeholder="e.g. 70.5"
           value={weight}
           onChange={(e) => setWeight(e.target.value)}
         />
-        <span className="text-sm text-neutral-600">kg</span>
+        <span className="subtle">kg</span>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <button className="rounded bg-black px-3 py-1 text-white disabled:opacity-60 dark:bg.white dark:text.black" onClick={save} disabled={saving || loading || !weight}>
+        <button className="btn disabled:opacity-60" onClick={save} disabled={saving || loading || !weight}>
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {loading && <span className="text-sm text-neutral-500">Loading…</span>}
+        {loading && <span className="subtle">Loading…</span>}
       </div>
     </section>
   );

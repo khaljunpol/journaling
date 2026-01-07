@@ -82,14 +82,14 @@ export default function JournalView() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded border p-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 card p-4">
         <div className="text-lg font-medium">
           {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
         </div>
-        <div className="w-full sm:w-auto overflow-x-auto -mx-2 sm:mx-0">
+        <div className="w-full sm:w-auto overflow-x-auto max-w-full">
           <div className="flex items-center gap-2 px-2 whitespace-nowrap">
             <button
-            className="shrink-0 rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="shrink-0 btn-outline"
             onClick={() => {
               const d = new Date(selectedDate);
               d.setDate(d.getDate() - 1);
@@ -99,19 +99,19 @@ export default function JournalView() {
             Previous
           </button>
           <button
-            className="shrink-0 rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="shrink-0 btn-outline"
             onClick={() => setSelectedDate(localTodayISO())}
           >
             Today
           </button>
           <input
             type="date"
-            className="shrink-0 rounded border px-2 py-1"
+            className="shrink-0 input"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
           />
           <button
-            className="shrink-0 rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="shrink-0 btn-outline"
             onClick={() => {
               const d = new Date(selectedDate);
               d.setDate(d.getDate() + 1);
@@ -125,13 +125,14 @@ export default function JournalView() {
       </div>
 
       <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={setSelectedDate} />
-      <div className="rounded border p-4">
-        <div className="text-sm text-neutral-500">How are you feeling today?</div>
+      <div className="card p-4">
+        <div className="card-title">How are you feeling today?</div>
         <div className="mt-2 flex flex-wrap gap-2">
           {moods.map((m) => (
             <button
               key={m.score}
-              className={`rounded px-3 py-2 text-xl border hover:bg-neutral-100 dark:hover:bg-neutral-800 ${moodScore === m.score ? 'ring-2 ring-blue-500' : ''}`}
+              className={`btn-outline text-xl px-3 py-2 ${moodScore === m.score ? '' : ''}`}
+              style={moodScore === m.score ? { boxShadow: '0 0 0 3px var(--ring)' } : undefined}
               title={`${m.label} (${m.score}/10)`}
               onClick={() => setMood(m.score)}
             >
@@ -139,7 +140,7 @@ export default function JournalView() {
             </button>
           ))}
         </div>
-        <div className="mt-2 text-xs text-neutral-500">Selected: {typeof moodScore === 'number' ? `${moodScore}/10` : '—'}</div>
+        <div className="mt-2 subtle">Selected: {typeof moodScore === 'number' ? `${moodScore}/10` : '—'}</div>
       </div>
       <DailyHighlight dateISO={selectedDate} />
       <DailyWeight dateISO={selectedDate} />

@@ -142,16 +142,16 @@ export default function ActivityList() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded border p-4">
-          <div className="text-sm text-neutral-500">Add New Activity</div>
+        <div className="card p-4">
+          <div className="card-title">Add New Activity</div>
           <div className="mt-2 flex gap-2">
-            <input className="flex-1 rounded border px-2 py-2" placeholder="Activity name" value={name} onChange={(e) => setName(e.target.value)} />
-            <button className="rounded bg-black px-3 py-2 text-white dark:bg-white dark:text-black" onClick={add}>Add</button>
+            <input className="flex-1 input" placeholder="Activity name" value={name} onChange={(e) => setName(e.target.value)} />
+            <button className="btn" onClick={add}>Add</button>
           </div>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <input
-                className="w-full rounded border px-2 py-2"
+                className="w-full input"
                 placeholder="Category (suggested)"
                 list="categoriesList"
                 value={category}
@@ -165,7 +165,7 @@ export default function ActivityList() {
             </div>
             <div>
               <input
-                className="w-full rounded border px-2 py-2"
+                className="w-full input"
                 placeholder="Tags (comma-separated, suggested)"
                 list="tagsList"
                 value={tags}
@@ -183,12 +183,12 @@ export default function ActivityList() {
               </datalist>
             </div>
           </div>
-          <p className="mt-2 text-xs text-neutral-500">Use Catalog below for quick adds</p>
+          <p className="mt-2 subtle">Use Catalog below for quick adds</p>
         </div>
 
-        <div className="rounded border p-4">
+        <div className="card p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-neutral-500">Add from Catalog</div>
+            <div className="card-title">Add from Catalog</div>
             <a href="/catalog" className="text-xs underline underline-offset-2 hover:no-underline">Edit Catalog</a>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -201,7 +201,7 @@ export default function ActivityList() {
               .map((c) => (
                 <button
                   key={c.id}
-                  className={`rounded border px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 ${addingId === c.id ? 'opacity-60' : ''}`}
+                  className={`btn-outline text-sm ${addingId === c.id ? 'opacity-60' : ''}`}
                   onClick={() => addFromCatalog(c)}
                   disabled={addingId === c.id}
                   title={`${c.category}${c.tags ? ` • ${c.tags}` : ''}`}
@@ -213,17 +213,17 @@ export default function ActivityList() {
         </div>
       </div>
 
-      <div className="rounded border p-4">
-        <div className="mb-3 text-sm text-neutral-500">Your Activities</div>
+      <div className="card p-4">
+        <div className="mb-3 card-title">Your Activities</div>
         {/* Grouped by status */}
         <div className="space-y-4">
           <div>
             <div className="mb-2 text-xs font-semibold">To Continue</div>
             <ul className="space-y-2">
               {items.filter((a) => (a.status || 'to continue') === 'to continue').map((a, i) => (
-                <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
+                <li key={a.id || i} className="flex flex-wrap items-center gap-3 rounded border px-3 py-2">
                   <input
-                    className="flex-1 rounded border px-2 py-1"
+                    className="flex-1 input"
                     defaultValue={a.name}
                     onBlur={(e) => updateName(a.id, e.target.value)}
                   />
@@ -233,14 +233,14 @@ export default function ActivityList() {
                     </span>
                   )}
                   <select
-                    className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
+                    className="input text-sm"
                     value={a.status || 'to continue'}
                     onChange={(e) => updateStatus(a.id, (e.target.value as ActivityStatus))}
                   >
                     <option value="to continue">To Continue</option>
                     <option value="to stop">To Stop</option>
                   </select>
-                  <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
+                  <button className="btn-outline text-xs text-red-600 border-red-300 dark:text-red-400 dark:border-red-700" onClick={() => remove(a.id)}>Delete</button>
                 </li>
               ))}
             </ul>
@@ -249,9 +249,9 @@ export default function ActivityList() {
             <div className="mb-2 text-xs font-semibold">To Stop</div>
             <ul className="space-y-2">
               {items.filter((a) => (a.status || 'to continue') === 'to stop').map((a, i) => (
-                <li key={a.id || i} className="flex items-center gap-3 rounded border px-3 py-2">
+                <li key={a.id || i} className="flex flex-wrap items-center gap-3 rounded border px-3 py-2">
                   <input
-                    className="flex-1 rounded border px-2 py-1 text-red-600 line-through italic dark:text-red-400"
+                    className="flex-1 input text-red-600 line-through italic dark:text-red-400"
                     defaultValue={a.name}
                     onBlur={(e) => updateName(a.id, e.target.value)}
                   />
@@ -261,14 +261,14 @@ export default function ActivityList() {
                     </span>
                   )}
                   <select
-                    className="rounded border px-2 py-1 text-sm bg-neutral-50 text-neutral-700 border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700 dark:focus:ring-neutral-700"
+                    className="input text-sm"
                     value={a.status || 'to continue'}
                     onChange={(e) => updateStatus(a.id, (e.target.value as ActivityStatus))}
                   >
                     <option value="to continue">To Continue</option>
                     <option value="to stop">To Stop</option>
                   </select>
-                  <button className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" onClick={() => remove(a.id)}>Delete</button>
+                  <button className="btn-outline text-xs text-red-600 border-red-300 dark:text-red-400 dark:border-red-700" onClick={() => remove(a.id)}>Delete</button>
                 </li>
               ))}
             </ul>
