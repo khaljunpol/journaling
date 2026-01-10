@@ -632,3 +632,138 @@ function computeCurrentStreakDays(completedDates: Set<string>) {
   }
   return streak;
 }
+
+// ---------------- Climbing: Logs and Goals ----------------
+// Climbs_<account>: [id, date, session, type, grade, attempts, location, notes]
+// ClimbGoals_<account>: [id, year, type, grade, target]
+
+export type ClimbLog = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
+export type ClimbGoal = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
+
+export async function listClimbLogs(account: string, fromISO?: string, toISO?: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Climbs_${account}`;
+  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:H` });
+  const values = res.data.values || [];
+  const rows: ClimbLog[] = values
+    .filter((r) => r && r[0])
+    .map(([id, date, session, type, grade, attempts, location, notes]) => ({
+      id: String(id).trim(),
+      date: String(date).trim(),
+      session: parseInt(String(session ?? '0'), 10) || 0,
+      type: (String(type || 'boulder').trim().toLowerCase() === 'rope' ? 'rope' : 'boulder'),
+      grade: String(grade || '').trim(),
+      attempts: parseInt(String(attempts ?? '0'), 10) || 0,
+      location: String(location || '').trim() || undefined,
+      notes: String(notes || '').trim() || undefined,
+    }));
+  if (!fromISO || !toISO) return rows;
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return rows.filter((r) => {
+    const t = new Date(r.date).getTime();
+    return !Number.isNaN(t) && t >= from && t <= to;
+  });
+}
+
+export async function addClimbLog(account: string, entry: { date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Climbs_${account}`;
+  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  const id = String(Date.now());
+  const row = [id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')];
+  await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:H`, valueInputOption: 'RAW', requestBody: { values: [row] } });
+  return { id, ...entry } as ClimbLog;
+}
+
+export async function deleteClimbLog(account: string, id: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Climbs_${account}`;
+  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:H` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === id) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex === -1) return { id };
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+  const sheetId = sheet?.properties?.sheetId;
+  if (typeof sheetId === 'number') {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+  } else {
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:H${rowIndex}` });
+  }
+  return { id };
+}
+
+export async function listClimbGoals(account: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `ClimbGoals_${account}`;
+  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
+  const values = res.data.values || [];
+  return values.filter((r) => r && r[0]).map(([id, year, type, grade, target]) => ({
+    id: String(id).trim(),
+    year: parseInt(String(year ?? '0'), 10) || new Date().getFullYear(),
+    type: (String(type || 'boulder').trim().toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope',
+    grade: String(grade || '').trim(),
+    target: parseInt(String(target ?? '0'), 10) || 0,
+  })) as ClimbGoal[];
+}
+
+export async function upsertClimbGoal(account: string, goal: { year: number; type: 'boulder' | 'rope'; grade: string; target: number }) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `ClimbGoals_${account}`;
+  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  let existingId = '';
+  for (let i = 0; i < values.length; i++) {
+    const [id, year, type, grade] = values[i];
+    if (
+      parseInt(String(year ?? '0'), 10) === goal.year &&
+      String(type || '').trim().toLowerCase() === goal.type &&
+      String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()
+    ) { rowIndex = i + 2; existingId = id; break; }
+  }
+  if (rowIndex === -1) {
+    const id = String(Date.now());
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:E`, valueInputOption: 'RAW', requestBody: { values: [[id, String(goal.year), goal.type, goal.grade, String(goal.target)]] } });
+    return { id, ...goal } as ClimbGoal;
+  } else {
+    await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!E${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[String(goal.target)]] } });
+    return { id: existingId, ...goal } as ClimbGoal;
+  }
+}
+
+export async function deleteClimbGoal(account: string, id: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `ClimbGoals_${account}`;
+  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === id) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex === -1) return { id };
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+  const sheetId = sheet?.properties?.sheetId;
+  if (typeof sheetId === 'number') {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+  } else {
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:E${rowIndex}` });
+  }
+  return { id };
+}

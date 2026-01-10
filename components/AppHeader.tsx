@@ -80,6 +80,7 @@ export default function AppHeader() {
             {link('/', 'Dashboard')}
             {link('/journal', 'Journal')}
             {link('/mood', 'Mood')}
+            {link('/climbing', 'Climbing')}
             {link('/metrics', 'Metrics')}
             <div className="ml-1" />
           </nav>
