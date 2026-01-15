@@ -149,30 +149,34 @@ export default function TimeTrackerView() {
       <div className="card p-4">
         <div className="card-title">Distribution ({viewMode==='month' ? 'Month' : 'Year'})</div>
         <div className="mt-2 h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0)}
-                dataKey="value"
-                nameKey="name"
-                outerRadius={80}
-                label={(props: any) => {
-                  const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
-                  const x = props?.x ?? 0;
-                  const y = props?.y ?? 0;
-                  const value = props?.value ?? '';
-                  return (
-                    <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{value}</text>
-                  );
-                }}
-              >
-                {(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0).map((entry, index) => (
-                  <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {cats.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0)}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={80}
+                  label={(props: any) => {
+                    const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
+                    const x = props?.x ?? 0;
+                    const y = props?.y ?? 0;
+                    const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
+                    return (
+                      <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
+                    );
+                  }}
+                >
+                  {(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0).map((entry, index) => (
+                    <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full flex items-center justify-center subtle text-sm">Loading categories…</div>
+          )}
         </div>
         <ul className="mt-2 text-sm space-y-1">
           {(viewMode==='month' ? monthDist : yearDist).map((d) => (
