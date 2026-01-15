@@ -26,6 +26,7 @@ export default function TimeTrackerView() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [cats, setCats] = useState<CatItem[]>([]);
   const ctrlRef = useRef<AbortController|null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
 
   useEffect(() => {
     const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
@@ -37,9 +38,12 @@ export default function TimeTrackerView() {
       const cookieAcc = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
       setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
     };
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    onResize();
     window.addEventListener('storage', onStorage);
     window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); window.removeEventListener('resize', onResize); };
   }, []);
 
   async function refresh() {
@@ -150,30 +154,61 @@ export default function TimeTrackerView() {
         <div className="card-title">Distribution ({viewMode==='month' ? 'Month' : 'Year'})</div>
         <div className="mt-2 h-48 w-full">
           {cats.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0)}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={80}
-                  label={(props: any) => {
-                    const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
-                    const x = props?.x ?? 0;
-                    const y = props?.y ?? 0;
-                    const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
-                    return (
-                      <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
-                    );
-                  }}
-                >
-                  {(viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0).map((entry, index) => (
-                    <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            (() => {
+              const currentData = (viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0);
+              if (currentData.length === 0) {
+                return <div className="h-full w-full flex items-center justify-center subtle text-sm">No data for this {viewMode}.</div>;
+              }
+              return isMobile ? (
+                <PieChart width={320} height={192}>
+                  <Pie
+                    data={currentData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={80}
+                    label={(props: any) => {
+                      const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
+                      const x = props?.x ?? 0;
+                      const y = props?.y ?? 0;
+                      const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
+                      return (
+                        <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
+                      );
+                    }}
+                  >
+                    {currentData.map((entry, index) => (
+                      <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={currentData}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={80}
+                      label={(props: any) => {
+                        const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
+                        const x = props?.x ?? 0;
+                        const y = props?.y ?? 0;
+                        const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
+                        return (
+                          <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
+                        );
+                      }}
+                    >
+                      {currentData.map((entry, index) => (
+                        <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })()
           ) : (
             <div className="h-full w-full flex items-center justify-center subtle text-sm">Loading categories…</div>
           )}
