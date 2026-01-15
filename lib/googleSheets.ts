@@ -767,3 +767,85 @@ export async function deleteClimbGoal(account: string, id: string) {
   }
   return { id };
 }
+
+// ---------------- Time Tracking (Daily rows) ----------------
+// Hours_<account>: [date, h1, h2, ..., h24] where each hN is category id (0..11) or empty
+export type HourLog = { id: string; date: string; hour: number; category: number };
+
+function hourIndexToColumnLetter(hourIndex: number) {
+  // hourIndex 0..23 maps to column B..Y (A is date)
+  const colNumber = 2 + hourIndex; // 1-based: A=1, B=2
+  // Convert to letter(s)
+  let n = colNumber;
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
+export async function listHourLogs(account: string, fromISO?: string, toISO?: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Hours_${account}`;
+  const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
+  await ensureSheetExists(title, headers);
+  // Read columns A (date) through Y (24 hours)
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
+  const values = res.data.values || [];
+  const expand: HourLog[] = [];
+  for (const row of values) {
+    if (!row || !row[0]) continue;
+    const date = String(row[0]).trim();
+    for (let h = 0; h < 24; h++) {
+      const v = row[1 + h];
+      if (v !== undefined && v !== null && String(v).trim() !== '') {
+        const category = parseInt(String(v).trim(), 10);
+        if (Number.isFinite(category)) {
+          expand.push({ id: `${date}-${h}`, date, hour: h, category });
+        }
+      }
+    }
+  }
+  if (!fromISO || !toISO) return expand;
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return expand.filter((r) => {
+    const t = new Date(r.date).getTime();
+    return !Number.isNaN(t) && t >= from && t <= to;
+  });
+}
+
+export async function upsertHourLog(account: string, entry: { date: string; hour: number; category: number }) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Hours_${account}`;
+  const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
+  await ensureSheetExists(title, headers);
+  // Fetch all rows to find date
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    const date = String((values[i] && values[i][0]) || '').trim();
+    if (date === entry.date) { rowIndex = i + 2; break; }
+  }
+  const colLetter = hourIndexToColumnLetter(entry.hour);
+  if (rowIndex === -1) {
+    // Append a new row: date + 24 blank hours, then set the specific hour
+    const row = new Array(1 + 24).fill('');
+    row[0] = entry.date;
+    row[1 + entry.hour] = String(entry.category);
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:Y`, valueInputOption: 'RAW', requestBody: { values: [row] } });
+  } else {
+    await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!${colLetter}${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[String(entry.category)]] } });
+  }
+  return { id: `${entry.date}-${entry.hour}`, ...entry } as HourLog;
+}
+
+export async function deleteHourLog(account: string, id: string) {
+  // Not supported in daily-row model by id; consider clearing by date+hour if needed.
+  return { id };
+}

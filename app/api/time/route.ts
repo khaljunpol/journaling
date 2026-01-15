@@ -1,0 +1,42 @@
+import { NextResponse } from 'next/server';
+import { listHourLogs, upsertHourLog } from '@/lib/googleSheets';
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const account = url.searchParams.get('account') || 'Alex';
+    const date = url.searchParams.get('date');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    if (date) {
+      const items = await listHourLogs(account, date, date);
+      return NextResponse.json(items);
+    }
+    if (from && to) {
+      const items = await listHourLogs(account, from, to);
+      return NextResponse.json(items);
+    }
+    const items = await listHourLogs(account);
+    return NextResponse.json(items);
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const account = url.searchParams.get('account') || 'Alex';
+    const body = await req.json();
+    const date = String(body?.date || '').slice(0,10);
+    let hour = parseInt(String(body?.hour ?? '-1'), 10);
+    let category = parseInt(String(body?.category ?? '-1'), 10);
+    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
+    if (!Number.isFinite(hour) || hour < 0 || hour > 23) return NextResponse.json({ error: 'hour must be 0..23' }, { status: 400 });
+    if (!Number.isFinite(category) || category < 0 || category > 11) return NextResponse.json({ error: 'category must be 0..11' }, { status: 400 });
+    const saved = await upsertHourLog(account, { date, hour, category });
+    return NextResponse.json(saved, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+  }
+}
