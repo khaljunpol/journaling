@@ -849,3 +849,143 @@ export async function deleteHourLog(account: string, id: string) {
   // Not supported in daily-row model by id; consider clearing by date+hour if needed.
   return { id };
 }
+
+export async function upsertHourLogsBatch(account: string, entry: { date: string; entries: Array<{ hour: number; category: number }> }) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `Hours_${account}`;
+  const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
+  await ensureSheetExists(title, headers);
+  // Fetch all rows to find date
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    const date = String((values[i] && values[i][0]) || '').trim();
+    if (date === entry.date) { rowIndex = i + 2; break; }
+  }
+  // Build the row values for columns B..Y
+  let rowHours: string[] = new Array(24).fill('');
+  if (rowIndex !== -1) {
+    const existing = values[rowIndex - 2] || [];
+    for (let h = 0; h < 24; h++) {
+      const v = existing[1 + h];
+      rowHours[h] = (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : '';
+    }
+  }
+  for (const e of entry.entries) {
+    if (Number.isFinite(e.hour) && e.hour >= 0 && e.hour <= 23 && Number.isFinite(e.category)) {
+      rowHours[e.hour] = String(e.category);
+    }
+  }
+  if (rowIndex === -1) {
+    const row = [entry.date, ...rowHours];
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:Y`, valueInputOption: 'RAW', requestBody: { values: [row] } });
+  } else {
+    await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!B${rowIndex}:Y${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [rowHours] } });
+  }
+  return { date: entry.date, count: entry.entries.length };
+}
+
+// ---------------- Time Categories (Settings) ----------------
+// TimeCategories_<account>: [id, name, color, order]
+export type TimeCategory = { id: string; name: string; color: string; order: number };
+
+export async function listTimeCategories(account: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `TimeCategories_${account}`;
+  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
+  const values = res.data.values || [];
+  if (values.length === 0) {
+    const defaults: TimeCategory[] = [
+      { id: '0', name: 'sleep', color: '#0ea5e9', order: 0 },
+      { id: '1', name: 'work', color: '#f59e0b', order: 1 },
+      { id: '2', name: 'hobbies / projects', color: '#22c55e', order: 2 },
+      { id: '3', name: 'freelance', color: '#a855f7', order: 3 },
+      { id: '4', name: 'exercise', color: '#ef4444', order: 4 },
+      { id: '5', name: 'friends', color: '#eab308', order: 5 },
+      { id: '6', name: 'relaxation and leisure', color: '#14b8a6', order: 6 },
+      { id: '7', name: 'partner', color: '#fb7185', order: 7 },
+      { id: '8', name: 'family', color: '#8b5cf6', order: 8 },
+      { id: '9', name: 'productive / chores', color: '#06b6d4', order: 9 },
+      { id: '10', name: 'travel', color: '#f97316', order: 10 },
+      { id: '11', name: 'misc', color: '#64748b', order: 11 },
+    ];
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${title}!A1:D`,
+      valueInputOption: 'RAW',
+      requestBody: { values: defaults.map((c) => [c.id, c.name, c.color, String(c.order)]) },
+    });
+    return defaults;
+  }
+  const rows: TimeCategory[] = values
+    .filter((r) => r && r[0])
+    .map(([id, name, color, order], i) => ({
+      id: String(id).trim(),
+      name: String(name || '').trim(),
+      color: String(color || '').trim() || '#888888',
+      order: Number.isFinite(parseInt(String(order ?? ''), 10)) ? parseInt(String(order ?? ''), 10) : i,
+    }))
+    .sort((a, b) => a.order - b.order);
+  // If the sheet was previously seeded without 'misc' (11), append it.
+  if (!rows.some((r) => r.id === '11')) {
+    const misc: TimeCategory = { id: '11', name: 'misc', color: '#64748b', order: 11 };
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:D`, valueInputOption: 'RAW', requestBody: { values: [[misc.id, misc.name, misc.color, String(misc.order)]] } });
+    rows.push(misc);
+    rows.sort((a, b) => a.order - b.order);
+  }
+  return rows;
+}
+
+export async function upsertTimeCategory(account: string, entry: { id?: string; name: string; color: string; order?: number }) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `TimeCategories_${account}`;
+  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  let existingId = '';
+  if (entry.id) {
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][0]).trim() === entry.id) { rowIndex = i + 2; existingId = entry.id; break; }
+    }
+  }
+  const id = existingId || String(Date.now());
+  const name = String(entry.name || '').trim();
+  const color = String(entry.color || '').trim() || '#888888';
+  const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);
+  if (rowIndex === -1) {
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:D`, valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order)]] } });
+    return { id, name, color, order } as TimeCategory;
+  } else {
+    await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!B${rowIndex}:D${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order)]] } });
+    return { id, name, color, order } as TimeCategory;
+  }
+}
+
+export async function deleteTimeCategory(account: string, id: string) {
+  const sheets = getSheets();
+  const spreadsheetId = getSpreadsheetId();
+  const title = `TimeCategories_${account}`;
+  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
+  const values = res.data.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === id) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex === -1) return { id };
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+  const sheetId = sheet?.properties?.sheetId;
+  if (typeof sheetId === 'number') {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+  } else {
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:D${rowIndex}` });
+  }
+  return { id };
+}

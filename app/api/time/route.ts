@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listHourLogs, upsertHourLog } from '@/lib/googleSheets';
+import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSheets';
 
 export async function GET(req: Request) {
   try {
@@ -29,9 +29,25 @@ export async function POST(req: Request) {
     const account = url.searchParams.get('account') || 'Alex';
     const body = await req.json();
     const date = String(body?.date || '').slice(0,10);
+    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
+
+    // Batch mode: entries array provided
+    if (Array.isArray(body?.entries)) {
+      const entries = (body.entries as Array<any>).map((e) => ({
+        hour: parseInt(String(e?.hour ?? '-1'), 10),
+        category: parseInt(String(e?.category ?? '-1'), 10),
+      }));
+      for (const e of entries) {
+        if (!Number.isFinite(e.hour) || e.hour < 0 || e.hour > 23) return NextResponse.json({ error: 'hour must be 0..23' }, { status: 400 });
+        if (!Number.isFinite(e.category) || e.category < 0 || e.category > 11) return NextResponse.json({ error: 'category must be 0..11' }, { status: 400 });
+      }
+      const saved = await upsertHourLogsBatch(account, { date, entries });
+      return NextResponse.json(saved, { status: 201 });
+    }
+
+    // Single entry fallback
     let hour = parseInt(String(body?.hour ?? '-1'), 10);
     let category = parseInt(String(body?.category ?? '-1'), 10);
-    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
     if (!Number.isFinite(hour) || hour < 0 || hour > 23) return NextResponse.json({ error: 'hour must be 0..23' }, { status: 400 });
     if (!Number.isFinite(category) || category < 0 || category > 11) return NextResponse.json({ error: 'category must be 0..11' }, { status: 400 });
     const saved = await upsertHourLog(account, { date, hour, category });

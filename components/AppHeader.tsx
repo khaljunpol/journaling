@@ -4,7 +4,7 @@ import AccountSwitcher from '@/components/AccountSwitcher';
 import LogoutButton from '@/components/LogoutButton';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -47,6 +47,7 @@ export default function AppHeader() {
     );
   };
 
+  const settingsRef = useRef<HTMLDetailsElement | null>(null);
   return (
     <header className="mb-4 sm:mb-6 sticky top-0 z-20 border-b" style={{ background: 'color-mix(in oklab, var(--bg) 85%, transparent)', borderColor: 'var(--border)', backdropFilter: 'saturate(180%) blur(8px)' }}>
       <div className="mx-auto max-w-5xl px-3 py-3 sm:px-4">
@@ -63,13 +64,14 @@ export default function AppHeader() {
               >
                 {theme === 'dark' ? '🌙' : '☀️'}
               </button>
-              <details className="relative">
+              <details className="relative" ref={settingsRef}>
                 <summary className="btn-outline px-2 py-1 text-xs cursor-pointer list-none select-none">⚙️</summary>
                 <div className="absolute right-0 mt-2 w-48 card p-2 space-y-1 z-30">
-                  <Link href="/activities" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900">Activities</Link>
-                  <Link href="/catalog" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900">Catalog</Link>
+                  <Link href="/activities" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Activities</Link>
+                  <Link href="/catalog" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Catalog</Link>
+                  <Link href="/time-categories" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Time Categories</Link>
                   <hr className="my-1 border-(--border)" />
-                  <div className="px-1">
+                  <div className="px-1" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>
                     <LogoutButton />
                   </div>
                 </div>
