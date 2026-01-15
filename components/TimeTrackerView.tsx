@@ -139,13 +139,13 @@ export default function TimeTrackerView() {
       return { name: `${c.id} ${c.name}`, value: counts[idNum] || 0, index: idNum };
     });
   }
-  const yearDist = useMemo(() => buildDist(yearLogs), [yearLogs]);
+  const yearDist = useMemo(() => buildDist(yearLogs), [yearLogs, catsSorted]);
   const monthDist = useMemo(() => {
     return buildDist(yearLogs.filter((it) => {
       const d = parseLocalDate(it.date);
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
     }));
-  }, [yearLogs, viewYear, viewMonth]);
+  }, [yearLogs, viewYear, viewMonth, catsSorted]);
 
   return (
     <section className="space-y-6">
