@@ -287,8 +287,8 @@ function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, pa
       const label = `${pad(m+1)}-${pad(di)}`; // month-day only
       const isToday = (year === currentYear) && (iso === todayISO);
       rows.push(
-        <div key={iso} className={`flex items-center gap-2 relative ${isToday ? 'ring-2 ring-(--accent) rounded' : ''}`}>
-          <div className={`w-16 md:w-20 text-xs subtle sticky left-0 z-10 pr-2 bg-(--card) ${isToday ? 'text-(--accent) font-medium' : ''}`}>{label}</div>
+        <div key={iso} className={`flex items-center gap-0 relative ${isToday ? 'ring-2 ring-(--accent) rounded' : ''}`}>
+          <div className={`w-12 md:w-16 text-xs subtle sticky left-0 z-10 bg-(--card) ${isToday ? 'text-(--accent) font-medium' : ''}`}>{label}</div>
           <div className="flex-1">
             <div className="grid grid-cols-24 gap-px">
               {Array.from({ length: 24 }, (_, h) => {
