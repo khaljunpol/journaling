@@ -32,6 +32,8 @@ export default function JournalView() {
 
   const moodCtrlRef = useRef<AbortController | null>(null);
 
+  
+
   useEffect(() => {
     const cookieAccount = (() => {
       try {
@@ -69,6 +71,8 @@ export default function JournalView() {
   }
 
   useEffect(() => { fetchMood(); }, [selectedDate, account]);
+
+  
 
   async function setMood(score: number) {
     try {
@@ -144,6 +148,7 @@ export default function JournalView() {
       </div>
       <DailyHighlight dateISO={selectedDate} />
       <DailyWeight dateISO={selectedDate} />
+      
     </div>
   );
 }

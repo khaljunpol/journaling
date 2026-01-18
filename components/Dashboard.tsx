@@ -8,6 +8,18 @@ export default function Dashboard() {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const localISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const weekStartLocal = (d: Date) => {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const day = x.getDay();
+        const diff = (day === 0 ? -6 : 1 - day);
+        x.setDate(x.getDate() + diff);
+        return x;
+    };
+    const toISODate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const weekKey = (d: Date) => {
+        const ws = weekStartLocal(d);
+        return `${ws.getFullYear()}-${pad(ws.getMonth() + 1)}-${pad(ws.getDate())}`;
+    };
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
     const fromISO = `${y}-${pad(m)}-01`;
@@ -54,6 +66,7 @@ export default function Dashboard() {
     };
     const fetchVersionRef = useRef(0);
     const actsCtrlRef = useRef<AbortController | null>(null);
+    const dashboardCtrlRef = useRef<AbortController | null>(null);
     const catalogCtrlRef = useRef<AbortController | null>(null);
     const logsTodayCtrlRef = useRef<AbortController | null>(null);
     const logs7CtrlRef = useRef<AbortController | null>(null);
@@ -62,6 +75,22 @@ export default function Dashboard() {
     const weightsCtrlRef = useRef<AbortController | null>(null);
     const highlightsCtrlRef = useRef<AbortController | null>(null);
     const moodsCtrlRef = useRef<AbortController | null>(null);
+    const timeCtrlRef = useRef<AbortController | null>(null);
+    const timeCatsCtrlRef = useRef<AbortController | null>(null);
+    const climbCtrlRef = useRef<AbortController | null>(null);
+    const goalsCtrlRef = useRef<AbortController | null>(null);
+    const extraWeightsCtrlRef = useRef<AbortController | null>(null);
+
+    // Dashboard snapshots
+    const [timeCategories, setTimeCategories] = useState<Array<{ id: string; name: string; color: string; order: number }>>([]);
+    const [timeStats, setTimeStats] = useState<{ todayHours: number; todayTop?: { id: number; name: string; count: number; percent: number }; weekTotal: number; weekTop: Array<{ id: number; name: string; count: number }> }>({ todayHours: 0, weekTotal: 0, weekTop: [] });
+    const [climbStats, setClimbStats] = useState<{ sessionsThisWeek: number; sessionsLastWeek: number; flashRate30d: number; avgAttempts30d: number }>({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 });
+    const [moodStats, setMoodStats] = useState<{ weekAvg: number; lastWeekAvg: number; spark: Array<{ date: string; score: number | null }> }>({ weekAvg: 0, lastWeekAvg: 0, spark: [] });
+    const [goalStats, setGoalStats] = useState<Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }>>([]);
+    const [consistency, setConsistency] = useState<{ climbingActiveWeeksYTD: number; timeActiveWeeksYTD: number; moodStreakDays: number; climbingStreakDays: number }>({ climbingActiveWeeksYTD: 0, timeActiveWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 });
+    const [balanceStats, setBalanceStats] = useState<{ todayProductive: number; todayRest: number; weekProductive: number; weekRest: number; sleepToday: number }>({ todayProductive: 0, todayRest: 0, weekProductive: 0, weekRest: 0, sleepToday: 0 });
+    const [weeklyHighlights, setWeeklyHighlights] = useState<{ bestClimbWeekCount: number; bestHourWeekCount: number; topWeekCategories: Array<string> }>({ bestClimbWeekCount: 0, bestHourWeekCount: 0, topWeekCategories: [] });
+    const [weightTrend, setWeightTrend] = useState<{ ma4: number; prevMa4: number; change: number }>({ ma4: 0, prevMa4: 0, change: 0 });
 
     useEffect(() => {
         // Try cookie first, then localStorage
@@ -106,6 +135,11 @@ export default function Dashboard() {
         if (weightsCtrlRef.current) weightsCtrlRef.current.abort();
         if (highlightsCtrlRef.current) highlightsCtrlRef.current.abort();
         if (moodsCtrlRef.current) moodsCtrlRef.current.abort();
+        if (timeCtrlRef.current) timeCtrlRef.current.abort();
+        if (timeCatsCtrlRef.current) timeCatsCtrlRef.current.abort();
+        if (climbCtrlRef.current) climbCtrlRef.current.abort();
+        if (goalsCtrlRef.current) goalsCtrlRef.current.abort();
+        if (extraWeightsCtrlRef.current) extraWeightsCtrlRef.current.abort();
         setActivities([]);
         setDoneToday(0);
         setStreakDays(0);
@@ -124,6 +158,15 @@ export default function Dashboard() {
         setMoodToday(null);
         setMoodAvg7(null);
         setMood7([]);
+        setTimeCategories([]);
+        setTimeStats({ todayHours: 0, weekTotal: 0, weekTop: [] });
+        setClimbStats({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 });
+        setMoodStats({ weekAvg: 0, lastWeekAvg: 0, spark: [] });
+        setGoalStats([]);
+        setConsistency({ climbingActiveWeeksYTD: 0, timeActiveWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 });
+        setBalanceStats({ todayProductive: 0, todayRest: 0, weekProductive: 0, weekRest: 0, sleepToday: 0 });
+        setWeeklyHighlights({ bestClimbWeekCount: 0, bestHourWeekCount: 0, topWeekCategories: [] });
+        setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 });
     }, [account]);
 
     useEffect(() => {
@@ -139,6 +182,215 @@ export default function Dashboard() {
             let logsTodayItems: Log[] = [];
             let logs7Items: Log[] = [];
             let logs30Items: Log[] = [];
+            // Local series to avoid relying on async state mid-load
+            let moodLast7Series: Array<{ date: string; score: number }> = [];
+            let weekTopNamesLocal: Array<string> = [];
+
+            // Try aggregated fetch first to reduce API calls
+            try {
+                dashboardCtrlRef.current = new AbortController();
+                const res = await fetch(`/api/dashboard?account=${encodeURIComponent(account)}`, { signal: dashboardCtrlRef.current.signal });
+                if (res.ok) {
+                    const data = await res.json();
+                    // activities
+                    allActs = Array.isArray(data.activities) ? data.activities.map((a: any) => ({
+                        ...a,
+                        status: a?.status === 'stopped' ? 'to stop' : (a?.status === 'active' ? 'to continue' : (a?.status || 'to continue')),
+                    })) : [];
+                    currentActs = allActs.filter((a) => (a.status || 'to continue') === 'to continue');
+                    setActivities(currentActs);
+                    // catalog
+                    catalogItems = Array.isArray(data.catalog) ? data.catalog : [];
+                    setCatalog(catalogItems);
+                    // logs30 -> derive today & 7d
+                    logs30Items = Array.isArray(data.logs30) ? data.logs30 : [];
+                    const todayISO = String(data?.dates?.todayISO || '');
+                    const from7ISO = String(data?.dates?.from7ISO || '');
+                    logsTodayItems = logs30Items.filter((l: any) => String(l.date) === todayISO);
+                    const last7Set = new Set<string>();
+                    {
+                        const d = new Date(todayISO);
+                        for (let i = 6; i >= 0; i--) {
+                            const dd = new Date(d);
+                            dd.setDate(dd.getDate() - i);
+                            const pad = (n: number) => String(n).padStart(2, '0');
+                            const iso = `${dd.getFullYear()}-${pad(dd.getMonth() + 1)}-${pad(dd.getDate())}`;
+                            last7Set.add(iso);
+                        }
+                    }
+                    logs7Items = logs30Items.filter((l: any) => last7Set.has(String(l.date)));
+                    setDoneToday((logsTodayItems || []).filter((l) => l.completed).length);
+                    setLast7Done((logs7Items || []).filter((l) => l.completed).length);
+                    const done30 = (logs30Items || []).filter((l) => l.completed);
+                    setLast30Done(done30.length);
+                    const nameMap: Record<string, string> = Object.fromEntries((currentActs || []).map((a) => [String(a.id), a.name]));
+                    const byAct: Record<string, number> = {};
+                    for (const l of done30) { const key = String(l.activityId); byAct[key] = (byAct[key] || 0) + 1; }
+                    const top = Object.entries(byAct).map(([id, count]) => ({ name: nameMap[id] || id, count })).sort((a, b) => b.count - a.count).slice(0, 3);
+                    setTopActivities30(top);
+                    // recent completions
+                    const seen = new Set<string>();
+                    const recent: Array<{ date: string; activityId: string; name: string }> = [];
+                    for (const l of done30.slice().sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)))) {
+                        const date = String(l.date); const actId = String(l.activityId); const k = `${date}-${actId}`; if (seen.has(k)) continue; seen.add(k);
+                        recent.push({ date, activityId: actId, name: nameMap[actId] || actId }); if (recent.length >= 5) break;
+                    }
+                    setRecentCompletions(recent);
+                    // weights: use 8w range for both 30d chart and 4w vs prev
+                    const weights8w = Array.isArray(data.weights8w) ? data.weights8w : [];
+                    const cleanW = weights8w.filter((p: any) => Number.isFinite(p?.weight));
+                    cleanW.sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+                    setWeights30(cleanW.filter((p: any) => new Date(String(p.date)) >= new Date(String(data?.dates?.from30ISO || ''))));
+                    // highlights
+                    highlightsItems = Array.isArray(data.highlights30) ? data.highlights30.filter((i: any) => i && i.date) : [];
+                    setHighlights30(highlightsItems);
+                    // moods
+                    const moods7 = Array.isArray(data.moods7) ? data.moods7 : [];
+                    const validM = moods7.filter((i: any) => typeof i?.score === 'number');
+                    const sortedM = validM.slice().sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+                    moodLast7Series = sortedM;
+                    const avg7 = sortedM.length ? (sortedM.reduce((acc: number, i: any) => acc + (i.score || 0), 0) / sortedM.length) : null;
+                    setMoodAvg7(avg7 !== null ? Math.round(avg7 * 10) / 10 : null);
+                    const todayMood = sortedM.find((i: any) => String(i.date) === todayISO)?.score ?? null;
+                    setMoodToday(typeof todayMood === 'number' ? todayMood : null);
+                    setMood7(sortedM);
+                    // metrics
+                    const metrics = data.metrics || null;
+                    streakLocal = metrics?.summary?.currentStreakDays || 0;
+                    setAvgWeeklyRate(metrics?.summary?.avgRate || 0);
+                    setStreakDays(streakLocal);
+                    setBestWeekLabel(metrics?.summary?.bestWeek?.week);
+                    setBestWeekRate(metrics?.summary?.bestWeek?.rate || 0);
+                    const weeks: Week[] = Array.isArray(metrics?.weeks) ? metrics.weeks : [];
+                    const n = weeks.length;
+                    setThisWeekRate(n ? weeks[n - 1]?.rate || 0 : 0);
+                    setLastWeekRate(n > 1 ? weeks[n - 2]?.rate || 0 : 0);
+                    // time categories + timeY derived for week/today
+                    const timeCats = Array.isArray(data.timeCategories) ? data.timeCategories : [];
+                    setTimeCategories(timeCats);
+                    const timeY = Array.isArray(data.timeY) ? data.timeY : [];
+                    const timeDay = timeY.filter((e: any) => String(e.date) === todayISO);
+                    const ws = new Date(String(data?.dates?.weekFromISO));
+                    const we = new Date(String(data?.dates?.weekToISO));
+                    const timeWeek = timeY.filter((e: any) => { const d = new Date(String(e.date)); return d >= ws && d <= we; });
+                    // compute time stats
+                    try {
+                        const todayHours = Array.isArray(timeDay) ? timeDay.length : 0;
+                        const dayDist = new Map<number, number>();
+                        for (const e of Array.isArray(timeDay) ? timeDay : []) { const c = Number(e?.category); if (Number.isFinite(c)) dayDist.set(c, (dayDist.get(c) || 0) + 1); }
+                        let todayTop: { id: number; name: string; count: number; percent: number } | undefined = undefined;
+                        if (dayDist.size > 0 && todayHours > 0) {
+                            const [topId, topCount] = Array.from(dayDist.entries()).sort((a, b) => b[1] - a[1])[0];
+                            const fallbackNames: Record<number, string> = { 0:'sleep',1:'work',2:'hobbies / projects',3:'freelance',4:'exercise / sports',5:'friends',6:'relaxation and leisure',7:'wife',8:'family',9:'chores',10:'travel',11:'brain rot / misc' };
+                            const cat = timeCats.find((x: any) => String(x.id) === String(topId));
+                            const name = cat?.name || fallbackNames[topId] || String(topId);
+                            todayTop = { id: topId, name, count: topCount, percent: Math.round((topCount / todayHours) * 100) };
+                        }
+                        const weekTotal = Array.isArray(timeWeek) ? timeWeek.length : 0;
+                        const weekDist = new Map<number, number>();
+                        for (const e of Array.isArray(timeWeek) ? timeWeek : []) { const c = Number(e?.category); if (Number.isFinite(c)) weekDist.set(c, (weekDist.get(c) || 0) + 1); }
+                        const fallbackNames: Record<number, string> = { 0:'sleep',1:'work',2:'hobbies / projects',3:'freelance',4:'exercise / sports',5:'friends',6:'relaxation and leisure',7:'wife',8:'family',9:'chores',10:'travel',11:'brain rot / misc' };
+                        const weekTop = Array.from(weekDist.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, count]) => ({ id, name: (timeCats.find((x: any) => String(x.id) === String(id))?.name) || fallbackNames[id] || String(id), count }));
+                        weekTopNamesLocal = weekTop.map((x) => x.name);
+                        setTimeStats({ todayHours, todayTop, weekTotal, weekTop });
+                    } catch { setTimeStats({ todayHours: 0, weekTotal: 0, weekTop: [] }); }
+                    // time balance
+                    try {
+                        const restNames = new Set(['sleep', 'relaxation and leisure', 'friends', 'family', 'wife', 'travel', 'brain rot / misc']);
+                        const productiveNames = new Set(['work', 'hobbies / projects', 'freelance', 'exercise / sports', 'chores']);
+                        const catNameById = new Map<number, string>();
+                        for (const c of timeCats) { const idNum = Number(c.id); if (Number.isFinite(idNum)) catNameById.set(idNum, String(c.name).toLowerCase()); }
+                        const productiveIds = new Set([1,2,3,4,9]);
+                        const restIds = new Set([0,5,6,7,8,10,11]);
+                        const classify = (catId: number) => { const name = (catNameById.get(catId) || '').toLowerCase(); if (restNames.has(name) || restIds.has(catId)) return 'rest'; if (productiveNames.has(name) || productiveIds.has(catId)) return 'productive'; return 'other'; };
+                        let todayProductive = 0, todayRest = 0, sleepToday = 0;
+                        for (const e of Array.isArray(timeDay) ? timeDay : []) { const cid = Number(e?.category); const cls = classify(cid); if (cls === 'productive') todayProductive += 1; else if (cls === 'rest') todayRest += 1; if ((catNameById.get(cid) || '') === 'sleep' || cid === 0) sleepToday += 1; }
+                        let weekProductive = 0, weekRest = 0;
+                        for (const e of Array.isArray(timeWeek) ? timeWeek : []) { const cid = Number(e?.category); const cls = classify(cid); if (cls === 'productive') weekProductive += 1; else if (cls === 'rest') weekRest += 1; }
+                        setBalanceStats({ todayProductive, todayRest, weekProductive, weekRest, sleepToday });
+                    } catch { setBalanceStats({ todayProductive: 0, todayRest: 0, weekProductive: 0, weekRest: 0, sleepToday: 0 }); }
+                    // climbing stats from 30d
+                    const climb30 = Array.isArray(data.climb30) ? data.climb30 : [];
+                    try {
+                        const countSessions = (arr: any[]) => { const set = new Set<string>(); for (const x of (Array.isArray(arr) ? arr : [])) { const date = String(x?.date || '').slice(0, 10); const sess = Number(x?.session) || 0; if (date && sess) set.add(`${date}-${sess}`); } return set.size; };
+                        const ws = new Date(String(data?.dates?.weekFromISO)); const we = new Date(String(data?.dates?.weekToISO));
+                        const prevWs = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7); const prevWe = new Date(prevWs.getFullYear(), prevWs.getMonth(), prevWs.getDate() + 6);
+                        const climbWeek = climb30.filter((x: any) => { const d = new Date(String(x?.date).slice(0,10)); return d >= ws && d <= we; });
+                        const climbPrev = climb30.filter((x: any) => { const d = new Date(String(x?.date).slice(0,10)); return d >= prevWs && d <= prevWe; });
+                        const sessionsThisWeek = countSessions(climbWeek); const sessionsLastWeek = countSessions(climbPrev);
+                        let flashRate30d = 0; let avgAttempts30d = 0;
+                        if (Array.isArray(climb30) && climb30.length > 0) {
+                            const total = climb30.length; const flashes = climb30.filter((x: any) => Number(x?.attempts) === 0).length; flashRate30d = Math.round((flashes / total) * 100);
+                            const attemptsList = climb30.map((x: any) => Number(x?.attempts)).filter((a) => Number.isFinite(a) && a > 0);
+                            avgAttempts30d = attemptsList.length > 0 ? Number((attemptsList.reduce((s, v) => s + v, 0) / attemptsList.length).toFixed(2)) : 0;
+                        }
+                        setClimbStats({ sessionsThisWeek, sessionsLastWeek, flashRate30d, avgAttempts30d });
+                    } catch { setClimbStats({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 }); }
+                    // mood overview weekly vs last week
+                    try {
+                        const ws = new Date(String(data?.dates?.weekFromISO)); const we = new Date(String(data?.dates?.weekToISO));
+                        const prevWs = new Date(String(data?.dates?.prevWeekFromISO)); const prevWe = new Date(String(data?.dates?.prevWeekToISO));
+                        const weekAvg = (() => { const weekItems = (moodLast7Series || []).filter((p) => { const d = new Date(String(p.date)); return d >= ws && d <= we; }); return weekItems.length ? Number((weekItems.reduce((s, x) => s + (Number(x?.score) || 0), 0) / weekItems.length).toFixed(2)) : 0; })();
+                        const lastWeekAvg = (() => { const prevItems = (Array.isArray(data?.moodsPrev7) ? data.moodsPrev7 : []).filter((p: any) => typeof p?.score === 'number'); return prevItems.length ? Number((prevItems.reduce((s: number, x: any) => s + (Number(x?.score) || 0), 0) / prevItems.length).toFixed(2)) : 0; })();
+                        const spark = (moodLast7Series || []).map((p) => ({ date: p.date, score: p.score }));
+                        setMoodStats({ weekAvg, lastWeekAvg, spark });
+                    } catch { setMoodStats({ weekAvg: 0, lastWeekAvg: 0, spark: [] }); }
+                    // goals progress + YTD consistency
+                    try {
+                        const year = today.getFullYear();
+                        const goalsArr = Array.isArray(data.goals) ? data.goals.filter((g: any) => Number(g?.year) === year) : [];
+                        const yearLogs = Array.isArray(data.climbY) ? data.climbY : [];
+                        const dayOfYear = Math.floor((new Date(String(data?.dates?.todayISO)).getTime() - new Date(`${year}-01-01`).getTime()) / 86400000) + 1;
+                        const stats: Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }> = [];
+                        for (const g of goalsArr) {
+                            const done = (Array.isArray(yearLogs) ? yearLogs : []).filter((x: any) => String(x?.type).toLowerCase() === String(g?.type).toLowerCase() && String(x?.grade).toLowerCase() === String(g?.grade).toLowerCase()).length;
+                            const percent = g?.target ? Math.min(100, Math.round((done / Number(g.target)) * 100)) : 0;
+                            const paceNeededPerDay = g?.target ? Number(g.target) / 365 : 0;
+                            const actualPerDay = dayOfYear > 0 ? done / dayOfYear : 0;
+                            const onTrack: 'ahead' | 'on track' | 'behind' = actualPerDay > paceNeededPerDay * 1.05 ? 'ahead' : actualPerDay >= paceNeededPerDay * 0.95 ? 'on track' : 'behind';
+                            stats.push({ label: `${g.type} ${g.grade}`, percent, onTrack });
+                        }
+                        setGoalStats(stats);
+                        // Consistency YTD
+                        const timeY = Array.isArray(data.timeY) ? data.timeY : [];
+                        const climbWeeks = new Set<string>(); const timeWeeks = new Set<string>();
+                        const weekKey = (d: Date) => { const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const day = dd.getDay(); const diff = (day === 0 ? -6 : 1 - day); dd.setDate(dd.getDate() + diff); const pad2 = (n: number) => String(n).padStart(2, '0'); return `${dd.getFullYear()}-${pad2(dd.getMonth() + 1)}-${pad2(dd.getDate())}`; };
+                        for (const x of (Array.isArray(yearLogs) ? yearLogs : [])) { const d = new Date(String(x?.date).slice(0, 10)); climbWeeks.add(weekKey(d)); }
+                        for (const x of (Array.isArray(timeY) ? timeY : [])) { const d = new Date(String(x?.date).slice(0, 10)); timeWeeks.add(weekKey(d)); }
+                        // Streaks
+                        let moodStreakDays = 0; for (let i = 0; i < 365; i++) { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i); const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; const found = (moodLast7Series || []).find((p) => String(p.date) === iso); if (found && typeof found.score === 'number') moodStreakDays += 1; else break; }
+                        let climbingStreakDays = 0; for (let i = 0; i < 365; i++) { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i); const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; const items = (Array.isArray(data.climb30) ? data.climb30 : []).filter((x: any) => String(x?.date).slice(0, 10) === iso); if (Array.isArray(items) && items.length > 0) climbingStreakDays += 1; else break; }
+                        setConsistency({ climbingActiveWeeksYTD: climbWeeks.size, timeActiveWeeksYTD: timeWeeks.size, moodStreakDays, climbingStreakDays });
+                    } catch { setGoalStats([]); setConsistency({ climbingActiveWeeksYTD: 0, timeActiveWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 }); }
+                    // Weekly highlights (last 12 weeks) using YTD arrays
+                    try {
+                        const weekTopCategories = weekTopNamesLocal;
+                        const twAgo = new Date(String(data?.dates?.twelveWeeksAgoISO));
+                        const weekKey2 = (d: Date) => { const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const day = dd.getDay(); const diff = (day === 0 ? -6 : 1 - day); dd.setDate(dd.getDate() + diff); const pad2 = (n: number) => String(n).padStart(2, '0'); return `${dd.getFullYear()}-${pad2(dd.getMonth() + 1)}-${pad2(dd.getDate())}`; };
+                        const climbByWeek: Record<string, number> = {};
+                        for (const x of (Array.isArray(data?.climbY) ? data.climbY : [])) { const d = new Date(String(x?.date).slice(0, 10)); if (d >= twAgo) { const k = weekKey2(d); climbByWeek[k] = (climbByWeek[k] || 0) + 1; } }
+                        const hoursByWeek: Record<string, number> = {};
+                        for (const x of (Array.isArray(data?.timeY) ? data.timeY : [])) { const d = new Date(String(x?.date).slice(0, 10)); if (d >= twAgo) { const k = weekKey2(d); hoursByWeek[k] = (hoursByWeek[k] || 0) + 1; } }
+                        const bestClimbWeekCount = Object.values(climbByWeek).reduce((m, v) => Math.max(m, v), 0) || 0;
+                        const bestHourWeekCount = Object.values(hoursByWeek).reduce((m, v) => Math.max(m, v), 0) || 0;
+                        setWeeklyHighlights({ bestClimbWeekCount, bestHourWeekCount, topWeekCategories: weekTopCategories });
+                    } catch { setWeeklyHighlights({ bestClimbWeekCount: 0, bestHourWeekCount: 0, topWeekCategories: [] }); }
+                    // Weight 4w vs prev from weights8w
+                    try {
+                        const byW: Record<string, { sum: number; count: number }> = {};
+                        const weekKey2 = (d: Date) => { const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const day = dd.getDay(); const diff = (day === 0 ? -6 : 1 - day); dd.setDate(dd.getDate() + diff); const pad2 = (n: number) => String(n).padStart(2, '0'); return `${dd.getFullYear()}-${pad2(dd.getMonth() + 1)}-${pad2(dd.getDate())}`; };
+                        for (const w of (cleanW || [])) { const k = weekKey2(new Date(String(w?.date))); const v = Number((w as any)?.weight); if (!Number.isFinite(v)) continue; const b = (byW[k] ||= { sum: 0, count: 0 }); b.sum += v; b.count += 1; }
+                        const orderedWeeks = Object.entries(byW).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([k, v]) => ({ k, avg: v.count > 0 ? v.sum / v.count : 0 }));
+                        const last4 = orderedWeeks.slice(-4); const prev4 = orderedWeeks.slice(-8, -4);
+                        const ma4 = last4.length > 0 ? Number((last4.reduce((s, x) => s + x.avg, 0) / last4.length).toFixed(2)) : 0;
+                        const prevMa4 = prev4.length > 0 ? Number((prev4.reduce((s, x) => s + x.avg, 0) / prev4.length).toFixed(2)) : 0;
+                        const change = Number((ma4 - prevMa4).toFixed(2));
+                        setWeightTrend({ ma4, prevMa4, change });
+                    } catch { setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 }); }
+                    // Insights recalculation using aggregated data — keep existing logic below
+                    // Continue to suggestions block
+                }
+            } catch {}
             try {
                 actsCtrlRef.current = new AbortController();
                 const actsRes = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
@@ -258,6 +510,7 @@ export default function Dashboard() {
                     setMoodAvg7(avg !== null ? Math.round(avg * 10) / 10 : null);
                     setMood7(sorted);
                 }
+                moodLast7Series = sorted;
             } catch { setMoodAvg7(null); }
 
             try {
@@ -278,6 +531,245 @@ export default function Dashboard() {
                     setLastWeekRate(n > 1 ? weeks[n - 2]?.rate || 0 : 0);
                 }
             } catch { streakLocal = 0; setAvgWeeklyRate(0); setStreakDays(0); setBestWeekLabel(undefined); setBestWeekRate(0); setThisWeekRate(0); setLastWeekRate(0); }
+
+            // Time categories and snapshots
+            try {
+                timeCatsCtrlRef.current = new AbortController();
+                const catsRes = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`, { signal: timeCatsCtrlRef.current.signal });
+                const cats = catsRes.ok ? await catsRes.json() : [];
+                const catsArr = Array.isArray(cats) ? cats : [];
+                if (v === fetchVersionRef.current) setTimeCategories(catsArr);
+            } catch { setTimeCategories([]); }
+            let timeDay: any[] = [];
+            let timeWeek: any[] = [];
+            try {
+                timeCtrlRef.current = new AbortController();
+                const dayRes = await fetch(`/api/time?date=${todayISO}&account=${encodeURIComponent(account)}`, { signal: timeCtrlRef.current.signal });
+                timeDay = dayRes.ok ? await dayRes.json() : [];
+                const ws = weekStartLocal(today);
+                const we = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6);
+                const weekFrom = toISODate(ws);
+                const weekTo = toISODate(we);
+                const weekRes = await fetch(`/api/time?from=${weekFrom}&to=${weekTo}&account=${encodeURIComponent(account)}`, { signal: timeCtrlRef.current.signal });
+                timeWeek = weekRes.ok ? await weekRes.json() : [];
+            } catch { timeDay = []; timeWeek = []; }
+            try {
+                const todayHours = Array.isArray(timeDay) ? timeDay.length : 0;
+                const dayDist = new Map<number, number>();
+                for (const e of Array.isArray(timeDay) ? timeDay : []) {
+                    const c = Number(e?.category);
+                    if (Number.isFinite(c)) dayDist.set(c, (dayDist.get(c) || 0) + 1);
+                }
+                let todayTop: { id: number; name: string; count: number; percent: number } | undefined = undefined;
+                if (dayDist.size > 0 && todayHours > 0) {
+                    const [topId, topCount] = Array.from(dayDist.entries()).sort((a, b) => b[1] - a[1])[0];
+                    const fallbackNames: Record<number, string> = { 0:'sleep',1:'work',2:'hobbies / projects',3:'freelance',4:'exercise / sports',5:'friends',6:'relaxation and leisure',7:'wife',8:'family',9:'chores',10:'travel',11:'brain rot / misc' };
+                    const cat = (Array.isArray(timeCategories) ? timeCategories : []).find((x) => String(x.id) === String(topId));
+                    const name = cat?.name || fallbackNames[topId] || String(topId);
+                    todayTop = { id: topId, name, count: topCount, percent: Math.round((topCount / todayHours) * 100) };
+                }
+                const weekTotal = Array.isArray(timeWeek) ? timeWeek.length : 0;
+                const weekDist = new Map<number, number>();
+                for (const e of Array.isArray(timeWeek) ? timeWeek : []) {
+                    const c = Number(e?.category);
+                    if (Number.isFinite(c)) weekDist.set(c, (weekDist.get(c) || 0) + 1);
+                }
+                const fallbackNames: Record<number, string> = { 0:'sleep',1:'work',2:'hobbies / projects',3:'freelance',4:'exercise / sports',5:'friends',6:'relaxation and leisure',7:'wife',8:'family',9:'chores',10:'travel',11:'brain rot / misc' };
+                const weekTop = Array.from(weekDist.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([id, count]) => ({ id, name: ((Array.isArray(timeCategories) ? timeCategories : []).find((x) => String(x.id) === String(id))?.name) || fallbackNames[id] || String(id), count }));
+                weekTopNamesLocal = weekTop.map((x) => x.name);
+                if (v === fetchVersionRef.current) setTimeStats({ todayHours, todayTop, weekTotal, weekTop });
+            } catch { setTimeStats({ todayHours: 0, weekTotal: 0, weekTop: [] }); }
+
+            // Climbing snapshots
+            let climbWeek: any[] = [];
+            let climbPrev: any[] = [];
+            let climb30: any[] = [];
+            try {
+                climbCtrlRef.current = new AbortController();
+                const ws = weekStartLocal(today);
+                const we = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6);
+                const weekFrom = toISODate(ws);
+                const weekTo = toISODate(we);
+                const prevWs = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7);
+                const prevWe = new Date(prevWs.getFullYear(), prevWs.getMonth(), prevWs.getDate() + 6);
+                const prevFrom = toISODate(prevWs);
+                const prevTo = toISODate(prevWe);
+                const climbWeekRes = await fetch(`/api/climbing/logs?from=${weekFrom}&to=${weekTo}&account=${encodeURIComponent(account)}`, { signal: climbCtrlRef.current.signal });
+                climbWeek = climbWeekRes.ok ? await climbWeekRes.json() : [];
+                const climbPrevRes = await fetch(`/api/climbing/logs?from=${prevFrom}&to=${prevTo}&account=${encodeURIComponent(account)}`, { signal: climbCtrlRef.current.signal });
+                climbPrev = climbPrevRes.ok ? await climbPrevRes.json() : [];
+                const climb30Res = await fetch(`/api/climbing/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`, { signal: climbCtrlRef.current.signal });
+                climb30 = climb30Res.ok ? await climb30Res.json() : [];
+            } catch { climbWeek = []; climbPrev = []; climb30 = []; }
+            try {
+                const countSessions = (arr: any[]) => {
+                    const set = new Set<string>();
+                    for (const x of (Array.isArray(arr) ? arr : [])) {
+                        const date = String(x?.date || '').slice(0, 10);
+                        const sess = Number(x?.session) || 0;
+                        if (date && sess) set.add(`${date}-${sess}`);
+                    }
+                    return set.size;
+                };
+                const sessionsThisWeek = countSessions(climbWeek);
+                const sessionsLastWeek = countSessions(climbPrev);
+                let flashRate30d = 0;
+                let avgAttempts30d = 0;
+                if (Array.isArray(climb30) && climb30.length > 0) {
+                    const total = climb30.length;
+                    const flashes = climb30.filter((x: any) => Number(x?.attempts) === 0).length;
+                    flashRate30d = Math.round((flashes / total) * 100);
+                    const attemptsList = climb30.map((x: any) => Number(x?.attempts)).filter((a) => Number.isFinite(a) && a > 0);
+                    avgAttempts30d = attemptsList.length > 0 ? Number((attemptsList.reduce((s, v) => s + v, 0) / attemptsList.length).toFixed(2)) : 0;
+                }
+                if (v === fetchVersionRef.current) setClimbStats({ sessionsThisWeek, sessionsLastWeek, flashRate30d, avgAttempts30d });
+            } catch { setClimbStats({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 }); }
+
+            // Mood overview: week vs last week + 7-day spark
+            try {
+                const ws = weekStartLocal(today);
+                const we = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6);
+                const prevWs = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7);
+                const prevWe = new Date(prevWs.getFullYear(), prevWs.getMonth(), prevWs.getDate() + 6);
+                const moodWeekRes = await fetch(`/api/moods?from=${toISODate(ws)}&to=${toISODate(we)}&account=${encodeURIComponent(account)}`);
+                const moodPrevRes = await fetch(`/api/moods?from=${toISODate(prevWs)}&to=${toISODate(prevWe)}&account=${encodeURIComponent(account)}`);
+                const moodWeek = moodWeekRes.ok ? await moodWeekRes.json() : [];
+                const moodPrev = moodPrevRes.ok ? await moodPrevRes.json() : [];
+                const weekAvg = Array.isArray(moodWeek) && moodWeek.length > 0 ? Number((moodWeek.reduce((s: number, x: any) => s + (Number(x?.score) || 0), 0) / moodWeek.length).toFixed(2)) : 0;
+                const lastWeekAvg = Array.isArray(moodPrev) && moodPrev.length > 0 ? Number((moodPrev.reduce((s: number, x: any) => s + (Number(x?.score) || 0), 0) / moodPrev.length).toFixed(2)) : 0;
+                const spark = (moodLast7Series || []).map((p) => ({ date: p.date, score: p.score }));
+                if (v === fetchVersionRef.current) setMoodStats({ weekAvg, lastWeekAvg, spark });
+            } catch { setMoodStats({ weekAvg: 0, lastWeekAvg: 0, spark: [] }); }
+
+            // Goals progress (current year)
+            try {
+                goalsCtrlRef.current = new AbortController();
+                const year = today.getFullYear();
+                const goalsRes = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`, { signal: goalsCtrlRef.current.signal });
+                const goals = goalsRes.ok ? await goalsRes.json() : [];
+                const yearGoals = Array.isArray(goals) ? goals.filter((g: any) => Number(g?.year) === year) : [];
+                const yFrom = `${year}-01-01`;
+                const yTo = `${year}-12-31`;
+                const yearLogsRes = await fetch(`/api/climbing/logs?from=${yFrom}&to=${yTo}&account=${encodeURIComponent(account)}`, { signal: goalsCtrlRef.current.signal });
+                const yearLogs = yearLogsRes.ok ? await yearLogsRes.json() : [];
+                const dayOfYear = Math.floor((new Date(toISODate(today)).getTime() - new Date(`${year}-01-01`).getTime()) / 86400000) + 1;
+                const stats: Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }> = [];
+                for (const g of yearGoals) {
+                    const done = (Array.isArray(yearLogs) ? yearLogs : []).filter((x: any) => String(x?.type).toLowerCase() === String(g?.type).toLowerCase() && String(x?.grade).toLowerCase() === String(g?.grade).toLowerCase()).length;
+                    const percent = g?.target ? Math.min(100, Math.round((done / Number(g.target)) * 100)) : 0;
+                    const paceNeededPerDay = g?.target ? Number(g.target) / 365 : 0;
+                    const actualPerDay = dayOfYear > 0 ? done / dayOfYear : 0;
+                    const onTrack: 'ahead' | 'on track' | 'behind' = actualPerDay > paceNeededPerDay * 1.05 ? 'ahead' : actualPerDay >= paceNeededPerDay * 0.95 ? 'on track' : 'behind';
+                    stats.push({ label: `${g.type} ${g.grade}`, percent, onTrack });
+                }
+                if (v === fetchVersionRef.current) setGoalStats(stats);
+            } catch { setGoalStats([]); }
+
+            // Consistency: active weeks YTD + streaks
+            try {
+                const year = today.getFullYear();
+                const yStart = new Date(year, 0, 1);
+                const yEnd = new Date(year, 11, 31);
+                const climbYRes = await fetch(`/api/climbing/logs?from=${toISODate(yStart)}&to=${toISODate(yEnd)}&account=${encodeURIComponent(account)}`);
+                const climbY = climbYRes.ok ? await climbYRes.json() : [];
+                const timeYRes = await fetch(`/api/time?from=${toISODate(yStart)}&to=${toISODate(yEnd)}&account=${encodeURIComponent(account)}`);
+                const timeY = timeYRes.ok ? await timeYRes.json() : [];
+                const climbWeeks = new Set<string>();
+                for (const x of (Array.isArray(climbY) ? climbY : [])) { const d = new Date(String(x?.date).slice(0, 10)); climbWeeks.add(weekKey(d)); }
+                const timeWeeks = new Set<string>();
+                for (const x of (Array.isArray(timeY) ? timeY : [])) { const d = new Date(String(x?.date).slice(0, 10)); timeWeeks.add(weekKey(d)); }
+                // Mood streak
+                let moodStreakDays = 0;
+                for (let i = 0; i < 365; i++) {
+                    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+                    const res = await fetch(`/api/moods?date=${toISODate(d)}&account=${encodeURIComponent(account)}`);
+                    const data = res.ok ? await res.json() : { score: null };
+                    if (typeof data?.score === 'number') moodStreakDays += 1; else break;
+                }
+                // Climbing streak
+                let climbingStreakDays = 0;
+                for (let i = 0; i < 365; i++) {
+                    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+                    const res = await fetch(`/api/climbing/logs?date=${toISODate(d)}&account=${encodeURIComponent(account)}`);
+                    const items = res.ok ? await res.json() : [];
+                    if (Array.isArray(items) && items.length > 0) climbingStreakDays += 1; else break;
+                }
+                if (v === fetchVersionRef.current) setConsistency({ climbingActiveWeeksYTD: climbWeeks.size, timeActiveWeeksYTD: timeWeeks.size, moodStreakDays, climbingStreakDays });
+            } catch { setConsistency({ climbingActiveWeeksYTD: 0, timeActiveWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 }); }
+
+            // Weekly highlights and time balance
+            try {
+                const restNames = new Set(['sleep', 'relaxation and leisure', 'friends', 'family', 'wife', 'travel', 'brain rot / misc']);
+                const productiveNames = new Set(['work', 'hobbies / projects', 'freelance', 'exercise / sports', 'chores']);
+                const catNameById = new Map<number, string>();
+                for (const c of timeCategories) { const idNum = Number(c.id); if (Number.isFinite(idNum)) catNameById.set(idNum, c.name.toLowerCase()); }
+                const productiveIds = new Set([1,2,3,4,9]);
+                const restIds = new Set([0,5,6,7,8,10,11]);
+                const classify = (catId: number) => {
+                    const name = (catNameById.get(catId) || '').toLowerCase();
+                    if (restNames.has(name) || restIds.has(catId)) return 'rest';
+                    if (productiveNames.has(name) || productiveIds.has(catId)) return 'productive';
+                    return 'other';
+                };
+                let todayProductive = 0, todayRest = 0, sleepToday = 0;
+                for (const e of Array.isArray(timeDay) ? timeDay : []) {
+                    const cid = Number(e?.category);
+                    const cls = classify(cid);
+                    if (cls === 'productive') todayProductive += 1; else if (cls === 'rest') todayRest += 1;
+                    if ((catNameById.get(cid) || '') === 'sleep' || cid === 0) sleepToday += 1;
+                }
+                let weekProductive = 0, weekRest = 0;
+                for (const e of Array.isArray(timeWeek) ? timeWeek : []) {
+                    const cid = Number(e?.category);
+                    const cls = classify(cid);
+                    if (cls === 'productive') weekProductive += 1; else if (cls === 'rest') weekRest += 1;
+                }
+                if (v === fetchVersionRef.current) setBalanceStats({ todayProductive, todayRest, weekProductive, weekRest, sleepToday });
+
+                const ws = weekStartLocal(today);
+                const weekTo = toISODate(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6));
+                const twelveAgo = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7 * 12);
+                const logs12Res = await fetch(`/api/climbing/logs?from=${toISODate(twelveAgo)}&to=${weekTo}&account=${encodeURIComponent(account)}`);
+                const logs12 = logs12Res.ok ? await logs12Res.json() : [];
+                const time12Res = await fetch(`/api/time?from=${toISODate(twelveAgo)}&to=${weekTo}&account=${encodeURIComponent(account)}`);
+                const time12 = time12Res.ok ? await time12Res.json() : [];
+                const climbByWeek: Record<string, number> = {};
+                for (const x of (Array.isArray(logs12) ? logs12 : [])) { const k = weekKey(new Date(String(x?.date).slice(0, 10))); climbByWeek[k] = (climbByWeek[k] || 0) + 1; }
+                const hoursByWeek: Record<string, number> = {};
+                for (const x of (Array.isArray(time12) ? time12 : [])) { const k = weekKey(new Date(String(x?.date).slice(0, 10))); hoursByWeek[k] = (hoursByWeek[k] || 0) + 1; }
+                const bestClimbWeekCount = Object.values(climbByWeek).reduce((m, v) => Math.max(m, v), 0) || 0;
+                const bestHourWeekCount = Object.values(hoursByWeek).reduce((m, v) => Math.max(m, v), 0) || 0;
+                const topWeekCategories = weekTopNamesLocal;
+                if (v === fetchVersionRef.current) setWeeklyHighlights({ bestClimbWeekCount, bestHourWeekCount, topWeekCategories });
+            } catch { setBalanceStats({ todayProductive: 0, todayRest: 0, weekProductive: 0, weekRest: 0, sleepToday: 0 }); setWeeklyHighlights({ bestClimbWeekCount: 0, bestHourWeekCount: 0, topWeekCategories: [] }); }
+
+            // Weight trend: 4-week MA vs previous
+            try {
+                extraWeightsCtrlRef.current = new AbortController();
+                const ws = weekStartLocal(today);
+                const weekTo = toISODate(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 6));
+                const eightWeeksAgo = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7 * 8);
+                const wRes = await fetch(`/api/weights?from=${toISODate(eightWeeksAgo)}&to=${weekTo}&account=${encodeURIComponent(account)}`, { signal: extraWeightsCtrlRef.current.signal });
+                const weights = wRes.ok ? await wRes.json() : [];
+                const byW: Record<string, { sum: number; count: number }> = {};
+                for (const w of (Array.isArray(weights) ? weights : [])) {
+                    const k = weekKey(new Date(String(w?.date).slice(0, 10)));
+                    const v = Number(w?.weight);
+                    if (!Number.isFinite(v)) continue;
+                    const b = (byW[k] ||= { sum: 0, count: 0 });
+                    b.sum += v; b.count += 1;
+                }
+                const orderedWeeks = Object.entries(byW).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([k, v]) => ({ k, avg: v.count > 0 ? v.sum / v.count : 0 }));
+                const last4 = orderedWeeks.slice(-4);
+                const prev4 = orderedWeeks.slice(-8, -4);
+                const ma4 = last4.length > 0 ? Number((last4.reduce((s, x) => s + x.avg, 0) / last4.length).toFixed(2)) : 0;
+                const prevMa4 = prev4.length > 0 ? Number((prev4.reduce((s, x) => s + x.avg, 0) / prev4.length).toFixed(2)) : 0;
+                const change = Number((ma4 - prevMa4).toFixed(2));
+                if (v === fetchVersionRef.current) setWeightTrend({ ma4, prevMa4, change });
+            } catch { setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 }); }
 
             // Compute insights after data loaded
             try {
@@ -606,53 +1098,58 @@ export default function Dashboard() {
     return (
         <main key={account} className="space-y-8">
             <h2 className="text-xl font-semibold">Dashboard</h2>
+            {/* Ordered groups for clear top-to-bottom reading on mobile */}
+            <h3 className="text-base font-semibold">Mood & Weight</h3>
             <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                {/* Detailed Mood card */}
                 <div className="card p-4">
-                    <div className="card-title">Activities</div>
-                    <div className="text-2xl font-semibold">{activities.length}</div>
+                    <div className="card-title">Mood</div>
+                    <div className="text-2xl font-semibold">
+                        {typeof moodToday === 'number' ? (
+                            <span title={`${moodToday}/10`}>{moodEmoji(moodToday)} {moodToday}/10</span>
+                        ) : '-'}
+                    </div>
+                    <div className="subtle">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
+                    <div className="mt-1 subtle">
+                        {typeof moodToday === 'number' && typeof moodAvg7 === 'number' ? (() => {
+                            const delta = Math.round((moodToday - moodAvg7) * 10) / 10;
+                            if (Math.abs(delta) < 0.1) return 'Today is on your weekly average.';
+                            return `Today is ${delta > 0 ? 'above' : 'below'} avg by ${Math.abs(delta)}`;
+                        })() : (mood7.length >= 2 ? (() => {
+                            const first = mood7[0].score;
+                            const last = mood7[mood7.length - 1].score;
+                            const trend = Math.round((last - first) * 10) / 10;
+                            return `7-day trend ${trend >= 0 ? 'up' : 'down'} by ${Math.abs(trend)}`;
+                        })() : 'Log your mood to see trends.')}
+                    </div>
+                    <div className="mt-2 h-12 w-full">
+                        {mood7.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={mood7} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="date" tick={false} axisLine={false} />
+                                    <YAxis tick={false} axisLine={false} domain={[0, 10]} />
+                                    <Tooltip formatter={(v: any) => [`${v}/10`, 'Mood']} labelFormatter={(l: any) => new Date(l).toLocaleDateString()} />
+                                    {typeof moodAvg7 === 'number' ? (
+                                      <ReferenceLine y={moodAvg7} stroke="#9CA3AF" strokeDasharray="3 3" />
+                                    ) : null}
+                                    <Line type="monotone" dataKey="score" stroke="#16a34a" strokeWidth={1.8} dot={false} activeDot={{ r: 3 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : null}
+                    </div>
                 </div>
+                {/* Mood Overview supplemental */}
                 <div className="card p-4">
-                    <div className="card-title">Today</div>
-                    <div className="text-2xl font-semibold">{doneToday}/{activities.length} done</div>
-                    <div className="subtle">Streak: {streakDays} days</div>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">Recent Completions</div>
+                    <div className="card-title">Mood Overview</div>
                     <ul className="mt-2 space-y-1 text-sm">
-                        {recentCompletions.length ? recentCompletions.map((r) => (
-                            <li key={`${r.date}-${r.activityId}`} className="flex justify-between">
-                                <span className="truncate max-w-[60%]" title={r.name}>{r.name}</span>
-                                <span className="muted">{r.date}</span>
-                            </li>
-                        )) : <li className="muted">No recent activity</li>}
+                        <li>Avg this week: {moodStats.weekAvg}</li>
+                        <li>Avg last week: {moodStats.lastWeekAvg}</li>
+                        <li className="flex items-center gap-1">7-day spark: {moodStats.spark.map((s) => (
+                            <span key={s.date} className="inline-block w-2 h-4" title={`${s.date}: ${s.score ?? '—'}`} style={{ background: typeof s.score === 'number' ? `hsl(${(s.score / 10) * 120},70%,50%)` : 'var(--muted)' }} />
+                        ))}</li>
                     </ul>
                 </div>
-            </div>
-
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                <div className="card p-4">
-                    <div className="card-title">Last 7 Days</div>
-                    <div className="text-2xl font-semibold">{last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0}%</div>
-                    <div className="subtle">{last7Done}/{last7Expected} completions</div>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">Avg Weekly Rate</div>
-                    <div className="text-2xl font-semibold">{Math.round(avgWeeklyRate * 100)}%</div>
-                    <div className="subtle">Best: {bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '-'}</div>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">This vs Last Week</div>
-                    <div className="text-2xl font-semibold">{Math.round(thisWeekRate * 100)}% / {Math.round(lastWeekRate * 100)}%</div>
-                    <div className="subtle">current / previous</div>
-                </div>
-            </div>
-
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                <div className="card p-4">
-                    <div className="card-title">Last 30 Days</div>
-                    <div className="text-2xl font-semibold">{last30Done}</div>
-                    <div className="subtle">total completions</div>
-                </div>
+                {/* Weight Trend with chart (30d) */}
                 <div className="card p-4">
                     <div className="card-title">Weight Trend (30d)</div>
                     <div className="text-2xl font-semibold">{weights30.length >= 2 ? `${(Math.round((weights30[weights30.length - 1].weight - weights30[0].weight) * 10) / 10)} kg` : '-'}</div>
@@ -671,45 +1168,127 @@ export default function Dashboard() {
                         ) : null}
                     </div>
                 </div>
+                {/* Weight Trend summary (4w vs prev) */}
                 <div className="card p-4">
-                    <div className="card-title">Mood</div>
-                    <div className="text-2xl font-semibold">
-                        {typeof moodToday === 'number' ? (
-                            <span title={`${moodToday}/10`}>{moodEmoji(moodToday)} {moodToday}/10</span>
-                        ) : '-'}
-                    </div>
-                    <div className="subtle">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
-                    {/* Embedded mood insight inside the card */}
-                    <div className="mt-1 subtle">
-                        {typeof moodToday === 'number' && typeof moodAvg7 === 'number' ? (() => {
-                            const delta = Math.round((moodToday - moodAvg7) * 10) / 10;
-                            if (Math.abs(delta) < 0.1) return 'Today is on your weekly average.';
-                            return `Today is ${delta > 0 ? 'above' : 'below'} avg by ${Math.abs(delta)}`;
-                        })() : (mood7.length >= 2 ? (() => {
-                            const first = mood7[0].score;
-                            const last = mood7[mood7.length - 1].score;
-                            const trend = Math.round((last - first) * 10) / 10;
-                            return `7-day trend ${trend >= 0 ? 'up' : 'down'} by ${Math.abs(trend)}`;
-                        })() : 'Log your mood to see trends.')}
-                    </div>
-                    {/* Mood sparkline (last 7 days) */}
-                    <div className="mt-2 h-12 w-full">
-                        {mood7.length ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={mood7} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="date" tick={false} axisLine={false} />
-                                    <YAxis tick={false} axisLine={false} domain={[0, 10]} />
-                                    <Tooltip formatter={(v: any) => [`${v}/10`, 'Mood']} labelFormatter={(l: any) => new Date(l).toLocaleDateString()} />
-                                    {typeof moodAvg7 === 'number' ? (
-                                      <ReferenceLine y={moodAvg7} stroke="#9CA3AF" strokeDasharray="3 3" />
-                                    ) : null}
-                                    <Line type="monotone" dataKey="score" stroke="#16a34a" strokeWidth={1.8} dot={false} activeDot={{ r: 3 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        ) : null}
-                    </div>
+                    <div className="card-title">Weight Trend (4w vs prev)</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>4-week MA: {weightTrend.ma4}</li>
+                        <li>Prev 4-week MA: {weightTrend.prevMa4}</li>
+                        <li>Change: {weightTrend.change >= 0 ? `+${weightTrend.change}` : `${weightTrend.change}`}</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 className="text-base font-semibold">Time</h3>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Time Snapshot</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>Hours today: {timeStats.todayHours}</li>
+                        <li>Top today: {timeStats.todayTop ? `${timeStats.todayTop.name} (${timeStats.todayTop.percent}%)` : '—'}</li>
+                        <li>Hours this week: {timeStats.weekTotal}</li>
+                        <li>Top categories (week): {timeStats.weekTop.length > 0 ? timeStats.weekTop.map((x) => x.name).join(', ') : '—'}</li>
+                    </ul>
                 </div>
                 <div className="card p-4">
+                    <div className="card-title">Time Balance</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>Today: {balanceStats.todayProductive} productive • {balanceStats.todayRest} rest</li>
+                        <li>Week: {balanceStats.weekProductive} productive • {balanceStats.weekRest} rest</li>
+                        <li>Sleep today: {balanceStats.sleepToday}h</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 className="text-base font-semibold">Climbing</h3>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Climbing Snapshot</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>Sessions this week: {climbStats.sessionsThisWeek}</li>
+                        <li>Sessions last week: {climbStats.sessionsLastWeek}</li>
+                        <li>Flash rate (30d): {climbStats.flashRate30d}%</li>
+                        <li>Avg attempts (30d): {climbStats.avgAttempts30d}</li>
+                    </ul>
+                </div>
+                <div className="card p-4">
+                    <div className="card-title">Goals Progress ({new Date().getFullYear()})</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {goalStats.length > 0 ? goalStats.map((g, i) => (
+                            <li key={i}>{g.label}: {g.percent}% • {g.onTrack}</li>
+                        )) : <li>—</li>}
+                    </ul>
+                </div>
+            </div>
+
+            <h3 className="text-base font-semibold">Highlights & Consistency</h3>
+            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                <div className="card p-4">
+                    <div className="card-title">Weekly Highlights</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>Best week (climbs, 12w): {weeklyHighlights.bestClimbWeekCount}</li>
+                        <li>Best week (hours, 12w): {weeklyHighlights.bestHourWeekCount}</li>
+                        <li>Top week categories: {weeklyHighlights.topWeekCategories.length > 0 ? weeklyHighlights.topWeekCategories.join(', ') : '—'}</li>
+                    </ul>
+                </div>
+                <div className="card p-4">
+                    <div className="card-title">Consistency</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        <li>Active weeks YTD (Climbing): {consistency.climbingActiveWeeksYTD}</li>
+                        <li>Active weeks YTD (Time): {consistency.timeActiveWeeksYTD}</li>
+                        <li>Mood streak: {consistency.moodStreakDays} days</li>
+                        <li>Climbing streak: {consistency.climbingStreakDays} days</li>
+                    </ul>
+                </div>
+            </div>
+            <h3 className="text-base font-semibold">Activities</h3>
+            <div className="card p-4 space-y-6">
+                <div>
+                    <div className="card-title">Overview</div>
+                    <div className="mt-2 grid gap-3 grid-cols-2 sm:grid-cols-3">
+                        <div className="card p-3">
+                            <div className="subtle">Activities</div>
+                            <div className="text-lg font-semibold">{activities.length}</div>
+                        </div>
+                        <div className="card p-3">
+                            <div className="subtle">Today</div>
+                            <div className="text-lg font-semibold">{doneToday}/{activities.length} done</div>
+                            <div className="subtle">Streak: {streakDays} days</div>
+                        </div>
+                        <div className="card p-3">
+                            <div className="subtle">Last 7 Days</div>
+                            <div className="text-lg font-semibold">{last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0}%</div>
+                            <div className="subtle">{last7Done}/{last7Expected} completions</div>
+                        </div>
+                        <div className="card p-3">
+                            <div className="subtle">Avg Weekly Rate</div>
+                            <div className="text-lg font-semibold">{Math.round(avgWeeklyRate * 100)}%</div>
+                            <div className="subtle">Best: {bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '-'}</div>
+                        </div>
+                        <div className="card p-3">
+                            <div className="subtle">This vs Last Week</div>
+                            <div className="text-lg font-semibold">{Math.round(thisWeekRate * 100)}% / {Math.round(lastWeekRate * 100)}%</div>
+                            <div className="subtle">current / previous</div>
+                        </div>
+                        <div className="card p-3">
+                            <div className="subtle">Last 30 Days</div>
+                            <div className="text-lg font-semibold">{last30Done}</div>
+                            <div className="subtle">total completions</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div className="card-title">Recent Completions</div>
+                    <ul className="mt-2 space-y-1 text-sm">
+                        {recentCompletions.length ? recentCompletions.map((r) => (
+                            <li key={`${r.date}-${r.activityId}`} className="flex justify-between">
+                                <span className="truncate max-w-[60%]" title={r.name}>{r.name}</span>
+                                <span className="muted">{r.date}</span>
+                            </li>
+                        )) : <li className="muted">No recent activity</li>}
+                    </ul>
+                </div>
+                <div>
                     <div className="card-title">Category Summary (7d)</div>
                     <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         <div className="card p-3">
@@ -745,7 +1324,7 @@ export default function Dashboard() {
                         <div className="mt-2 text-xs text-red-600 dark:text-red-400">To-stop logs: {summary7.stopped} in last 7 days</div>
                     )}
                 </div>
-                <div className="card p-4">
+                <div>
                     <div className="card-title">Top Activities (30d)</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {topActivities30.length ? topActivities30.map((t) => (
@@ -756,30 +1335,34 @@ export default function Dashboard() {
                         )) : <li className="muted">No recent completions</li>}
                     </ul>
                 </div>
-                <div className="card p-4">
-                    <div className="card-title">To Stop (7d)</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        {toStopActs.length ? toStopActs.map((s) => (
-                            <li key={s.name} className="flex justify-between">
-                                <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
-                                <span className="muted">{s.count} (prev {s.prev})</span>
-                            </li>
-                        )) : <li className="muted">No activities marked to stop</li>}
-                    </ul>
+                <div>
+                    <div className="card-title">Statuses (7d)</div>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div className="subtle mb-1">To Continue</div>
+                            <ul className="space-y-1 text-sm">
+                                {toContinueActs.length ? toContinueActs.map((s) => (
+                                    <li key={s.name} className="flex justify-between">
+                                        <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
+                                        <span className="muted">{s.count}</span>
+                                    </li>
+                                )) : <li className="muted">No activities marked to continue</li>}
+                            </ul>
+                        </div>
+                        <div>
+                            <div className="subtle mb-1">To Stop</div>
+                            <ul className="space-y-1 text-sm">
+                                {toStopActs.length ? toStopActs.map((s) => (
+                                    <li key={s.name} className="flex justify-between">
+                                        <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
+                                        <span className="muted">{s.count} (prev {s.prev})</span>
+                                    </li>
+                                )) : <li className="muted">No activities marked to stop</li>}
+                            </ul>
+                        </div>
+                    </div>
                 </div>
-                <div className="card p-4">
-                    <div className="card-title">To Continue (7d)</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        {toContinueActs.length ? toContinueActs.map((s) => (
-                            <li key={s.name} className="flex justify-between">
-                                <span className="truncate max-w-[60%]" title={s.name}>{s.name}</span>
-                                <span className="muted">{s.count}</span>
-                            </li>
-                        )) : <li className="muted">No activities marked to continue</li>}
-                    </ul>
-                </div>
-                {/* Insights card placed within the grid to avoid empty columns */}
-                <div className="card p-4">
+                <div>
                     <div className="card-title">Insights & Suggestions</div>
                     <ul className="mt-2 space-y-1 text-sm">
                         {insights.length ? insights.map((s, i) => (
@@ -789,8 +1372,9 @@ export default function Dashboard() {
                         )) : <li className="muted">No insights yet</li>}
                     </ul>
                 </div>
-                {/* Removed Stopped Habits card: statuses use To Stop / To Continue */}
             </div>
+
+            
             
         </main>
     );

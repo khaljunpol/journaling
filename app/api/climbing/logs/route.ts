@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server';
 import { listClimbLogs, addClimbLog, deleteClimbLog } from '@/lib/googleSheets';
 
+// Simple in-memory cache with short TTL for GETs to reduce Sheets reads
+const cache = new Map<string, { ts: number; data: any }>();
+const TTL_MS = 60 * 1000; // 60 seconds
+const now = () => Date.now();
+const getKey = (account: string, date?: string | null, from?: string | null, to?: string | null, paged?: string | null) => {
+  const scope = from && to ? `range:${from}-${to}` : (date ? `date:${date}` : 'all');
+  const pg = paged ? `|p:${paged}` : '';
+  return `climbLogs:${account}|${scope}${pg}`;
+};
+const getCached = (key: string) => {
+  const hit = cache.get(key);
+  if (!hit) return undefined;
+  if (now() - hit.ts > TTL_MS) { cache.delete(key); return undefined; }
+  return hit.data;
+};
+const setCached = (key: string, data: any) => { cache.set(key, { ts: now(), data }); };
+const invalidateAll = () => { cache.clear(); };
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -10,12 +28,17 @@ export async function GET(req: Request) {
     const to = url.searchParams.get('to');
     const limitParam = url.searchParams.get('limit');
     const pageParam = url.searchParams.get('page');
+    const key = getKey(account, date, from, to, limitParam ? `${limitParam}:${pageParam || '1'}` : null);
+    const cached = getCached(key);
+    if (cached) return NextResponse.json(cached);
     if (from && to) {
       const items = await listClimbLogs(account, from, to);
+      setCached(key, items);
       return NextResponse.json(items);
     }
     if (date) {
       const items = await listClimbLogs(account, date, date);
+      setCached(key, items);
       return NextResponse.json(items);
     }
     const items = await listClimbLogs(account);
@@ -33,8 +56,11 @@ export async function GET(req: Request) {
       const total = sorted.length;
       const offset = (page - 1) * limit;
       const slice = sorted.slice(offset, offset + limit);
-      return NextResponse.json({ items: slice, total, page, limit });
+      const paged = { items: slice, total, page, limit };
+      setCached(key, paged);
+      return NextResponse.json(paged);
     }
+    setCached(key, items);
     return NextResponse.json(items);
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
@@ -55,6 +81,7 @@ export async function POST(req: Request) {
     const notes = String(body?.notes || '').trim();
     if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
     const saved = await addClimbLog(account, { date, session, type, grade, attempts, location, notes });
+    invalidateAll();
     return NextResponse.json(saved, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
@@ -68,6 +95,7 @@ export async function DELETE(req: Request) {
     const id = url.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const out = await deleteClimbLog(account, id);
+    invalidateAll();
     return NextResponse.json(out);
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
