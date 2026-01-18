@@ -141,8 +141,8 @@ export default function ClimbingLogPage() {
         page={allPage}
         limit={allLimit}
         loading={allLoading}
-        onPrev={()=>{ if (allPage>1) { const p=allPage-1; refreshAll(p);} }}
-        onNext={()=>{ const maxPage = Math.max(1, Math.ceil(allTotal / allLimit)); if (allPage < maxPage) { const p=allPage+1; refreshAll(p);} }}
+        onPrev={()=>{ const maxPage = Math.max(1, Math.ceil(allTotal / allLimit)); if (allPage < maxPage) { const p=allPage+1; refreshAll(p);} }}
+        onNext={()=>{ if (allPage>1) { const p=allPage-1; refreshAll(p);} }}
         onDelete={(id)=>{ removeLog(id); }}
       />
       <div className="card p-4">
@@ -208,8 +208,8 @@ function AllLogsCard({ items, total, page, limit, loading, onPrev, onNext, onDel
         </table>
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <button className="btn-outline" disabled={page<=1} onClick={onPrev}>Previous</button>
-        <button className="btn-outline" disabled={page>=maxPage} onClick={onNext}>Next</button>
+        <button className="btn-outline" disabled={page>=maxPage} onClick={onPrev}>Previous</button>
+        <button className="btn-outline" disabled={page<=1} onClick={onNext}>Next</button>
       </div>
     </div>
   );
