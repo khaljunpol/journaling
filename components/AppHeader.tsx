@@ -83,6 +83,7 @@ export default function AppHeader() {
             {link('/journal', 'Journal')}
             {link('/mood', 'Mood')}
             {link('/climbing', 'Climbing')}
+            {link('/climbing-log', 'Climbing Log')}
             {link('/time', 'Time')}
             {link('/metrics', 'Metrics')}
             <div className="ml-1" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -25,28 +25,22 @@ function frenchToIndex(g: string): number | null {
   return idx >= 0 ? idx : null;
 }
 
+function weekStartLocal(d: Date) {
+  const day = d.getDay() || 7; // Sun=0, Mon=1..Sun=7
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1)); // Monday start
+  return start;
+}
+
 export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
   const [account, setAccount] = useState<string>('Alex');
   const [date, setDate] = useState<string>(today);
-  const [session, setSession] = useState<number>(1);
-  const [type, setType] = useState<'boulder'|'rope'>('boulder');
-  const [grade, setGrade] = useState<string>('V4');
-  const [location, setLocation] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
-  const [attempts, setAttempts] = useState<number>(1);
-  const [flash, setFlash] = useState<boolean>(false);
   const [logs, setLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
   const [rangeLogs, setRangeLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number }>>([]);
   const [yearLogs, setYearLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder'|'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: 'V4', target: 100 });
-  // All logs pagination
-  const [allPage, setAllPage] = useState<number>(1);
-  const allLimit = 10;
-  const [allItems, setAllItems] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [allTotal, setAllTotal] = useState<number>(0);
-  const [allLoading, setAllLoading] = useState<boolean>(false);
+  const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -95,41 +89,9 @@ export default function ClimbingView() {
 
   useEffect(() => { refresh(); }, [date, account]);
 
-  async function refreshAll(page = 1) {
-    setAllLoading(true);
-    try {
-      const res = await fetch(`/api/climbing/logs?account=${encodeURIComponent(account)}&limit=${allLimit}&page=${page}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.items)) {
-          setAllItems(data.items);
-          setAllTotal(data.total || 0);
-          setAllPage(data.page || 1);
-        } else if (Array.isArray(data)) {
-          setAllItems(data.slice(0, allLimit));
-          setAllTotal(data.length);
-          setAllPage(1);
-        }
-      }
-    } finally { setAllLoading(false); }
-  }
-
-  useEffect(() => { refreshAll(1); }, [account]);
-
-  async function addLog() {
-    const body = { date, session, type, grade: grade.trim(), attempts: flash ? 0 : attempts, location: location.trim(), notes: notes.trim() };
-    const res = await fetch(`/api/climbing/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (res.ok) { setGrade(type==='boulder'?'V4':'6a'); setAttempts(1); setFlash(false); setLocation(''); setNotes(''); refresh(); refreshAll(1); }
-  }
-
   async function removeLog(id: string) {
     await fetch(`/api/climbing/logs?id=${encodeURIComponent(id)}&account=${encodeURIComponent(account)}`, { method: 'DELETE' });
     refresh();
-  }
-
-  async function saveGoal() {
-    const res = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(goalForm) });
-    if (res.ok) refresh();
   }
 
   const thisYear = new Date().getFullYear();
@@ -164,12 +126,6 @@ export default function ClimbingView() {
   }, [logs30]);
 
   const weekly = useMemo(() => {
-    function weekStartLocal(d: Date) {
-      const day = d.getDay() || 7; // Sun=0, Mon=1..Sun=7
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      start.setDate(start.getDate() - (day === 0 ? 6 : day - 1)); // Monday start
-      return start;
-    }
     const end = parseLocalDate(date);
     const endStart = weekStartLocal(end);
     const buckets: Array<{ key: string; date: string; count: number }> = [];
@@ -235,73 +191,111 @@ export default function ClimbingView() {
     });
   }, [goals, yearLogs]);
 
+  const goalLogs = useMemo(() => {
+    if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
+    const keyType = selectedGoal.type;
+    const keyGrade = selectedGoal.grade.toLowerCase();
+    return yearLogs
+      .filter((l) => l.type === keyType && l.grade.toLowerCase() === keyGrade)
+      .sort((a,b)=> parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
+  }, [yearLogs, selectedGoal]);
+
+  const goalProgressSeries = useMemo(() => {
+    if (!selectedGoal) return { series: [] as Array<{ date: string; actual: number; ideal: number; recentPace: number }>, done: 0, recentAvg: 0 };
+    const yr = selectedGoal.year;
+    const start = new Date(yr, 0, 1);
+    const end = new Date(yr, 11, 31);
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+    let actual = 0;
+    const byDay = new Map<string, number>();
+    for (const l of goalLogs) {
+      const d = toLocalISO(parseLocalDate(l.date));
+      byDay.set(d, (byDay.get(d) || 0) + 1);
+    }
+    // Recent 6-week weighted average
+    const weeklyMap = new Map<string, number>();
+    for (const l of goalLogs) {
+      const dt = parseLocalDate(l.date);
+      const ws = weekStartLocal(dt);
+      const key = toLocalISO(ws);
+      weeklyMap.set(key, (weeklyMap.get(key) || 0) + 1);
+    }
+    const weeklySeries = Array.from(weeklyMap.entries()).sort((a,b)=> a[0].localeCompare(b[0]));
+    const lastSix = weeklySeries.slice(-6);
+    const weights = lastSix.map((_,i)=> i+1);
+    const wsum = weights.reduce((a,b)=>a+b,0) || 1;
+    const recentAvg = lastSix.length ? Math.round((lastSix.reduce((acc, [_, c], i) => acc + c * weights[i], 0) / wsum) * 10) / 10 : 0;
+    const series: Array<{ date: string; actual: number; ideal: number; recentPace: number }> = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const iso = toLocalISO(d);
+      const inc = byDay.get(iso) || 0;
+      actual += inc;
+      const ideal = Math.round((selectedGoal.target * (i / (totalDays - 1))) * 10) / 10;
+      const recentPace = Math.round(((recentAvg * (i / 7))) * 10) / 10;
+      series.push({ date: iso, actual, ideal, recentPace });
+    }
+    return { series, done: actual, recentAvg };
+  }, [selectedGoal, goalLogs]);
+
+  const goalWeekly = useMemo(() => {
+    if (!selectedGoal) return { series: [] as Array<{ date: string; count: number }>, avg: 0, activeWeeks: 0, bestWeek: 0, byWeekDates: new Map<string, string[]>() };
+    const bucketsMap = new Map<string, { date: string; count: number }>();
+    const datesMap = new Map<string, string[]>();
+    for (const l of goalLogs) {
+      const dt = parseLocalDate(l.date);
+      const ws = weekStartLocal(dt);
+      const key = toLocalISO(ws);
+      const b = bucketsMap.get(key) || { date: key, count: 0 };
+      b.count += 1;
+      bucketsMap.set(key, b);
+      const arr = datesMap.get(key) || [];
+      arr.push(l.date.slice(0,10));
+      datesMap.set(key, arr);
+    }
+    const series = Array.from(bucketsMap.values()).sort((a,b)=> a.date.localeCompare(b.date));
+    const avg = series.length ? Math.round((series.reduce((a,b)=>a+b.count,0) / series.length) * 10) / 10 : 0;
+    const activeWeeks = series.filter((w)=>w.count>0).length;
+    const bestWeek = series.reduce((m,w)=> Math.max(m,w.count), 0);
+    return { series, avg, activeWeeks, bestWeek, byWeekDates: datesMap };
+  }, [selectedGoal, goalLogs]);
+
+  const goalFlashPie = useMemo(() => {
+    if (!selectedGoal) return { flash: 0, nonFlash: 0 };
+    let flash = 0, nonFlash = 0;
+    for (const l of goalLogs) { if (l.attempts === 0) flash++; else nonFlash++; }
+    return { flash, nonFlash };
+  }, [selectedGoal, goalLogs]);
+
+  const goalAttemptsDist = useMemo(() => {
+    if (!selectedGoal) return [
+      { bucket: '0', count: 0 },
+      { bucket: '1', count: 0 },
+      { bucket: '2', count: 0 },
+      { bucket: '3', count: 0 },
+      { bucket: '4+', count: 0 },
+    ];
+    const buckets = { '0': 0, '1': 0, '2': 0, '3': 0, '4+': 0 } as Record<string, number>;
+    for (const l of goalLogs) {
+      const a = l.attempts || 0;
+      if (a <= 0) buckets['0'] += 1;
+      else if (a === 1) buckets['1'] += 1;
+      else if (a === 2) buckets['2'] += 1;
+      else if (a === 3) buckets['3'] += 1;
+      else buckets['4+'] += 1;
+    }
+    return Object.entries(buckets).map(([bucket, count])=> ({ bucket, count }));
+  }, [selectedGoal, goalLogs]);
+
   return (
     <section className="space-y-6">
-      <div className="card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-lg font-medium">Climbing Log</div>
-          <div className="w-full">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
-              <input type="date" className="input w-full" value={date} onChange={(e)=>setDate(e.target.value)} />
-              <input type="number" min={1} className="input w-full" value={session} onChange={(e)=>setSession(parseInt(e.target.value||'1',10)||1)} placeholder="Session #" />
-              <select className="input w-full" value={type} onChange={(e)=>{
-                const t = e.target.value as 'boulder'|'rope';
-                setType(t);
-                setGrade(t==='boulder' ? 'V4' : '6a');
-              }}>
-                <option value="boulder">Boulder</option>
-                <option value="rope">Rope</option>
-              </select>
-              <select className="input w-full" value={grade} onChange={(e)=>setGrade(e.target.value)}>
-                {(type==='boulder'? boulderGrades : frenchGrades).map((g)=> (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-              <input className="input w-full" placeholder="Location (optional)" value={location} onChange={(e)=>setLocation(e.target.value)} />
-              <input className="input w-full" placeholder="Notes (optional)" value={notes} onChange={(e)=>setNotes(e.target.value)} />
-              <div className="flex items-center gap-2">
-                <input type="number" min={0} className="input w-full" value={flash?0:attempts} onChange={(e)=>{ setFlash(false); setAttempts(parseInt(e.target.value||'0',10)||0); }} placeholder="Attempts" />
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={flash} onChange={(e)=>{ setFlash(e.target.checked); if (e.target.checked) setAttempts(0); }} /> Flash</label>
-              </div>
-              <button className="btn w-full sm:w-auto" onClick={addLog}>Add</button>
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 subtle">Sessions today: {sessionsToday || 0}</div>
-        <ul className="mt-2 space-y-2">
-          {logs.map((l)=> (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2">
-              <div className="text-sm">S{l.session} • {l.type} • {l.grade} • {l.attempts===0? 'flash' : `${l.attempts} attempts`}{l.location? ` • ${l.location}` : ''}</div>
-              <button className="btn-outline text-xs" onClick={()=>removeLog(l.id)}>Delete</button>
-            </li>
-          ))}
-          {logs.length===0 && <li className="subtle">No climbs logged for this day.</li>}
-        </ul>
-      </div>
-      <AllLogsCard
-        items={allItems}
-        total={allTotal}
-        page={allPage}
-        limit={allLimit}
-        loading={allLoading}
-        onPrev={()=>{ if (allPage>1) { const p=allPage-1; refreshAll(p);} }}
-        onNext={()=>{ const maxPage = Math.max(1, Math.ceil(allTotal / allLimit)); if (allPage < maxPage) { const p=allPage+1; refreshAll(p);} }}
-        onDelete={(id)=>{ removeLog(id); refreshAll(allPage); }}
-      />
-
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-        <div className="card p-4">
-          <div className="card-title">Last 30 Days</div>
-          <div className="text-2xl font-semibold">{stats.total} climbs</div>
-          <div className="subtle">{stats.flashRate}% flash • avg {stats.avgAttempts} attempts</div>
-          <div className="subtle">Boulder trend: {stats.vTrend>=0? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend>=0? '+' : ''}{stats.ropeTrend}</div>
-          <div className="subtle">Attempts trend (30d): {stats.attemptsTrend<=0? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
-        </div>
         <div className="card p-4">
           <div className="card-title">Goals ({thisYear})</div>
           <ul className="mt-2 space-y-2 text-sm">
             {goalsProgress.length ? goalsProgress.map((g)=> (
-              <li key={g.id} className="rounded border p-2">
+              <li key={g.id} className="rounded border p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900" onClick={()=>setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
                 <div className="flex items-center justify-between"><span>{g.type} • {g.grade}</span><span className="subtle">{g.done}/{g.target}</span></div>
                 <div className="mt-1 h-2 w-full rounded bg-neutral-200 dark:bg-neutral-800">
                   <div className="h-2 rounded bg-(--accent)" style={{ width: `${g.pct}%` }} />
@@ -310,6 +304,13 @@ export default function ClimbingView() {
               </li>
             )) : <li className="subtle">No goals yet</li>}
           </ul>
+        </div>
+        <div className="card p-4">
+          <div className="card-title">Last 30 Days</div>
+          <div className="text-2xl font-semibold">{stats.total} climbs</div>
+          <div className="subtle">{stats.flashRate}% flash • avg {stats.avgAttempts} attempts</div>
+          <div className="subtle">Boulder trend: {stats.vTrend>=0? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend>=0? '+' : ''}{stats.ropeTrend}</div>
+          <div className="subtle">Attempts trend (30d): {stats.attemptsTrend<=0? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
         </div>
         <div className="card p-4">
           <div className="card-title">Weekly Sessions (12w)</div>
@@ -343,27 +344,23 @@ export default function ClimbingView() {
             )) : <li className="subtle">No recent data</li>}
           </ul>
         </div>
-        <div className="card p-4">
-          <div className="card-title">Set Goal</div>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input type="number" className="input" value={goalForm.year} onChange={(e)=>setGoalForm({ ...goalForm, year: parseInt(e.target.value||String(thisYear),10)||thisYear })} />
-            <select className="input" value={goalForm.type} onChange={(e)=>{
-              const t = e.target.value as 'boulder'|'rope';
-              setGoalForm({ ...goalForm, type: t, grade: t==='boulder' ? 'V4' : '6a' });
-            }}>
-              <option value="boulder">Boulder</option>
-              <option value="rope">Rope</option>
-            </select>
-            <select className="input" value={goalForm.grade} onChange={(e)=>setGoalForm({ ...goalForm, grade: e.target.value })}>
-              {(goalForm.type==='boulder'? boulderGrades : frenchGrades).map((g)=> (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-            <input type="number" min={1} className="input" value={goalForm.target} onChange={(e)=>setGoalForm({ ...goalForm, target: parseInt(e.target.value||'1',10)||1 })} />
-          </div>
-          <div className="mt-2"><button className="btn" onClick={saveGoal}>Save Goal</button></div>
-        </div>
+        {/* Goal input removed; use /climbing-goals */}
       </div>
+      {selectedGoal && (
+        <GoalOverlay
+          goal={selectedGoal}
+          progressSeries={goalProgressSeries.series}
+          weeklySeries={goalWeekly.series}
+          weeklyAvg={goalWeekly.avg}
+          weeklyRecentAvg={goalProgressSeries.recentAvg}
+          bestWeek={goalWeekly.bestWeek}
+          flashPie={goalFlashPie}
+          attemptsDist={goalAttemptsDist}
+          goalItems={goalLogs}
+          byWeekDates={goalWeekly.byWeekDates}
+          onClose={()=>setSelectedGoal(null)}
+        />
+      )}
     </section>
   );
 }
@@ -383,51 +380,174 @@ function GoalPaceLine({ year, done, target }: { year: number; done: number; targ
   return <div className="mt-1 subtle">Pace needed: {perWeek}/week</div>;
 }
 
-function AllLogsCard({ items, total, page, limit, loading, onPrev, onNext, onDelete }:{ items: Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>; total: number; page: number; limit: number; loading: boolean; onPrev: ()=>void; onNext: ()=>void; onDelete: (id: string)=>void }) {
-  const maxPage = Math.max(1, Math.ceil(total / limit));
+// All Logs component moved to Climbing Log page
+
+function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, onClose }:{
+  goal: { id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number };
+  progressSeries: Array<{ date: string; actual: number; ideal: number; recentPace: number }>;
+  weeklySeries: Array<{ date: string; count: number }>;
+  weeklyAvg: number;
+  weeklyRecentAvg: number;
+  bestWeek: number;
+  flashPie: { flash: number; nonFlash: number };
+  attemptsDist: Array<{ bucket: string; count: number }>;
+  goalItems: Array<{ id: string; date: string; session: number; attempts: number; location?: string; notes?: string }>;
+  byWeekDates: Map<string, string[]>;
+  onClose: ()=>void;
+}) {
+  const total = flashPie.flash + flashPie.nonFlash;
+  const flashRate = total ? Math.round((flashPie.flash / total) * 100) : 0;
+  const avgAttempts = attemptsDist.reduce((acc, b) => acc + (b.bucket==='0'?0:(b.bucket==='4+'?4:parseInt(b.bucket,10))) * b.count, 0);
+  const avgAttemptsDen = attemptsDist.reduce((acc,b)=> acc + b.count, 0);
+  const avgAttemptsVal = avgAttemptsDen ? Math.round((avgAttempts / avgAttemptsDen) * 10) / 10 : 0;
+  const daysLeft = daysUntilYearEnd(goal.year);
+  const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
+  const done = progressSeries.length ? progressSeries[progressSeries.length-1].actual : 0;
+  const projection = Math.round(done + weeklyRecentAvg * weeksLeft);
+  const pct = goal.target ? Math.min(100, Math.round((done / goal.target) * 100)) : 0;
+
+  const pieData = [
+    { name: 'Flash', value: flashPie.flash },
+    { name: 'Non-Flash', value: flashPie.nonFlash },
+  ];
+
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <div className="card-title">All Logs</div>
-        <div className="text-sm subtle">Page {page} of {maxPage} • {total} total</div>
-      </div>
-      <div className="mt-2 w-full overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left subtle">
-              <th className="py-1 pr-2">Date</th>
-              <th className="py-1 pr-2">S#</th>
-              <th className="py-1 pr-2">Type</th>
-              <th className="py-1 pr-2">Grade</th>
-              <th className="py-1 pr-2">Attempts</th>
-              <th className="py-1 pr-2">Location</th>
-              <th className="py-1 pr-2">Notes</th>
-              <th className="py-1 pr-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((l)=> (
-              <tr key={l.id} className="border-t">
-                <td className="py-1 pr-2 whitespace-nowrap">{l.date.slice(0,10)}</td>
-                <td className="py-1 pr-2">{l.session}</td>
-                <td className="py-1 pr-2 capitalize">{l.type}</td>
-                <td className="py-1 pr-2">{l.grade}</td>
-                <td className="py-1 pr-2">{l.attempts===0? 'flash' : l.attempts}</td>
-                <td className="py-1 pr-2">{l.location || ''}</td>
-                <td className="py-1 pr-2 max-w-[20rem] truncate" title={l.notes || ''}>{l.notes || ''}</td>
-                <td className="py-1 pr-2 text-right"><button className="btn-outline text-xs" onClick={()=>onDelete(l.id)}>Delete</button></td>
-              </tr>
-            ))}
-            {items.length===0 && (
-              <tr><td colSpan={8} className="py-3 text-center subtle">{loading? 'Loading…' : 'No logs found'}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <button className="btn-outline" disabled={page<=1} onClick={onPrev}>Previous</button>
-        <button className="btn-outline" disabled={page>=maxPage} onClick={onNext}>Next</button>
+    <div className="fixed inset-0 z-30 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative card max-h-[90vh] w-[95vw] max-w-4xl overflow-auto p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="card-title">Goal • {goal.type} • {goal.grade}</div>
+            <div className="subtle">Target: {goal.target} • Year: {goal.year}</div>
+          </div>
+          <button className="btn-outline" onClick={onClose}>Close</button>
+        </div>
+        <div className="mt-3 grid gap-4 grid-cols-1 md:grid-cols-2">
+          <div className="rounded border p-3">
+            <div className="font-medium mb-2">Progress vs Pace</div>
+            <div className="h-40 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={progressSeries} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={false} axisLine={false} />
+                  <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
+                  <Tooltip formatter={(v: any, n: any) => [String(v), n==='actual'?'Actual':(n==='recentPace'?'Recent Pace':'Ideal')]} labelFormatter={(l: any) => l} />
+                  <Legend />
+                  <Line type="monotone" dataKey="ideal" name="Ideal" stroke="#9CA3AF" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="recentPace" name="Recent Pace" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="actual" name="Actual" stroke="#16a34a" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="subtle mt-1">Done: {done}/{goal.target} ({pct}%) • Recent weekly avg: {weeklyRecentAvg}</div>
+          </div>
+          <div className="rounded border p-3">
+            <div className="font-medium mb-2">Weekly Completions</div>
+            <div className="h-40 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklySeries} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={false} axisLine={false} />
+                  <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
+                  <Tooltip content={(props: any) => <WeekTooltip {...props} datesMap={byWeekDates} />} />
+                  <ReferenceLine y={weeklyAvg} stroke="#9CA3AF" strokeDasharray="3 3" />
+                  <Bar dataKey="count" fill="#16a34a" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="subtle mt-1">Avg: {weeklyAvg} • Best week: {bestWeek}</div>
+          </div>
+          <div className="rounded border p-3">
+            <div className="font-medium mb-2">Flash Rate</div>
+            <div className="h-40 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60}>
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index===0? '#16a34a' : '#6B7280'} />
+                    ))}
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="subtle mt-1">Flash rate: {flashRate}%</div>
+          </div>
+          <div className="rounded border p-3">
+            <div className="font-medium mb-2">Attempts Distribution</div>
+            <div className="h-40 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attemptsDist} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="bucket" axisLine={false} />
+                  <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
+                  <Tooltip formatter={(v: any) => [String(v), 'Climbs']} labelFormatter={(l: any) => `${l} attempts`} />
+                  <Bar dataKey="count" fill="#16a34a" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 grid-cols-1 sm:grid-cols-2">
+          <div className="rounded border p-3">
+            <div className="font-medium mb-1">Insights</div>
+            <ul className="text-sm space-y-1">
+              <li><span className="subtle">Pace needed:</span> {Math.max(0, Math.round(((goal.target - done) / Math.max(1, weeksLeft)) * 10) / 10)}/week</li>
+              <li><span className="subtle">Projection (weighted):</span> {projection} by year end</li>
+              <li><span className="subtle">Flash rate:</span> {flashRate}%</li>
+              <li><span className="subtle">Avg attempts:</span> {avgAttemptsVal}</li>
+            </ul>
+          </div>
+          <div className="rounded border p-3">
+            <div className="font-medium mb-1">Consistency</div>
+            <ul className="text-sm space-y-1">
+              <li><span className="subtle">Active weeks:</span> {weeklySeries.filter((w)=>w.count>0).length}/{weeklySeries.length}</li>
+              <li><span className="subtle">Best week:</span> {bestWeek} completions</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 grid-cols-1 md:grid-cols-2">
+          <div className="rounded border p-3">
+            <div className="font-medium mb-1">Top Sessions</div>
+            <ul className="text-sm space-y-1">
+              {goalItems
+                .slice()
+                .sort((a,b)=> (a.attempts - b.attempts) || (parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()))
+                .slice(0, 8)
+                .map((s)=> (
+                  <li key={`${s.id}`} className="flex justify-between">
+                    <span>{s.date.slice(0,10)} • S{s.session} • {s.attempts===0? 'flash' : `${s.attempts} att`}</span>
+                    <span className="subtle">{s.location || ''}{s.notes ? ` • ${s.notes}` : ''}</span>
+                  </li>
+                ))}
+              {goalItems.length===0 && <li className="subtle">No sessions for this goal.</li>}
+            </ul>
+          </div>
+          <div className="rounded border p-3">
+            <div className="font-medium mb-1">Goal Context</div>
+            <ul className="text-sm space-y-1">
+              <li><span className="subtle">Type:</span> {goal.type === 'boulder' ? 'Boulder (V-scale)' : 'Rope (French scale)'}</li>
+              <li><span className="subtle">Grade:</span> {goal.grade}</li>
+              <li className="subtle">Target is total completions in {goal.year}.</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function WeekTooltip({ active, payload, label, datesMap }:{ active: boolean; payload?: any[]; label?: string; datesMap: Map<string,string[]> }) {
+  if (active && payload && payload.length) {
+    const key = String(label || '');
+    const dates = datesMap.get(key) || [];
+    return (
+      <div className="card p-2 text-xs">
+        <div className="font-medium">Week of {key}</div>
+        <ul className="mt-1 space-y-1">
+          {dates.map((d,i)=> (<li key={`${d}-${i}`}>{d}</li>))}
+          {dates.length===0 && (<li className="subtle">No completions</li>)}
+        </ul>
+      </div>
+    );
+  }
+  return null;
 }
