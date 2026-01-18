@@ -134,6 +134,17 @@ export default function ClimbingLogPage() {
           {logs.length===0 && <li className="subtle">No climbs logged for this day.</li>}
         </ul>
       </div>
+      
+      <AllLogsCard
+        items={allItems}
+        total={allTotal}
+        page={allPage}
+        limit={allLimit}
+        loading={allLoading}
+        onPrev={()=>{ if (allPage>1) { const p=allPage-1; refreshAll(p);} }}
+        onNext={()=>{ const maxPage = Math.max(1, Math.ceil(allTotal / allLimit)); if (allPage < maxPage) { const p=allPage+1; refreshAll(p);} }}
+        onDelete={(id)=>{ removeLog(id); }}
+      />
       <div className="card p-4">
         <div className="card-title">Set Goal</div>
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -151,16 +162,6 @@ export default function ClimbingLogPage() {
         </div>
         <div className="mt-2"><button className="btn" onClick={saveGoal}>Save Goal</button></div>
       </div>
-      <AllLogsCard
-        items={allItems}
-        total={allTotal}
-        page={allPage}
-        limit={allLimit}
-        loading={allLoading}
-        onPrev={()=>{ if (allPage>1) { const p=allPage-1; refreshAll(p);} }}
-        onNext={()=>{ const maxPage = Math.max(1, Math.ceil(allTotal / allLimit)); if (allPage < maxPage) { const p=allPage+1; refreshAll(p);} }}
-        onDelete={(id)=>{ removeLog(id); }}
-      />
     </section>
   );
 }

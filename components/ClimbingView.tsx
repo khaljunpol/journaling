@@ -40,6 +40,7 @@ export default function ClimbingView() {
   const [rangeLogs, setRangeLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number }>>([]);
   const [yearLogs, setYearLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
+  const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>({});
   const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
 
@@ -77,13 +78,22 @@ export default function ClimbingView() {
       const rRes = await fetch(`/api/climbing/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`);
       const rItems = rRes.ok ? await rRes.json() : [];
       setRangeLogs(Array.isArray(rItems) ? rItems : []);
-      // Fetch current year range for goals progress
-      const yr = end.getFullYear();
-      const yrStart = `${yr}-01-01`;
-      const yrEnd = `${yr}-12-31`;
-      const yRes = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}&account=${encodeURIComponent(account)}`);
-      const yItems = yRes.ok ? await yRes.json() : [];
-      setYearLogs(Array.isArray(yItems) ? yItems : []);
+      // Fetch logs per goal year for accurate progress
+      const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g: any) => g.year))) : [];
+      if (gYears.length) {
+        const entries = await Promise.all(gYears.map(async (yr: number) => {
+          const yrStart = `${yr}-01-01`;
+          const yrEnd = `${yr}-12-31`;
+          const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}&account=${encodeURIComponent(account)}`);
+          const items = resp.ok ? await resp.json() : [];
+          return [yr, Array.isArray(items) ? items : []] as const;
+        }));
+        const map: Record<number, Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>> = {};
+        for (const [yr, arr] of entries) { map[yr] = arr; }
+        setYearLogsByYear(map);
+      } else {
+        setYearLogsByYear({});
+      }
     } catch { setLogs([]); }
   }
 
@@ -177,28 +187,74 @@ export default function ClimbingView() {
     return rows;
   }, [logs30]);
 
+  
+
   const goalsProgress = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const l of yearLogs) {
-      const key = `${l.type}|${l.grade.toLowerCase()}`;
-      counts[key] = (counts[key] || 0) + 1;
-    }
     return goals.map((g) => {
-      const key = `${g.type}|${g.grade.toLowerCase()}`;
-      const done = counts[key] || 0;
+      const logsForYear = yearLogsByYear[g.year] || [];
+      const done = logsForYear.reduce((acc, l) => {
+        return acc + ((l.type === g.type && l.grade.toLowerCase() === g.grade.toLowerCase()) ? 1 : 0);
+      }, 0);
       const pct = g.target ? Math.min(100, Math.round((done / g.target) * 100)) : 0;
       return { ...g, done, pct };
     });
-  }, [goals, yearLogs]);
+  }, [goals, yearLogsByYear]);
+
+  const [goalsYear, setGoalsYear] = useState<number>(thisYear);
+  const goalsYears = useMemo(() => {
+    const set = new Set(goalsProgress.map((g)=> g.year));
+    return Array.from(set).sort((a,b)=> a-b);
+  }, [goalsProgress]);
+  useEffect(() => {
+    if (goalsYears.length === 0) return;
+    if (goalsYears.includes(thisYear)) setGoalsYear(thisYear);
+    else setGoalsYear(goalsYears[goalsYears.length-1]);
+  }, [goalsYears]);
+  const goalsForSelectedYear = useMemo(() => {
+    return goalsProgress
+      .filter((g)=> g.year === goalsYear)
+      .slice()
+      .sort((a,b)=> b.pct - a.pct || (b.done - a.done));
+  }, [goalsProgress, goalsYear]);
+
+  const yearSummary = useMemo(() => {
+    const ylogs = yearLogsByYear[goalsYear] || [];
+    const total = ylogs.length;
+    if (!total) {
+      return { total: 0, flashes: 0, flashRate: 0, avgAttempts: 0, days: 0, weeks: 0, weeklyAvg: 0, bestWeek: 0, bestBoulder: null as null | string, bestRope: null as null | string, series: [] as Array<{ date: string; count: number }> };
+    }
+    const flashes = ylogs.filter((l)=> l.attempts === 0).length;
+    const flashRate = Math.round((flashes / total) * 100);
+    const avgAttempts = Math.round((ylogs.reduce((a,l)=> a + (l.attempts || 0), 0) / total) * 10) / 10;
+    const daySet = new Set(ylogs.map((l)=> l.date.slice(0,10)));
+    const days = daySet.size;
+    const weekMap = new Map<string, number>();
+    for (const l of ylogs) {
+      const ws = weekStartLocal(parseLocalDate(l.date));
+      const key = toLocalISO(ws);
+      weekMap.set(key, (weekMap.get(key) || 0) + 1);
+    }
+    const weeks = weekMap.size;
+    const weeklyCounts = Array.from(weekMap.values());
+    const weeklyAvg = weeklyCounts.length ? Math.round((weeklyCounts.reduce((a,b)=>a+b,0) / weeklyCounts.length) * 10) / 10 : 0;
+    const bestWeek = weeklyCounts.reduce((m,c)=> Math.max(m,c), 0);
+    const series = Array.from(weekMap.entries()).sort((a,b)=> a[0].localeCompare(b[0])).map(([date, count]) => ({ date, count }));
+    const boulderNums = ylogs.filter((l)=> l.type==='boulder').map((l)=> vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+    const bestBoulder = boulderNums.length ? `V${Math.max(...boulderNums)}` : null;
+    const ropeIdxs = ylogs.filter((l)=> l.type==='rope').map((l)=> frenchToIndex(l.grade)).filter((n): n is number => n != null);
+    const bestRope = ropeIdxs.length ? frenchGrades[Math.max(...ropeIdxs)] : null;
+    return { total, flashes, flashRate, avgAttempts, days, weeks, weeklyAvg, bestWeek, bestBoulder, bestRope, series };
+  }, [yearLogsByYear, goalsYear]);
 
   const goalLogs = useMemo(() => {
     if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
     const keyType = selectedGoal.type;
     const keyGrade = selectedGoal.grade.toLowerCase();
-    return yearLogs
+    const logsForYear = yearLogsByYear[selectedGoal.year] || [];
+    return logsForYear
       .filter((l) => l.type === keyType && l.grade.toLowerCase() === keyGrade)
       .sort((a,b)=> parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
-  }, [yearLogs, selectedGoal]);
+  }, [yearLogsByYear, selectedGoal]);
 
   const goalProgressSeries = useMemo(() => {
     if (!selectedGoal) return { series: [] as Array<{ date: string; actual: number; ideal: number; recentPace: number }>, done: 0, recentAvg: 0 };
@@ -292,18 +348,71 @@ export default function ClimbingView() {
     <section className="space-y-6">
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
         <div className="card p-4">
-          <div className="card-title">Goals ({thisYear})</div>
+          <div className="flex items-center justify-between">
+            <div className="card-title">Goals ({goalsYear || thisYear})</div>
+            <div className="flex items-center gap-2">
+              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[0]} onClick={()=>{
+                const idx = goalsYears.indexOf(goalsYear);
+                if (idx > 0) setGoalsYear(goalsYears[idx-1]);
+              }}>Prev</button>
+              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length-1]} onClick={()=>{
+                const idx = goalsYears.indexOf(goalsYear);
+                if (idx >= 0 && idx < goalsYears.length-1) setGoalsYear(goalsYears[idx+1]);
+              }}>Next</button>
+            </div>
+          </div>
           <ul className="mt-2 space-y-2 text-sm">
-            {goalsProgress.length ? goalsProgress.map((g)=> (
+            {goalsForSelectedYear.length ? goalsForSelectedYear.map((g)=> (
               <li key={g.id} className="rounded border p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900" onClick={()=>setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
-                <div className="flex items-center justify-between"><span>{g.type} • {g.grade}</span><span className="subtle">{g.done}/{g.target}</span></div>
+                <div className="flex items-center justify-between">
+                  <span>{g.type} • {g.grade}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="subtle">{g.done}/{g.target}</span>
+                    <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
+                  </span>
+                </div>
                 <div className="mt-1 h-2 w-full rounded bg-neutral-200 dark:bg-neutral-800">
                   <div className="h-2 rounded bg-(--accent)" style={{ width: `${g.pct}%` }} />
                 </div>
                 <GoalPaceLine year={g.year} done={g.done} target={g.target} />
               </li>
-            )) : <li className="subtle">No goals yet</li>}
+            )) : <li className="subtle">No goals for {goalsYear || thisYear}</li>}
           </ul>
+          <div className="mt-3">
+            <div className="font-medium">Year Summary</div>
+            {yearSummary.total ? (
+              <>
+              <div className="mt-2 h-16 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={yearSummary.series} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="date" tick={false} axisLine={false} />
+                    <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
+                    <Tooltip formatter={(v: any) => [String(v), 'Completions']} labelFormatter={(l: any) => `Week of ${l}`} />
+                    <ReferenceLine y={yearSummary.weeklyAvg} stroke="#9CA3AF" strokeDasharray="3 3" />
+                    <Bar dataKey="count">
+                      {yearSummary.series.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.count >= yearSummary.weeklyAvg ? '#16a34a' : '#9CA3AF'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="mt-2 space-y-1 text-sm">
+                <li className="flex justify-between"><span>Total climbs</span><span className="subtle">{yearSummary.total}</span></li>
+                <li className="flex justify-between"><span>Flash rate</span><span className="subtle">{yearSummary.flashRate}%</span></li>
+                <li className="flex justify-between"><span>Avg attempts</span><span className="subtle">{yearSummary.avgAttempts}</span></li>
+                <li className="flex justify-between"><span>Active weeks</span><span className="subtle">{yearSummary.weeks}</span></li>
+                <li className="flex justify-between"><span>Weekly avg</span><span className="subtle">{yearSummary.weeklyAvg}</span></li>
+                <li className="flex justify-between"><span>Best week</span><span className="subtle">{yearSummary.bestWeek}</span></li>
+                <li className="flex justify-between"><span>Days climbed</span><span className="subtle">{yearSummary.days}</span></li>
+                <li className="flex justify-between"><span>Best boulder</span><span className="subtle">{yearSummary.bestBoulder || '—'}</span></li>
+                <li className="flex justify-between"><span>Best rope</span><span className="subtle">{yearSummary.bestRope || '—'}</span></li>
+              </ul>
+              </>
+            ) : (
+              <div className="subtle mt-2">No logs for this year.</div>
+            )}
+          </div>
         </div>
         <div className="card p-4">
           <div className="card-title">Last 30 Days</div>
@@ -381,6 +490,14 @@ function GoalPaceLine({ year, done, target }: { year: number; done: number; targ
 }
 
 // All Logs component moved to Climbing Log page
+
+function goalStatusText(year: number, done: number, target: number) {
+  const nowYear = new Date().getFullYear();
+  const ended = nowYear > year;
+  if (done >= target) return '✅ Succeeded';
+  if (ended) return '❌ Failed';
+  return '⏳ In progress';
+}
 
 function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, onClose }:{
   goal: { id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number };
