@@ -246,6 +246,195 @@ export default function ClimbingView() {
     return { total, flashes, flashRate, avgAttempts, days, weeks, weeklyAvg, bestWeek, bestBoulder, bestRope, series };
   }, [yearLogsByYear, goalsYear]);
 
+  // Generate a transparent PNG overlay for the selected year's summary
+  function generateYearSummaryOverlay() {
+    const W = 1080, H = 1920; // portrait
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    // Transparent background only
+    ctx.clearRect(0, 0, W, H);
+    const title = `Climbing Year ${goalsYear}`;
+    const accent = '#fc4c02'; // Strava-like orange
+    ctx.textAlign = 'center';
+    // Text helpers
+    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
+      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = color;
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+      ctx.fillText(text, px, py);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    };
+    const cx = W/2; const padY = 160;
+    // Header
+    write(title, 88, cx, padY, true);
+    // Primary stat block (big numbers like Strava)
+    write(String(yearSummary.total), 140, cx, padY + 160, true, accent);
+    write('Total Climbs', 44, cx, padY + 210);
+    // Secondary stats with label/value styling
+    const writePair = (label: string, value: string, size: number, y: number) => {
+      const space = 14;
+      // Measure widths to center the combined label + value
+      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      const labelW = ctx.measureText(label + ': ').width;
+      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      const valueW = ctx.measureText(value).width;
+      const totalW = labelW + space + valueW;
+      const startX = cx - totalW / 2;
+      // Draw label
+      ctx.textAlign = 'left';
+      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+      ctx.fillText(label + ':', startX, y);
+      // Draw value in accent
+      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = accent;
+      ctx.fillText(value, startX + labelW + space, y);
+      // Reset shadow
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+      ctx.textAlign = 'center';
+    };
+    writePair('Flash rate', `${yearSummary.flashRate}%`, 44, padY + 290);
+    writePair('Avg attempts', `${yearSummary.avgAttempts}`, 44, padY + 330);
+    writePair('Active weeks', `${yearSummary.weeks}`, 44, padY + 370);
+    writePair('Weekly avg', `${yearSummary.weeklyAvg}`, 44, padY + 410);
+    writePair('Best week', `${yearSummary.bestWeek}`, 44, padY + 450);
+    writePair('Days climbed', `${yearSummary.days}`, 44, padY + 490);
+    writePair('Best boulder', `${yearSummary.bestBoulder || '—'}`, 44, padY + 530);
+    writePair('Best rope', `${yearSummary.bestRope || '—'}`, 44, padY + 570);
+
+    // Inline sparkline of weekly sessions (yearSummary.series)
+    if (Array.isArray(yearSummary.series) && yearSummary.series.length) {
+      const series = yearSummary.series;
+      const sidePad = 96;
+      const chartW = W - sidePad*2; const chartH = 320; const chartX = sidePad; const chartY = padY + 660;
+      const max = Math.max(...series.map((s)=> s.count));
+      const min = Math.min(...series.map((s)=> s.count));
+      const n = series.length;
+      const stepX = n > 1 ? chartW / (n - 1) : chartW;
+      const scaleY = (v: number) => chartY + chartH - (max>0 ? (v / max) * chartH : 0);
+      // Draw baseline avg
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+      const avgY = scaleY(yearSummary.weeklyAvg);
+      ctx.beginPath(); ctx.moveTo(chartX, avgY); ctx.lineTo(chartX + chartW, avgY); ctx.stroke();
+      // Spark line
+      ctx.strokeStyle = accent; ctx.lineWidth = 5;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const px = chartX + stepX * i;
+        const py = scaleY(series[i].count);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      // Title for chart
+      write('Weekly Sessions', 40, cx, chartY - 16, true);
+      // Month labels along X (uniform spacing)
+      const startD = parseLocalDate(series[0].date);
+      const endD = parseLocalDate(series[n-1].date);
+      const startIdx = startD.getFullYear() * 12 + startD.getMonth();
+      const endIdx = endD.getFullYear() * 12 + endD.getMonth();
+      const count = Math.max(2, endIdx - startIdx + 1);
+      ctx.textAlign = 'center';
+      for (let i = 0; i < count; i++) {
+        const idx = startIdx + i;
+        const y = Math.floor(idx / 12);
+        const m = idx % 12;
+        const label = new Date(y, m, 1).toLocaleString(undefined, { month: 'short' });
+        const x = chartX + (i / (count - 1)) * chartW;
+        // tick mark
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, chartY + chartH + 14); ctx.lineTo(x, chartY + chartH + 28); ctx.stroke();
+        write(label, 32, x, chartY + chartH + 48);
+      }
+    }
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `climbing-year-${goalsYear}.png`;
+      a.click();
+      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  // Generate a transparent PNG overlay showing all goals for the selected year
+  function generateGoalsYearOverlay() {
+    const W = 1080, H = 1920; const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0,0,W,H);
+    const accent = '#fc4c02';
+    ctx.textAlign = 'center';
+    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
+      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = color; ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+      ctx.fillText(text, px, py);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    };
+    const cx = W/2, padY = 160;
+    write(`Year Goals ${goalsYear}`, 88, cx, padY, true);
+    const meters = goalsForSelectedYear.slice(0, Math.min(8, goalsForSelectedYear.length));
+    if (!meters.length) {
+      write('No goals', 60, cx, padY+120, true, accent);
+    } else {
+      // summary counts
+      const succeeded = meters.filter((g)=> g.done >= g.target).length;
+      write(`${succeeded}/${meters.length} succeeded`, 48, cx, padY+140, true, accent);
+      // Vertical meters in grid layout (centered, non-overlapping)
+      const sidePad = 96;
+      const topArea = padY + 220;
+      const bottomPad = 160;
+      const areaW = W - sidePad * 2;
+      const areaH = H - topArea - bottomPad;
+      const cols = Math.min(4, Math.max(2, meters.length >= 5 ? 3 : meters.length));
+      const rows = Math.max(1, Math.ceil(meters.length / cols));
+      const cellW = areaW / cols;
+      const cellH = areaH / rows;
+      const barW = Math.min(88, Math.max(64, Math.floor(cellW * 0.16)));
+      for (let i = 0; i < meters.length; i++) {
+        const g = meters[i];
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const cellX = sidePad + col * cellW;
+        const cellY = topArea + row * cellH;
+        const centerX = Math.round(cellX + cellW / 2);
+        // label above bar
+        const titleY = cellY + 28;
+        write(`${g.type} • ${g.grade}`, 40, centerX, titleY, true);
+        // place meter closer to title (higher in cell)
+        const meterTop = titleY + 14;
+        const meterBottomLimit = cellY + cellH - 50; // leave space for value
+        const maxBarH = Math.max(220, Math.min(420, meterBottomLimit - meterTop));
+        const barX = centerX - Math.floor(barW / 2);
+        const barTop = meterTop; // align to top to keep meter higher
+        const barBottom = Math.min(barTop + maxBarH, meterBottomLimit);
+        // background
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.fillRect(barX, barTop, barW, maxBarH);
+        // fill from bottom up
+        const fillH = Math.max(0, Math.min(maxBarH, Math.round((g.pct || 0) / 100 * maxBarH)));
+        const fillY = barBottom - fillH;
+        ctx.fillStyle = accent;
+        ctx.fillRect(barX, fillY, barW, fillH);
+        // percentage label overlaying the meter (center of bar)
+        const pctY = Math.round(barTop + (barBottom - barTop) / 2);
+        write(`${g.pct}%`, 34, centerX, pctY, true, accent);
+        // horizontal done/target below the meter (clamped into cell)
+        const valueY = Math.min(cellY + cellH - 18, barBottom + 40);
+        write(`${g.done}/${g.target}`, 36, centerX, valueY, true, '#ffffff');
+      }
+    }
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `goals-year-${goalsYear}.png`; a.click();
+      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
   const goalLogs = useMemo(() => {
     if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
     const keyType = selectedGoal.type;
@@ -367,7 +556,7 @@ export default function ClimbingView() {
                 <div className="flex items-center justify-between">
                   <span>{g.type} • {g.grade}</span>
                   <span className="flex items-center gap-2">
-                    <span className="subtle">{g.done}/{g.target}</span>
+                    <span className="font-medium" style={{ color: '#fc4c02' }}>{g.done}/{g.target}</span>
                     <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
                   </span>
                 </div>
@@ -381,11 +570,30 @@ export default function ClimbingView() {
           <div className="mt-3">
             <div className="font-medium">Year Summary</div>
             {yearSummary.total ? (
+              <div className="mt-2 flex items-center gap-2">
+                <button className="btn-outline text-xs" onClick={generateYearSummaryOverlay}>Create Overlay (PNG)</button>
+                {goalsForSelectedYear.length ? (
+                  <button className="btn-outline text-xs" onClick={generateGoalsYearOverlay}>Create Goals Overlay</button>
+                ) : null}
+              </div>
+            ) : null}
+            {yearSummary.total ? (
               <>
               <div className="mt-2 h-16 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={yearSummary.series} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="date" tick={false} axisLine={false} />
+                  <BarChart data={yearSummary.series} margin={{ top: 0, right: 12, left: 0, bottom: 12 }}>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      tickFormatter={(v: string, i: number) => {
+                        const d = parseLocalDate(v);
+                        const prev = i>0 ? parseLocalDate(yearSummary.series[i-1].date) : null;
+                        const changed = !prev || prev.getMonth() !== d.getMonth();
+                        return changed ? d.toLocaleString(undefined, { month: 'short' }) : '';
+                      }}
+                    />
                     <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
                     <Tooltip formatter={(v: any) => [String(v), 'Completions']} labelFormatter={(l: any) => `Week of ${l}`} />
                     <ReferenceLine y={yearSummary.weeklyAvg} stroke="#9CA3AF" strokeDasharray="3 3" />
@@ -434,13 +642,24 @@ export default function ClimbingView() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="subtle mt-1">Avg: {weekly.avg} • Active weeks: {weekly.activeWeeks}/{weekly.series.length}</div>
+          <div className="mt-1">
+            <span className="subtle">Avg: </span>
+            <span className="font-medium" style={{ color: '#fc4c02' }}>{weekly.avg}</span>
+            <span className="subtle"> • Active weeks: </span>
+            <span className="font-medium" style={{ color: '#fc4c02' }}>{weekly.activeWeeks}/{weekly.series.length}</span>
+          </div>
         </div>
         <div className="card p-4">
           <div className="card-title">Consistency</div>
-          <div className="text-2xl font-semibold">{consistency.weeksActiveRate}%</div>
-          <div className="subtle">Weeks active (12w): {consistency.weeksActive}/{consistency.weeksTotal}</div>
-          <div className="subtle">Days climbed (7d): {consistency.daysLast7}/7</div>
+          <div className="text-2xl font-semibold" style={{ color: '#fc4c02' }}>{consistency.weeksActiveRate}%</div>
+          <div>
+            <span className="subtle">Weeks active (12w): </span>
+            <span className="font-medium" style={{ color: '#fc4c02' }}>{consistency.weeksActive}/{consistency.weeksTotal}</span>
+          </div>
+          <div>
+            <span className="subtle">Days climbed (7d): </span>
+            <span className="font-medium" style={{ color: '#fc4c02' }}>{consistency.daysLast7}/7</span>
+          </div>
         </div>
         <div className="card p-4">
           <div className="card-title">By Grade (30d)</div>
@@ -467,6 +686,7 @@ export default function ClimbingView() {
           attemptsDist={goalAttemptsDist}
           goalItems={goalLogs}
           byWeekDates={goalWeekly.byWeekDates}
+          allGoalsForYear={goalsForSelectedYear}
           onClose={()=>setSelectedGoal(null)}
         />
       )}
@@ -499,7 +719,7 @@ function goalStatusText(year: number, done: number, target: number) {
   return '⏳ In progress';
 }
 
-function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, onClose }:{
+function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, onClose }:{
   goal: { id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number };
   progressSeries: Array<{ date: string; actual: number; ideal: number; recentPace: number }>;
   weeklySeries: Array<{ date: string; count: number }>;
@@ -510,6 +730,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
   attemptsDist: Array<{ bucket: string; count: number }>;
   goalItems: Array<{ id: string; date: string; session: number; attempts: number; location?: string; notes?: string }>;
   byWeekDates: Map<string, string[]>;
+  allGoalsForYear: Array<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number; done: number; pct: number }>;
   onClose: ()=>void;
 }) {
   const total = flashPie.flash + flashPie.nonFlash;
@@ -522,6 +743,76 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
   const done = progressSeries.length ? progressSeries[progressSeries.length-1].actual : 0;
   const projection = Math.round(done + weeklyRecentAvg * weeksLeft);
   const pct = goal.target ? Math.min(100, Math.round((done / goal.target) * 100)) : 0;
+  // Export an overlay image for this goal with progress
+  function exportGoalOverlay() {
+    const W = 1080, H = 1920;
+    const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0,0,W,H);
+    const accent = '#fc4c02';
+    ctx.textAlign = 'center';
+    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
+      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = color; ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+      ctx.fillText(text, px, py);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    };
+    const cx = W/2, padY = 160;
+    write(`Goal ${goal.year} • ${goal.type} • ${goal.grade}`, 80, cx, padY, true);
+    write(`${done}/${goal.target}`, 136, cx, padY+160, true, accent);
+    write('Progress', 44, cx, padY+210);
+    write(`(${pct}%)`, 44, cx, padY+260);
+    const writePair = (label: string, value: string, size: number, y: number) => {
+      const space = 14;
+      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      const labelW = ctx.measureText(label + ': ').width;
+      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      const valueW = ctx.measureText(value).width;
+      const totalW = labelW + space + valueW;
+      const startX = cx - totalW / 2;
+      ctx.textAlign = 'left';
+      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+      ctx.fillText(label + ':', startX, y);
+      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+      ctx.fillStyle = accent;
+      ctx.fillText(value, startX + labelW + space, y);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+      ctx.textAlign = 'center';
+    };
+    writePair('Recent weekly avg', `${weeklyRecentAvg}`, 48, padY+330);
+    writePair('Best week', `${bestWeek}`, 44, padY+390);
+    writePair('Flash rate', `${flashRate}%`, 44, padY+450);
+    writePair('Avg attempts', `${avgAttemptsVal}`, 44, padY+490);
+
+    // Progress meters for all goals in the year (top 6)
+    const meters = (allGoalsForYear || []).slice(0, 6);
+    if (meters.length) {
+      write('Year Goals Progress', 48, cx, padY+520, true);
+      const barW = 720; const barH = 20; const startY = padY + 560; const gapY = 90;
+      for (let i = 0; i < meters.length; i++) {
+        const g = meters[i];
+        const y = startY + i * gapY;
+        const x = cx - barW/2;
+        // label
+        write(`${g.type} • ${g.grade} — ${g.done}/${g.target} (${g.pct}%)`, 38, cx, y - 18);
+        // meter background
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x, y, barW, barH);
+        // meter fill
+        ctx.fillStyle = accent;
+        const w = Math.max(0, Math.min(barW, Math.round(barW * ((g.pct||0) / 100))));
+        ctx.fillRect(x, y, w, barH);
+      }
+    }
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `goal-${goal.year}-${goal.type}-${goal.grade}.png`; a.click();
+      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
 
   const pieData = [
     { name: 'Flash', value: flashPie.flash },
@@ -537,7 +828,10 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
             <div className="card-title">Goal • {goal.type} • {goal.grade}</div>
             <div className="subtle">Target: {goal.target} • Year: {goal.year}</div>
           </div>
-          <button className="btn-outline" onClick={onClose}>Close</button>
+          <div className="flex items-center gap-2">
+            <button className="btn-outline" onClick={exportGoalOverlay}>Create Overlay</button>
+            <button className="btn-outline" onClick={onClose}>Close</button>
+          </div>
         </div>
         <div className="mt-3 grid gap-4 grid-cols-1 md:grid-cols-2">
           <div className="rounded border p-3">

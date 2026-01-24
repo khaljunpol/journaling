@@ -81,10 +81,10 @@ export default function AppHeader() {
           <nav className="flex max-w-full items-center gap-1 overflow-x-auto text-xs sm:gap-2 sm:text-sm">
             {link('/', 'Dashboard')}
             {link('/journal', 'Journal')}
-            {link('/mood', 'Mood')}
-            {link('/climbing', 'Climbing')}
-            {link('/climbing-log', 'Climbing Log')}
             {link('/time', 'Time')}
+            {link('/climbing', 'Climbing')}
+            {link('/mood', 'Mood')}
+            {link('/climbing-log', 'Climbing Log')}
             {link('/metrics', 'Metrics')}
             <div className="ml-1" />
           </nav>
