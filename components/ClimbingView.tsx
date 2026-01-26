@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Bar, BarChart, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
-function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function parseLocalDate(s: string) {
-  const [y, m, d] = s.split('-').map((x)=>parseInt(x,10));
-  return new Date(y, (m||1)-1, d||1);
+  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
+  return new Date(y, (m || 1) - 1, d || 1);
 }
-function toLocalISO(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function toLocalISO(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
 function vScaleToNumber(grade: string): number | null {
   const m = /^v\s*(\d+)$/i.exec(grade.trim());
@@ -18,7 +18,7 @@ function vScaleToNumber(grade: string): number | null {
 
 const boulderGrades = Array.from({ length: 13 }, (_, i) => `V${i}`); // V0..V12
 const frenchGrades = [
-  '5a','5a+','5b','5b+','5c','5c+','6a','6a+','6b','6b+','6c','6c+','7a','7a+','7b','7b+','7c','7c+','8a','8a+','8b','8b+','8c'
+  '5a', '5a+', '5b', '5b+', '5c', '5c+', '6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a', '8a+', '8b', '8b+', '8c'
 ];
 function frenchToIndex(g: string): number | null {
   const idx = frenchGrades.findIndex((x) => x.toLowerCase() === g.trim().toLowerCase());
@@ -36,12 +36,12 @@ export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
   const [account, setAccount] = useState<string>('Alex');
   const [date, setDate] = useState<string>(today);
-  const [logs, setLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [rangeLogs, setRangeLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [goals, setGoals] = useState<Array<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number }>>([]);
-  const [yearLogs, setYearLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>({});
-  const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number } | null>(null);
+  const [logs, setLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
+  const [rangeLogs, setRangeLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
+  const [goals, setGoals] = useState<Array<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number }>>([]);
+  const [yearLogs, setYearLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
+  const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>({});
+  const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function ClimbingView() {
           const items = resp.ok ? await resp.json() : [];
           return [yr, Array.isArray(items) ? items : []] as const;
         }));
-        const map: Record<number, Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>> = {};
+        const map: Record<number, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>> = {};
         for (const [yr, arr] of entries) { map[yr] = arr; }
         setYearLogsByYear(map);
       } else {
@@ -108,7 +108,7 @@ export default function ClimbingView() {
   const logs30 = useMemo(() => {
     const d = parseLocalDate(date);
     const to = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const from = new Date(to); from.setDate(from.getDate()-29);
+    const from = new Date(to); from.setDate(from.getDate() - 29);
     return rangeLogs.filter((l) => {
       const t = parseLocalDate(l.date).getTime();
       return t >= from.getTime() && t <= to.getTime();
@@ -124,15 +124,15 @@ export default function ClimbingView() {
     const total = logs30.length;
     const flashes = logs30.filter((l) => l.attempts === 0).length;
     const avgAttempts = total ? Math.round((logs30.reduce((acc, l) => acc + (l.attempts || 0), 0) / total) * 10) / 10 : 0;
-    const vNums = logs30.filter((l)=>l.type==='boulder').map((l) => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
-    const vTrend = vNums.length >= 2 ? (vNums[vNums.length-1] - vNums[0]) : 0;
-    const ropeNums = logs30.filter((l)=>l.type==='rope').map((l)=> frenchToIndex(l.grade)).filter((n): n is number => n != null);
-    const ropeTrend = ropeNums.length >= 2 ? (ropeNums[ropeNums.length-1] - ropeNums[0]) : 0;
-    const half = Math.floor(logs30.length/2) || 1;
-    const avgFirst = logs30.slice(0, half).reduce((a,l)=>a+(l.attempts||0),0) / Math.max(1, logs30.slice(0,half).length);
-    const avgSecond = logs30.slice(half).reduce((a,l)=>a+(l.attempts||0),0) / Math.max(1, logs30.slice(half).length);
+    const vNums = logs30.filter((l) => l.type === 'boulder').map((l) => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+    const vTrend = vNums.length >= 2 ? (vNums[vNums.length - 1] - vNums[0]) : 0;
+    const ropeNums = logs30.filter((l) => l.type === 'rope').map((l) => frenchToIndex(l.grade)).filter((n): n is number => n != null);
+    const ropeTrend = ropeNums.length >= 2 ? (ropeNums[ropeNums.length - 1] - ropeNums[0]) : 0;
+    const half = Math.floor(logs30.length / 2) || 1;
+    const avgFirst = logs30.slice(0, half).reduce((a, l) => a + (l.attempts || 0), 0) / Math.max(1, logs30.slice(0, half).length);
+    const avgSecond = logs30.slice(half).reduce((a, l) => a + (l.attempts || 0), 0) / Math.max(1, logs30.slice(half).length);
     const attemptsTrend = Math.round(((avgSecond - avgFirst)) * 10) / 10;
-    return { total, flashes, flashRate: total? Math.round((flashes/total)*100) : 0, avgAttempts, vTrend, ropeTrend, attemptsTrend };
+    return { total, flashes, flashRate: total ? Math.round((flashes / total) * 100) : 0, avgAttempts, vTrend, ropeTrend, attemptsTrend };
   }, [logs30]);
 
   const weekly = useMemo(() => {
@@ -141,11 +141,11 @@ export default function ClimbingView() {
     const buckets: Array<{ key: string; date: string; count: number }> = [];
     for (let i = 11; i >= 0; i--) {
       const ws = new Date(endStart);
-      ws.setDate(ws.getDate() - i*7);
+      ws.setDate(ws.getDate() - i * 7);
       const key = toLocalISO(ws);
       buckets.push({ key, date: key, count: 0 });
     }
-    const map = new Map(buckets.map(b=>[b.key,b]));
+    const map = new Map(buckets.map(b => [b.key, b]));
     for (const l of rangeLogs) {
       const dt = parseLocalDate(l.date);
       const ws = weekStartLocal(dt);
@@ -154,20 +154,20 @@ export default function ClimbingView() {
       if (b) b.count += 1;
     }
     const arr = Array.from(map.values());
-    const avg = arr.length ? Math.round((arr.reduce((a,b)=>a+b.count,0)/arr.length)*10)/10 : 0;
-    const activeWeeks = arr.filter((w)=>w.count>0).length;
+    const avg = arr.length ? Math.round((arr.reduce((a, b) => a + b.count, 0) / arr.length) * 10) / 10 : 0;
+    const activeWeeks = arr.filter((w) => w.count > 0).length;
     return { series: arr, avg, activeWeeks };
   }, [rangeLogs, date]);
 
   const consistency = useMemo(() => {
     const end = new Date(date);
-    const start = new Date(end); start.setDate(start.getDate()-6);
+    const start = new Date(end); start.setDate(start.getDate() - 6);
     const set = new Set(rangeLogs
-      .filter((l)=>{ const t=new Date(l.date).getTime(); return t>=start.getTime() && t<=end.getTime(); })
-      .map((l)=> l.date.slice(0,10))
+      .filter((l) => { const t = new Date(l.date).getTime(); return t >= start.getTime() && t <= end.getTime(); })
+      .map((l) => l.date.slice(0, 10))
     );
     const days = set.size;
-    const weeksActiveRate = weekly.series.length ? Math.round((weekly.activeWeeks/weekly.series.length)*100) : 0;
+    const weeksActiveRate = weekly.series.length ? Math.round((weekly.activeWeeks / weekly.series.length) * 100) : 0;
     return { daysLast7: days, weeksActive: weekly.activeWeeks, weeksTotal: weekly.series.length, weeksActiveRate };
   }, [rangeLogs, date, weekly]);
 
@@ -176,18 +176,18 @@ export default function ClimbingView() {
     for (const l of logs30) {
       const k = `${l.type}|${l.grade.toLowerCase()}`;
       const m = (map[k] ||= { count: 0, flashes: 0, attempts: 0 });
-      m.count += 1; m.attempts += (l.attempts||0); if (l.attempts===0) m.flashes += 1;
+      m.count += 1; m.attempts += (l.attempts || 0); if (l.attempts === 0) m.flashes += 1;
     }
     const rows = Object.entries(map).map(([key, v]) => {
       const [type, grade] = key.split('|');
-      const avgAtt = v.count ? Math.round((v.attempts/v.count)*10)/10 : 0;
-      const flashRate = v.count ? Math.round((v.flashes/v.count)*100) : 0;
+      const avgAtt = v.count ? Math.round((v.attempts / v.count) * 10) / 10 : 0;
+      const flashRate = v.count ? Math.round((v.flashes / v.count) * 100) : 0;
       return { type, grade, count: v.count, flashRate, avgAttempts: avgAtt };
-    }).sort((a,b)=> b.count - a.count).slice(0,8);
+    }).sort((a, b) => b.count - a.count).slice(0, 8);
     return rows;
   }, [logs30]);
 
-  
+
 
   const goalsProgress = useMemo(() => {
     return goals.map((g) => {
@@ -202,19 +202,19 @@ export default function ClimbingView() {
 
   const [goalsYear, setGoalsYear] = useState<number>(thisYear);
   const goalsYears = useMemo(() => {
-    const set = new Set(goalsProgress.map((g)=> g.year));
-    return Array.from(set).sort((a,b)=> a-b);
+    const set = new Set(goalsProgress.map((g) => g.year));
+    return Array.from(set).sort((a, b) => a - b);
   }, [goalsProgress]);
   useEffect(() => {
     if (goalsYears.length === 0) return;
     if (goalsYears.includes(thisYear)) setGoalsYear(thisYear);
-    else setGoalsYear(goalsYears[goalsYears.length-1]);
+    else setGoalsYear(goalsYears[goalsYears.length - 1]);
   }, [goalsYears]);
   const goalsForSelectedYear = useMemo(() => {
     return goalsProgress
-      .filter((g)=> g.year === goalsYear)
+      .filter((g) => g.year === goalsYear)
       .slice()
-      .sort((a,b)=> b.pct - a.pct || (b.done - a.done));
+      .sort((a, b) => b.pct - a.pct || (b.done - a.done));
   }, [goalsProgress, goalsYear]);
 
   const yearSummary = useMemo(() => {
@@ -223,10 +223,10 @@ export default function ClimbingView() {
     if (!total) {
       return { total: 0, flashes: 0, flashRate: 0, avgAttempts: 0, days: 0, weeks: 0, weeklyAvg: 0, bestWeek: 0, bestBoulder: null as null | string, bestRope: null as null | string, series: [] as Array<{ date: string; count: number }> };
     }
-    const flashes = ylogs.filter((l)=> l.attempts === 0).length;
+    const flashes = ylogs.filter((l) => l.attempts === 0).length;
     const flashRate = Math.round((flashes / total) * 100);
-    const avgAttempts = Math.round((ylogs.reduce((a,l)=> a + (l.attempts || 0), 0) / total) * 10) / 10;
-    const daySet = new Set(ylogs.map((l)=> l.date.slice(0,10)));
+    const avgAttempts = Math.round((ylogs.reduce((a, l) => a + (l.attempts || 0), 0) / total) * 10) / 10;
+    const daySet = new Set(ylogs.map((l) => l.date.slice(0, 10)));
     const days = daySet.size;
     const weekMap = new Map<string, number>();
     for (const l of ylogs) {
@@ -236,12 +236,23 @@ export default function ClimbingView() {
     }
     const weeks = weekMap.size;
     const weeklyCounts = Array.from(weekMap.values());
-    const weeklyAvg = weeklyCounts.length ? Math.round((weeklyCounts.reduce((a,b)=>a+b,0) / weeklyCounts.length) * 10) / 10 : 0;
-    const bestWeek = weeklyCounts.reduce((m,c)=> Math.max(m,c), 0);
-    const series = Array.from(weekMap.entries()).sort((a,b)=> a[0].localeCompare(b[0])).map(([date, count]) => ({ date, count }));
-    const boulderNums = ylogs.filter((l)=> l.type==='boulder').map((l)=> vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+    const weeklyAvg = weeklyCounts.length ? Math.round((weeklyCounts.reduce((a, b) => a + b, 0) / weeklyCounts.length) * 10) / 10 : 0;
+    const bestWeek = weeklyCounts.reduce((m, c) => Math.max(m, c), 0);
+    // Build a contiguous weekly series from the first Monday within the year to Dec 31 (zeros for missing weeks)
+    const jan1 = new Date(goalsYear, 0, 1);
+    const yearEnd = new Date(goalsYear, 11, 31);
+    let start = weekStartLocal(jan1);
+    if (start.getFullYear() < goalsYear) {
+      start.setDate(start.getDate() + 7);
+    }
+    const series: Array<{ date: string; count: number }> = [];
+    for (let d = new Date(start); d.getTime() <= yearEnd.getTime(); d.setDate(d.getDate() + 7)) {
+      const key = toLocalISO(d);
+      series.push({ date: key, count: weekMap.get(key) || 0 });
+    }
+    const boulderNums = ylogs.filter((l) => l.type === 'boulder').map((l) => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
     const bestBoulder = boulderNums.length ? `V${Math.max(...boulderNums)}` : null;
-    const ropeIdxs = ylogs.filter((l)=> l.type==='rope').map((l)=> frenchToIndex(l.grade)).filter((n): n is number => n != null);
+    const ropeIdxs = ylogs.filter((l) => l.type === 'rope').map((l) => frenchToIndex(l.grade)).filter((n): n is number => n != null);
     const bestRope = ropeIdxs.length ? frenchGrades[Math.max(...ropeIdxs)] : null;
     return { total, flashes, flashRate, avgAttempts, days, weeks, weeklyAvg, bestWeek, bestBoulder, bestRope, series };
   }, [yearLogsByYear, goalsYear]);
@@ -259,15 +270,15 @@ export default function ClimbingView() {
     const accent = '#fc4c02'; // Strava-like orange
     ctx.textAlign = 'center';
     // Text helpers
-    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
-      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+    const write = (text: string, size: number, px: number, py: number, bold = false, color = '#ffffff') => {
+      ctx.font = `${bold ? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
       ctx.fillStyle = color;
       ctx.shadowColor = 'rgba(0,0,0,0.55)';
       ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
       ctx.fillText(text, px, py);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
     };
-    const cx = W/2; const padY = 160;
+    const cx = W / 2; const padY = 160;
     // Header
     write(title, 88, cx, padY, true);
     // Primary stat block (big numbers like Strava)
@@ -310,12 +321,12 @@ export default function ClimbingView() {
     if (Array.isArray(yearSummary.series) && yearSummary.series.length) {
       const series = yearSummary.series;
       const sidePad = 96;
-      const chartW = W - sidePad*2; const chartH = 320; const chartX = sidePad; const chartY = padY + 660;
-      const max = Math.max(...series.map((s)=> s.count));
-      const min = Math.min(...series.map((s)=> s.count));
+      const chartW = W - sidePad * 2; const chartH = 320; const chartX = sidePad; const chartY = padY + 660;
+      const max = Math.max(...series.map((s) => s.count));
+      const min = Math.min(...series.map((s) => s.count));
       const n = series.length;
       const stepX = n > 1 ? chartW / (n - 1) : chartW;
-      const scaleY = (v: number) => chartY + chartH - (max>0 ? (v / max) * chartH : 0);
+      const scaleY = (v: number) => chartY + chartH - (max > 0 ? (v / max) * chartH : 0);
       // Draw baseline avg
       ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
       const avgY = scaleY(yearSummary.weeklyAvg);
@@ -333,7 +344,7 @@ export default function ClimbingView() {
       write('Weekly Sessions', 40, cx, chartY - 16, true);
       // Month labels along X (uniform spacing)
       const startD = parseLocalDate(series[0].date);
-      const endD = parseLocalDate(series[n-1].date);
+      const endD = parseLocalDate(series[n - 1].date);
       const startIdx = startD.getFullYear() * 12 + startD.getMonth();
       const endIdx = endD.getFullYear() * 12 + endD.getMonth();
       const count = Math.max(2, endIdx - startIdx + 1);
@@ -357,7 +368,7 @@ export default function ClimbingView() {
       const a = document.createElement('a');
       a.href = url; a.download = `climbing-year-${goalsYear}.png`;
       a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
   }
 
@@ -365,24 +376,24 @@ export default function ClimbingView() {
   function generateGoalsYearOverlay() {
     const W = 1080, H = 1920; const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0, 0, W, H);
     const accent = '#fc4c02';
     ctx.textAlign = 'center';
-    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
-      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+    const write = (text: string, size: number, px: number, py: number, bold = false, color = '#ffffff') => {
+      ctx.font = `${bold ? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
       ctx.fillStyle = color; ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
       ctx.fillText(text, px, py);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
     };
-    const cx = W/2, padY = 160;
+    const cx = W / 2, padY = 160;
     write(`Year Goals ${goalsYear}`, 88, cx, padY, true);
     const meters = goalsForSelectedYear.slice(0, Math.min(8, goalsForSelectedYear.length));
     if (!meters.length) {
-      write('No goals', 60, cx, padY+120, true, accent);
+      write('No goals', 60, cx, padY + 120, true, accent);
     } else {
       // summary counts
-      const succeeded = meters.filter((g)=> g.done >= g.target).length;
-      write(`${succeeded}/${meters.length} succeeded`, 48, cx, padY+140, true, accent);
+      const succeeded = meters.filter((g) => g.done >= g.target).length;
+      write(`${succeeded}/${meters.length} succeeded`, 48, cx, padY + 140, true, accent);
       // Vertical meters in grid layout (centered, non-overlapping)
       const sidePad = 96;
       const topArea = padY + 220;
@@ -431,18 +442,18 @@ export default function ClimbingView() {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `goals-year-${goalsYear}.png`; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
   }
 
   const goalLogs = useMemo(() => {
-    if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder'|'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
+    if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
     const keyType = selectedGoal.type;
     const keyGrade = selectedGoal.grade.toLowerCase();
     const logsForYear = yearLogsByYear[selectedGoal.year] || [];
     return logsForYear
       .filter((l) => l.type === keyType && l.grade.toLowerCase() === keyGrade)
-      .sort((a,b)=> parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
+      .sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
   }, [yearLogsByYear, selectedGoal]);
 
   const goalProgressSeries = useMemo(() => {
@@ -465,10 +476,10 @@ export default function ClimbingView() {
       const key = toLocalISO(ws);
       weeklyMap.set(key, (weeklyMap.get(key) || 0) + 1);
     }
-    const weeklySeries = Array.from(weeklyMap.entries()).sort((a,b)=> a[0].localeCompare(b[0]));
+    const weeklySeries = Array.from(weeklyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     const lastSix = weeklySeries.slice(-6);
-    const weights = lastSix.map((_,i)=> i+1);
-    const wsum = weights.reduce((a,b)=>a+b,0) || 1;
+    const weights = lastSix.map((_, i) => i + 1);
+    const wsum = weights.reduce((a, b) => a + b, 0) || 1;
     const recentAvg = lastSix.length ? Math.round((lastSix.reduce((acc, [_, c], i) => acc + c * weights[i], 0) / wsum) * 10) / 10 : 0;
     const series: Array<{ date: string; actual: number; ideal: number; recentPace: number }> = [];
     for (let i = 0; i < totalDays; i++) {
@@ -496,13 +507,13 @@ export default function ClimbingView() {
       b.count += 1;
       bucketsMap.set(key, b);
       const arr = datesMap.get(key) || [];
-      arr.push(l.date.slice(0,10));
+      arr.push(l.date.slice(0, 10));
       datesMap.set(key, arr);
     }
-    const series = Array.from(bucketsMap.values()).sort((a,b)=> a.date.localeCompare(b.date));
-    const avg = series.length ? Math.round((series.reduce((a,b)=>a+b.count,0) / series.length) * 10) / 10 : 0;
-    const activeWeeks = series.filter((w)=>w.count>0).length;
-    const bestWeek = series.reduce((m,w)=> Math.max(m,w.count), 0);
+    const series = Array.from(bucketsMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    const avg = series.length ? Math.round((series.reduce((a, b) => a + b.count, 0) / series.length) * 10) / 10 : 0;
+    const activeWeeks = series.filter((w) => w.count > 0).length;
+    const bestWeek = series.reduce((m, w) => Math.max(m, w.count), 0);
     return { series, avg, activeWeeks, bestWeek, byWeekDates: datesMap };
   }, [selectedGoal, goalLogs]);
 
@@ -530,7 +541,7 @@ export default function ClimbingView() {
       else if (a === 3) buckets['3'] += 1;
       else buckets['4+'] += 1;
     }
-    return Object.entries(buckets).map(([bucket, count])=> ({ bucket, count }));
+    return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
   }, [selectedGoal, goalLogs]);
 
   return (
@@ -540,19 +551,19 @@ export default function ClimbingView() {
           <div className="flex items-center justify-between">
             <div className="card-title">Goals ({goalsYear || thisYear})</div>
             <div className="flex items-center gap-2">
-              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[0]} onClick={()=>{
+              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[0]} onClick={() => {
                 const idx = goalsYears.indexOf(goalsYear);
-                if (idx > 0) setGoalsYear(goalsYears[idx-1]);
+                if (idx > 0) setGoalsYear(goalsYears[idx - 1]);
               }}>Prev</button>
-              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length-1]} onClick={()=>{
+              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length - 1]} onClick={() => {
                 const idx = goalsYears.indexOf(goalsYear);
-                if (idx >= 0 && idx < goalsYears.length-1) setGoalsYear(goalsYears[idx+1]);
+                if (idx >= 0 && idx < goalsYears.length - 1) setGoalsYear(goalsYears[idx + 1]);
               }}>Next</button>
             </div>
           </div>
           <ul className="mt-2 space-y-2 text-sm">
-            {goalsForSelectedYear.length ? goalsForSelectedYear.map((g)=> (
-              <li key={g.id} className="rounded border p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900" onClick={()=>setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
+            {goalsForSelectedYear.length ? goalsForSelectedYear.map((g) => (
+              <li key={g.id} className="rounded border p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900" onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
                 <div className="flex items-center justify-between">
                   <span>{g.type} • {g.grade}</span>
                   <span className="flex items-center gap-2">
@@ -568,54 +579,62 @@ export default function ClimbingView() {
             )) : <li className="subtle">No goals for {goalsYear || thisYear}</li>}
           </ul>
           <div className="mt-3">
-            <div className="font-medium">Year Summary</div>
+            <div className="font-medium text-center">Year Summary</div>
             {yearSummary.total ? (
-              <div className="mt-2 flex items-center gap-2">
-                <button className="btn-outline text-xs" onClick={generateYearSummaryOverlay}>Create Overlay (PNG)</button>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <button className="btn-outline px-2 py-1 text-xs" onClick={generateYearSummaryOverlay}>Stats overlay</button>
                 {goalsForSelectedYear.length ? (
-                  <button className="btn-outline text-xs" onClick={generateGoalsYearOverlay}>Create Goals Overlay</button>
+                  <button className="btn-outline px-2 py-1 text-xs" onClick={generateGoalsYearOverlay}>Goals overlay</button>
                 ) : null}
               </div>
             ) : null}
             {yearSummary.total ? (
               <>
-              <div className="mt-2 h-16 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={yearSummary.series} margin={{ top: 0, right: 12, left: 0, bottom: 12 }}>
-                    <XAxis
-                      dataKey="date"
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                      tickFormatter={(v: string, i: number) => {
-                        const d = parseLocalDate(v);
-                        const prev = i>0 ? parseLocalDate(yearSummary.series[i-1].date) : null;
-                        const changed = !prev || prev.getMonth() !== d.getMonth();
-                        return changed ? d.toLocaleString(undefined, { month: 'short' }) : '';
-                      }}
-                    />
-                    <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
-                    <Tooltip formatter={(v: any) => [String(v), 'Completions']} labelFormatter={(l: any) => `Week of ${l}`} />
-                    <ReferenceLine y={yearSummary.weeklyAvg} stroke="#9CA3AF" strokeDasharray="3 3" />
-                    <Bar dataKey="count">
-                      {yearSummary.series.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.count >= yearSummary.weeklyAvg ? '#16a34a' : '#9CA3AF'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="mt-2 space-y-1 text-sm">
-                <li className="flex justify-between"><span>Total climbs</span><span className="subtle">{yearSummary.total}</span></li>
-                <li className="flex justify-between"><span>Flash rate</span><span className="subtle">{yearSummary.flashRate}%</span></li>
-                <li className="flex justify-between"><span>Avg attempts</span><span className="subtle">{yearSummary.avgAttempts}</span></li>
-                <li className="flex justify-between"><span>Active weeks</span><span className="subtle">{yearSummary.weeks}</span></li>
-                <li className="flex justify-between"><span>Weekly avg</span><span className="subtle">{yearSummary.weeklyAvg}</span></li>
-                <li className="flex justify-between"><span>Best week</span><span className="subtle">{yearSummary.bestWeek}</span></li>
-                <li className="flex justify-between"><span>Days climbed</span><span className="subtle">{yearSummary.days}</span></li>
-                <li className="flex justify-between"><span>Best boulder</span><span className="subtle">{yearSummary.bestBoulder || '—'}</span></li>
-                <li className="flex justify-between"><span>Best rope</span><span className="subtle">{yearSummary.bestRope || '—'}</span></li>
-              </ul>
+                <div className="mt-2 h-16 relative -left-4 w-[calc(100%+2rem)] overflow-visible">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={yearSummary.series}
+                      margin={{ top: 0, right: 15, left: -30, bottom: 12 }}
+                      barCategoryGap="-30%"
+                      barGap={0}
+                    >
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        padding={{ left: -22, right: -22 }}
+                        interval={0}
+                        tickFormatter={(v: string, i: number) => {
+                          const d = parseLocalDate(v);
+                          if (d.getFullYear() !== goalsYear) return '';
+                          const prev = i > 0 ? parseLocalDate(yearSummary.series[i - 1].date) : null;
+                          const changed = !prev || prev.getMonth() !== d.getMonth();
+                          const label = d.toLocaleString(undefined, { month: 'short' });
+                          return changed ? (label.charAt(0) || '') : '';
+                        }}
+                      />
+                      <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
+                      <Tooltip formatter={(v: any) => [String(v), 'Completions']} labelFormatter={(l: any) => `Week of ${l}`} />
+                      <ReferenceLine y={yearSummary.weeklyAvg} stroke="#9CA3AF" strokeDasharray="3 3" />
+                      <Bar dataKey="count">
+                        {yearSummary.series.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.count >= yearSummary.weeklyAvg ? '#16a34a' : '#9CA3AF'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="mt-2 space-y-1 text-sm">
+                  <li className="flex justify-between"><span>Total climbs</span><span className="subtle">{yearSummary.total}</span></li>
+                  <li className="flex justify-between"><span>Flash rate</span><span className="subtle">{yearSummary.flashRate}%</span></li>
+                  <li className="flex justify-between"><span>Avg attempts</span><span className="subtle">{yearSummary.avgAttempts}</span></li>
+                  <li className="flex justify-between"><span>Active weeks</span><span className="subtle">{yearSummary.weeks}</span></li>
+                  <li className="flex justify-between"><span>Weekly avg</span><span className="subtle">{yearSummary.weeklyAvg}</span></li>
+                  <li className="flex justify-between"><span>Best week</span><span className="subtle">{yearSummary.bestWeek}</span></li>
+                  <li className="flex justify-between"><span>Days climbed</span><span className="subtle">{yearSummary.days}</span></li>
+                  <li className="flex justify-between"><span>Best boulder</span><span className="subtle">{yearSummary.bestBoulder || '—'}</span></li>
+                  <li className="flex justify-between"><span>Best rope</span><span className="subtle">{yearSummary.bestRope || '—'}</span></li>
+                </ul>
               </>
             ) : (
               <div className="subtle mt-2">No logs for this year.</div>
@@ -626,8 +645,8 @@ export default function ClimbingView() {
           <div className="card-title">Last 30 Days</div>
           <div className="text-2xl font-semibold">{stats.total} climbs</div>
           <div className="subtle">{stats.flashRate}% flash • avg {stats.avgAttempts} attempts</div>
-          <div className="subtle">Boulder trend: {stats.vTrend>=0? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend>=0? '+' : ''}{stats.ropeTrend}</div>
-          <div className="subtle">Attempts trend (30d): {stats.attemptsTrend<=0? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
+          <div className="subtle">Boulder trend: {stats.vTrend >= 0 ? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend >= 0 ? '+' : ''}{stats.ropeTrend}</div>
+          <div className="subtle">Attempts trend (30d): {stats.attemptsTrend <= 0 ? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
         </div>
         <div className="card p-4">
           <div className="card-title">Weekly Sessions (12w)</div>
@@ -664,7 +683,7 @@ export default function ClimbingView() {
         <div className="card p-4">
           <div className="card-title">By Grade (30d)</div>
           <ul className="mt-2 space-y-1 text-sm">
-            {byGrade30.length ? byGrade30.map((r)=> (
+            {byGrade30.length ? byGrade30.map((r) => (
               <li key={`${r.type}|${r.grade}`} className="flex justify-between">
                 <span>{r.type} • {r.grade}</span>
                 <span className="subtle">{r.count} • {r.flashRate}% flash • {r.avgAttempts} att</span>
@@ -687,7 +706,7 @@ export default function ClimbingView() {
           goalItems={goalLogs}
           byWeekDates={goalWeekly.byWeekDates}
           allGoalsForYear={goalsForSelectedYear}
-          onClose={()=>setSelectedGoal(null)}
+          onClose={() => setSelectedGoal(null)}
         />
       )}
     </section>
@@ -719,8 +738,8 @@ function goalStatusText(year: number, done: number, target: number) {
   return '⏳ In progress';
 }
 
-function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, onClose }:{
-  goal: { id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number };
+function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, onClose }: {
+  goal: { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
   progressSeries: Array<{ date: string; actual: number; ideal: number; recentPace: number }>;
   weeklySeries: Array<{ date: string; count: number }>;
   weeklyAvg: number;
@@ -730,17 +749,17 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
   attemptsDist: Array<{ bucket: string; count: number }>;
   goalItems: Array<{ id: string; date: string; session: number; attempts: number; location?: string; notes?: string }>;
   byWeekDates: Map<string, string[]>;
-  allGoalsForYear: Array<{ id: string; year: number; type: 'boulder'|'rope'; grade: string; target: number; done: number; pct: number }>;
-  onClose: ()=>void;
+  allGoalsForYear: Array<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number; done: number; pct: number }>;
+  onClose: () => void;
 }) {
   const total = flashPie.flash + flashPie.nonFlash;
   const flashRate = total ? Math.round((flashPie.flash / total) * 100) : 0;
-  const avgAttempts = attemptsDist.reduce((acc, b) => acc + (b.bucket==='0'?0:(b.bucket==='4+'?4:parseInt(b.bucket,10))) * b.count, 0);
-  const avgAttemptsDen = attemptsDist.reduce((acc,b)=> acc + b.count, 0);
+  const avgAttempts = attemptsDist.reduce((acc, b) => acc + (b.bucket === '0' ? 0 : (b.bucket === '4+' ? 4 : parseInt(b.bucket, 10))) * b.count, 0);
+  const avgAttemptsDen = attemptsDist.reduce((acc, b) => acc + b.count, 0);
   const avgAttemptsVal = avgAttemptsDen ? Math.round((avgAttempts / avgAttemptsDen) * 10) / 10 : 0;
   const daysLeft = daysUntilYearEnd(goal.year);
   const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
-  const done = progressSeries.length ? progressSeries[progressSeries.length-1].actual : 0;
+  const done = progressSeries.length ? progressSeries[progressSeries.length - 1].actual : 0;
   const projection = Math.round(done + weeklyRecentAvg * weeksLeft);
   const pct = goal.target ? Math.min(100, Math.round((done / goal.target) * 100)) : 0;
   // Export an overlay image for this goal with progress
@@ -748,20 +767,20 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
     const W = 1080, H = 1920;
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0, 0, W, H);
     const accent = '#fc4c02';
     ctx.textAlign = 'center';
-    const write = (text: string, size: number, px: number, py: number, bold=false, color='#ffffff') => {
-      ctx.font = `${bold? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
+    const write = (text: string, size: number, px: number, py: number, bold = false, color = '#ffffff') => {
+      ctx.font = `${bold ? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
       ctx.fillStyle = color; ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
       ctx.fillText(text, px, py);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
     };
-    const cx = W/2, padY = 160;
+    const cx = W / 2, padY = 160;
     write(`Goal ${goal.year} • ${goal.type} • ${goal.grade}`, 80, cx, padY, true);
-    write(`${done}/${goal.target}`, 136, cx, padY+160, true, accent);
-    write('Progress', 44, cx, padY+210);
-    write(`(${pct}%)`, 44, cx, padY+260);
+    write(`${done}/${goal.target}`, 136, cx, padY + 160, true, accent);
+    write('Progress', 44, cx, padY + 210);
+    write(`(${pct}%)`, 44, cx, padY + 260);
     const writePair = (label: string, value: string, size: number, y: number) => {
       const space = 14;
       ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
@@ -781,20 +800,20 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       ctx.textAlign = 'center';
     };
-    writePair('Recent weekly avg', `${weeklyRecentAvg}`, 48, padY+330);
-    writePair('Best week', `${bestWeek}`, 44, padY+390);
-    writePair('Flash rate', `${flashRate}%`, 44, padY+450);
-    writePair('Avg attempts', `${avgAttemptsVal}`, 44, padY+490);
+    writePair('Recent weekly avg', `${weeklyRecentAvg}`, 48, padY + 330);
+    writePair('Best week', `${bestWeek}`, 44, padY + 390);
+    writePair('Flash rate', `${flashRate}%`, 44, padY + 450);
+    writePair('Avg attempts', `${avgAttemptsVal}`, 44, padY + 490);
 
     // Progress meters for all goals in the year (top 6)
     const meters = (allGoalsForYear || []).slice(0, 6);
     if (meters.length) {
-      write('Year Goals Progress', 48, cx, padY+520, true);
+      write('Year Goals Progress', 48, cx, padY + 520, true);
       const barW = 720; const barH = 20; const startY = padY + 560; const gapY = 90;
       for (let i = 0; i < meters.length; i++) {
         const g = meters[i];
         const y = startY + i * gapY;
-        const x = cx - barW/2;
+        const x = cx - barW / 2;
         // label
         write(`${g.type} • ${g.grade} — ${g.done}/${g.target} (${g.pct}%)`, 38, cx, y - 18);
         // meter background
@@ -802,7 +821,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
         ctx.fillRect(x, y, barW, barH);
         // meter fill
         ctx.fillStyle = accent;
-        const w = Math.max(0, Math.min(barW, Math.round(barW * ((g.pct||0) / 100))));
+        const w = Math.max(0, Math.min(barW, Math.round(barW * ((g.pct || 0) / 100))));
         ctx.fillRect(x, y, w, barH);
       }
     }
@@ -810,7 +829,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `goal-${goal.year}-${goal.type}-${goal.grade}.png`; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
   }
 
@@ -841,7 +860,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
                 <LineChart data={progressSeries} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
                   <XAxis dataKey="date" tick={false} axisLine={false} />
                   <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
-                  <Tooltip formatter={(v: any, n: any) => [String(v), n==='actual'?'Actual':(n==='recentPace'?'Recent Pace':'Ideal')]} labelFormatter={(l: any) => l} />
+                  <Tooltip formatter={(v: any, n: any) => [String(v), n === 'actual' ? 'Actual' : (n === 'recentPace' ? 'Recent Pace' : 'Ideal')]} labelFormatter={(l: any) => l} />
                   <Legend />
                   <Line type="monotone" dataKey="ideal" name="Ideal" stroke="#9CA3AF" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="recentPace" name="Recent Pace" stroke="#f59e0b" strokeWidth={2} dot={false} />
@@ -873,7 +892,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60}>
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index===0? '#16a34a' : '#6B7280'} />
+                      <Cell key={`cell-${index}`} fill={index === 0 ? '#16a34a' : '#6B7280'} />
                     ))}
                   </Pie>
                   <Legend />
@@ -910,7 +929,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
           <div className="rounded border p-3">
             <div className="font-medium mb-1">Consistency</div>
             <ul className="text-sm space-y-1">
-              <li><span className="subtle">Active weeks:</span> {weeklySeries.filter((w)=>w.count>0).length}/{weeklySeries.length}</li>
+              <li><span className="subtle">Active weeks:</span> {weeklySeries.filter((w) => w.count > 0).length}/{weeklySeries.length}</li>
               <li><span className="subtle">Best week:</span> {bestWeek} completions</li>
             </ul>
           </div>
@@ -921,15 +940,15 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
             <ul className="text-sm space-y-1">
               {goalItems
                 .slice()
-                .sort((a,b)=> (a.attempts - b.attempts) || (parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()))
+                .sort((a, b) => (a.attempts - b.attempts) || (parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()))
                 .slice(0, 8)
-                .map((s)=> (
+                .map((s) => (
                   <li key={`${s.id}`} className="flex justify-between">
-                    <span>{s.date.slice(0,10)} • S{s.session} • {s.attempts===0? 'flash' : `${s.attempts} att`}</span>
+                    <span>{s.date.slice(0, 10)} • S{s.session} • {s.attempts === 0 ? 'flash' : `${s.attempts} att`}</span>
                     <span className="subtle">{s.location || ''}{s.notes ? ` • ${s.notes}` : ''}</span>
                   </li>
                 ))}
-              {goalItems.length===0 && <li className="subtle">No sessions for this goal.</li>}
+              {goalItems.length === 0 && <li className="subtle">No sessions for this goal.</li>}
             </ul>
           </div>
           <div className="rounded border p-3">
@@ -946,7 +965,7 @@ function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRece
   );
 }
 
-function WeekTooltip({ active, payload, label, datesMap }:{ active: boolean; payload?: any[]; label?: string; datesMap: Map<string,string[]> }) {
+function WeekTooltip({ active, payload, label, datesMap }: { active: boolean; payload?: any[]; label?: string; datesMap: Map<string, string[]> }) {
   if (active && payload && payload.length) {
     const key = String(label || '');
     const dates = datesMap.get(key) || [];
@@ -954,8 +973,8 @@ function WeekTooltip({ active, payload, label, datesMap }:{ active: boolean; pay
       <div className="card p-2 text-xs">
         <div className="font-medium">Week of {key}</div>
         <ul className="mt-1 space-y-1">
-          {dates.map((d,i)=> (<li key={`${d}-${i}`}>{d}</li>))}
-          {dates.length===0 && (<li className="subtle">No completions</li>)}
+          {dates.map((d, i) => (<li key={`${d}-${i}`}>{d}</li>))}
+          {dates.length === 0 && (<li className="subtle">No completions</li>)}
         </ul>
       </div>
     );
