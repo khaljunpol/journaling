@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import dynamic from 'next/dynamic';
 import { useTransition } from 'react';
+import type { ClimbLog, ClimbGoal } from '@/lib/types';
+import { getCache, setCache } from '@/lib/cache';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -38,17 +40,18 @@ export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
   const [account, setAccount] = useState<string>('Alex');
   const [date, setDate] = useState<string>(today);
-  const [logs, setLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [rangeLogs, setRangeLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [goals, setGoals] = useState<Array<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number }>>([]);
-  const [yearLogs, setYearLogs] = useState<Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>([]);
-  const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>({});
+  const [logs, setLogs] = useState<Array<ClimbLog>>([]);
+  const [rangeLogs, setRangeLogs] = useState<Array<ClimbLog>>([]);
+  const [goals, setGoals] = useState<Array<ClimbGoal>>([]);
+  const [yearLogs, setYearLogs] = useState<Array<ClimbLog>>([]);
+  const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<ClimbLog>>>({});
   const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
   const yearCacheRef = useRef<Map<string, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>(new Map());
   const GoalOverlay = useMemo(() => dynamic(() => import('./GoalOverlay'), { ssr: false }), []);
   const YearSummaryChart = useMemo(() => dynamic(() => import('./YearSummaryChart'), { ssr: false }), []);
   const [isYearSwitchPending, startYearSwitchTransition] = useTransition();
+  const [updatedMs, setUpdatedMs] = useState<number | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
@@ -75,18 +78,35 @@ export default function ClimbingView() {
       start.setDate(start.getDate() - 119);
       const fromISO = toLocalISO(start);
       const toISO = toLocalISO(end);
+      // Apply cached immediately where available
+      const dayKey = `climb:day:${account}:${date}`;
+      const goalsKey = `climb:goals:${account}`;
+      const rangeKey = `climb:range:${account}:${fromISO}|${toISO}`;
+      const cachedDay = getCache<typeof logs>(dayKey);
+      if (cachedDay) setLogs(Array.isArray(cachedDay.data) ? cachedDay.data : []);
+      if (cachedDay) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch {} }
+      const cachedGoals = getCache<typeof goals>(goalsKey);
+      if (cachedGoals) setGoals(Array.isArray(cachedGoals.data) ? cachedGoals.data : []);
+      if (cachedGoals) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedGoals.cachedAt))); } catch {} }
+      const cachedRange = getCache<typeof rangeLogs>(rangeKey);
+      if (cachedRange) setRangeLogs(Array.isArray(cachedRange.data) ? cachedRange.data : []);
+      if (cachedRange) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedRange.cachedAt))); } catch {} }
       // Fetch logs, goals, and range logs in parallel
       const [dayResp, goalsResp, rangeResp] = await Promise.all([
         fetch(`/api/climbing/logs?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal }),
         fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`),
         fetch(`/api/climbing/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`),
       ]);
-      const dayItems = dayResp.ok ? await dayResp.json() : [];
-      const gs = goalsResp.ok ? await goalsResp.json() : [];
-      const rangeItems = rangeResp.ok ? await rangeResp.json() : [];
+      const dayItems: Array<ClimbLog> = dayResp.ok ? await dayResp.json() : [];
+      const gs: Array<ClimbGoal> = goalsResp.ok ? await goalsResp.json() : [];
+      const rangeItems: Array<ClimbLog> = rangeResp.ok ? await rangeResp.json() : [];
       setLogs(Array.isArray(dayItems) ? dayItems : []);
       setGoals(Array.isArray(gs) ? gs : []);
       setRangeLogs(Array.isArray(rangeItems) ? rangeItems : []);
+      try { setCache(dayKey, Array.isArray(dayItems) ? dayItems : []); } catch {}
+      try { setCache(goalsKey, Array.isArray(gs) ? gs : []); } catch {}
+      try { setCache(rangeKey, Array.isArray(rangeItems) ? rangeItems : []); } catch {}
+      setUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Fetch logs per goal year for accurate progress (use simple client cache to avoid repeat calls)
       const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g: any) => g.year))) : [];
       if (gYears.length) {
@@ -95,15 +115,23 @@ export default function ClimbingView() {
           if (yearCacheRef.current.has(cacheKey)) {
             return [yr, yearCacheRef.current.get(cacheKey) || []] as const;
           }
+          // Try localStorage cache first
+          const lsKey = `climb:year:${account}:${yr}`;
+          const cached = getCache<Array<ClimbLog>>(lsKey);
+          if (cached) {
+            yearCacheRef.current.set(cacheKey, cached.data || []);
+            return [yr, cached.data || []] as const;
+          }
           const yrStart = `${yr}-01-01`;
           const yrEnd = `${yr}-12-31`;
           const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}&account=${encodeURIComponent(account)}`);
-          const items = resp.ok ? await resp.json() : [];
-          const arr = Array.isArray(items) ? items : [];
+          const items: Array<ClimbLog> = resp.ok ? await resp.json() : [];
+          const arr: Array<ClimbLog> = Array.isArray(items) ? items : [];
           yearCacheRef.current.set(cacheKey, arr);
+          try { setCache(lsKey, arr); } catch {}
           return [yr, arr] as const;
         }));
-        const map: Record<number, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>> = {};
+        const map: Record<number, Array<ClimbLog>> = {};
         for (const [yr, arr] of entries) { map[yr] = arr; }
         setYearLogsByYear(map);
       } else {
@@ -561,6 +589,7 @@ export default function ClimbingView() {
 
   return (
     <section className="space-y-6">
+      {updatedMs ? (<div className="subtle text-xs">Updated at {new Date(updatedMs).toLocaleTimeString()}</div>) : null}
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
         <div className="card p-4">
           <div className="flex items-center justify-between">

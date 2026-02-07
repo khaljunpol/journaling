@@ -1,25 +1,15 @@
 "use client";
 
-import type { Activity, CatalogItem, WeightPoint } from '@/lib/types';
+import type { Activity, CatalogItem, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
 import { useEffect, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { pad, localISO, toISODate, weekStartLocal, weekKey } from '@/lib/date';
+import { getCache, setCache } from '@/lib/cache';
+import { moodEmoji } from '@/lib/mood';
 
 export default function Dashboard() {
     const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const localISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const weekStartLocal = (d: Date) => {
-        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        const day = x.getDay();
-        const diff = (day === 0 ? -6 : 1 - day);
-        x.setDate(x.getDate() + diff);
-        return x;
-    };
-    const toISODate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const weekKey = (d: Date) => {
-        const ws = weekStartLocal(d);
-        return `${ws.getFullYear()}-${pad(ws.getMonth() + 1)}-${pad(ws.getDate())}`;
-    };
+    // Date helpers now imported from '@/lib/date'
     const y = now.getFullYear();
     const m = now.getMonth() + 1;
     const fromISO = `${y}-${pad(m)}-01`;
@@ -57,13 +47,6 @@ export default function Dashboard() {
     const [moodToday, setMoodToday] = useState<number | null>(null);
     const [moodAvg7, setMoodAvg7] = useState<number | null>(null);
     const [mood7, setMood7] = useState<Array<{ date: string; score: number }>>([]);
-    const moodEmoji = (s: number) => {
-        const map: Record<number, string> = {
-            0: '😭', 1: '😢', 2: '☹️', 3: '🙁', 4: '😕',
-            5: '😐', 6: '🙂', 7: '😊', 8: '😃', 9: '😁', 10: '🤩'
-        };
-        return map[Math.max(0, Math.min(10, Math.round(s)))] || '😐';
-    };
     const fetchVersionRef = useRef(0);
     const actsCtrlRef = useRef<AbortController | null>(null);
     const dashboardCtrlRef = useRef<AbortController | null>(null);
@@ -93,6 +76,204 @@ export default function Dashboard() {
     const [loadingDash, setLoadingDash] = useState(false);
     const [weightTrend, setWeightTrend] = useState<{ ma4: number; prevMa4: number; change: number }>({ ma4: 0, prevMa4: 0, change: 0 });
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+    const [hasData, setHasData] = useState(false);
+
+    const applyFromPayload = (data: any, opts?: { source?: 'fresh' | 'cache'; cachedAt?: string }) => {
+        // Base entities
+        const activitiesList: Activity[] = Array.isArray(data?.activities) ? data.activities : [];
+        setActivities(activitiesList);
+        if (Array.isArray(data?.catalog)) setCatalog(data.catalog);
+
+        // Dates (prefer server-provided)
+        const dates = (data?.dates && typeof data.dates === 'object') ? data.dates : {};
+        const sTodayISO: string = typeof dates?.todayISO === 'string' ? dates.todayISO : todayISO;
+        const sFrom7ISO: string = typeof dates?.from7ISO === 'string' ? dates.from7ISO : from7ISO;
+        const sFrom30ISO: string = typeof dates?.from30ISO === 'string' ? dates.from30ISO : from30ISO;
+        const sWeekFromISO: string = typeof dates?.weekFromISO === 'string' ? dates.weekFromISO : toISODate(weekStartLocal(new Date()));
+        const sWeekToISO: string = typeof dates?.weekToISO === 'string' ? dates.weekToISO : sTodayISO;
+        const sPrevWeekFromISO: string | undefined = typeof dates?.prevWeekFromISO === 'string' ? dates.prevWeekFromISO : undefined;
+        const sPrevWeekToISO: string | undefined = typeof dates?.prevWeekToISO === 'string' ? dates.prevWeekToISO : undefined;
+
+        // Activity logs (last 30 days)
+        const logs30: Array<{ date: string; activityId: string; completed: boolean }> = Array.isArray(data?.logs30) ? data.logs30 : [];
+        const isInRange = (d: string, a: string, b: string) => d >= a && d <= b;
+        const doneTodayVal = logs30.filter(l => l.completed && l.date === sTodayISO).length;
+        const doneLast7Val = logs30.filter(l => l.completed && isInRange(l.date, sFrom7ISO, sTodayISO)).length;
+        const doneLast30Val = logs30.filter(l => l.completed).length;
+        setDoneToday(doneTodayVal);
+        setLast7Done(doneLast7Val);
+        setLast30Done(doneLast30Val);
+
+        // Weights (8 weeks provided)
+        const weights8w: WeightPoint[] = Array.isArray(data?.weights8w) ? data.weights8w : [];
+        setWeights30(weights8w);
+
+        // Highlights (30 days)
+        const hl30: Array<{ date: string; text: string }> = Array.isArray(data?.highlights30) ? data.highlights30 : [];
+        setHighlights30(hl30);
+
+        // Mood (7 days)
+        const moods7: MoodItem[] = Array.isArray(data?.moods7) ? data.moods7 : [];
+        setMood7(moods7);
+        if (moods7.length) {
+            const avg = Math.round((moods7.reduce((acc, x) => acc + (Number(x.score) || 0), 0) / moods7.length) * 10) / 10;
+            setMoodAvg7(avg);
+            setMoodToday(Number(moods7[moods7.length - 1]?.score) || null);
+        } else {
+            setMoodAvg7(null);
+            setMoodToday(null);
+        }
+
+        // Weight trend (4 vs prev 4 samples)
+        if (weights8w.length >= 5) {
+            const last4 = weights8w.slice(-4).map(w => Number(w.weight) || 0);
+            const prev4 = weights8w.slice(-8, -4).map(w => Number(w.weight) || 0);
+            const ma4 = Math.round((last4.reduce((a, b) => a + b, 0) / (last4.length || 1)) * 10) / 10;
+            const prevMa4 = prev4.length ? Math.round((prev4.reduce((a, b) => a + b, 0) / prev4.length) * 10) / 10 : 0;
+            const change = Math.round((ma4 - prevMa4) * 10) / 10;
+            setWeightTrend({ ma4, prevMa4, change });
+        } else {
+            setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 });
+        }
+
+        // Metrics (weekly activity rates)
+        const metrics: any = (data?.metrics && typeof data.metrics === 'object') ? data.metrics : null;
+        if (metrics?.summary) {
+            setAvgWeeklyRate(Number(metrics.summary.avgRate) || 0);
+            setBestWeekLabel(typeof metrics.summary.bestWeek?.week === 'string' ? metrics.summary.bestWeek.week : undefined);
+            setBestWeekRate(Number(metrics.summary.bestWeek?.rate) || 0);
+            setStreakDays(Number(metrics.summary.currentStreakDays) || 0);
+        } else {
+            setAvgWeeklyRate(0);
+            setBestWeekLabel(undefined);
+            setBestWeekRate(0);
+        }
+        if (Array.isArray(metrics?.weeks)) {
+            const byDate = (d: string) => metrics.weeks.find((w: any) => String(w?.date) === d);
+            const thisW = byDate(sWeekFromISO);
+            const prevW = sPrevWeekFromISO ? byDate(sPrevWeekFromISO) : undefined;
+            setThisWeekRate(Number(thisW?.rate) || 0);
+            setLastWeekRate(Number(prevW?.rate) || 0);
+        } else {
+            setThisWeekRate(0);
+            setLastWeekRate(0);
+        }
+
+        // Time (categories and entries)
+        const timeCats: Array<{ id: string; name: string; color: string; order: number }> = Array.isArray(data?.timeCategories) ? data.timeCategories : [];
+        const timeY: TimeEntryAny[] = Array.isArray(data?.timeY) ? data.timeY as TimeEntryAny[] : [];
+        setTimeCategories(timeCats);
+        const numCat = (c: number | string) => Number(c);
+        const nameForCat = (cid: number) => {
+            const found = timeCats.find(c => String(c.id) === String(cid));
+            return found ? found.name : String(cid);
+        };
+        const countByCat = (items: Array<{ category: number | string }>) => {
+            const m = new Map<number, number>();
+            for (const it of items) {
+                const k = numCat(it.category);
+                m.set(k, (m.get(k) || 0) + 1);
+            }
+            return m;
+        };
+        const tToday = timeY.filter(t => t.date === sTodayISO);
+        const tWeek = timeY.filter(t => isInRange(t.date, sWeekFromISO, sWeekToISO));
+        const todayHours = tToday.length;
+        const weekTotal = tWeek.length;
+        const todayCounts = countByCat(tToday);
+        let todayTop: { id: number; name: string; count: number; percent: number } | undefined;
+        if (todayCounts.size) {
+            let maxId = -1, maxVal = -1;
+            for (const [cid, cnt] of todayCounts.entries()) { if (cnt > maxVal) { maxVal = cnt; maxId = cid; } }
+            todayTop = { id: maxId, name: nameForCat(maxId), count: maxVal, percent: todayHours ? Math.round((maxVal / todayHours) * 100) : 0 };
+        }
+        const weekCounts = countByCat(tWeek);
+        const weekTop = Array.from(weekCounts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([cid, cnt]) => ({ id: cid, name: nameForCat(cid), count: cnt }));
+        setTimeStats({ todayHours, todayTop, weekTotal, weekTop });
+
+        // Balance snapshot
+        const prodNames = ['work', 'hobbies / projects', 'exercise / sports', 'chores', 'travel', 'content'];
+        const restNames = ['relaxation / leisure', 'friends', 'wife', 'party', 'brain rot / misc'];
+        const idsForNames = (names: string[]) => new Set(names.map(n => {
+            const f = timeCats.find(c => c.name.toLowerCase() === n.toLowerCase());
+            return f ? Number(f.id) : NaN;
+        }).filter(x => !Number.isNaN(x)) as number[]);
+        const prodIds = idsForNames(prodNames);
+        const restIds = idsForNames(restNames);
+        const countForSet = (items: typeof tToday, idSet: Set<number>) => items.filter(t => idSet.has(numCat(t.category))).length;
+        const todayProductive = countForSet(tToday, prodIds);
+        const todayRest = countForSet(tToday, restIds);
+        const weekProductive = countForSet(tWeek, prodIds);
+        const weekRest = countForSet(tWeek, restIds);
+        const sleepCat = timeCats.find(c => c.name.toLowerCase() === 'sleep');
+        const sleepId = sleepCat ? Number(sleepCat.id) : 0;
+        const sleepToday = tToday.filter(t => numCat(t.category) === sleepId).length;
+        setBalanceStats({ todayProductive, todayRest, weekProductive, weekRest, sleepToday });
+
+        // Climbing stats
+        const climb30: Array<{ id: string; date: string; session: number; type: string; grade: string; attempts: number }> = Array.isArray(data?.climb30) ? data.climb30 : [];
+        const inWeek = (date: string, from: string | undefined, to: string | undefined) => {
+            if (!from || !to) return false; return isInRange(date, from, to);
+        };
+        const sessionsThisWeek = new Set(climb30.filter(c => inWeek(c.date, sWeekFromISO, sWeekToISO)).map(c => c.date)).size;
+        const sessionsLastWeek = new Set(climb30.filter(c => inWeek(c.date, sPrevWeekFromISO, sPrevWeekToISO)).map(c => c.date)).size;
+        const flashCnt = climb30.filter(c => Number(c.attempts) === 1).length;
+        const flashRate30d = climb30.length ? Math.round((flashCnt / climb30.length) * 100) : 0;
+        const avgAttempts30d = climb30.length ? Math.round((climb30.reduce((acc, c) => acc + (Number(c.attempts) || 0), 0) / climb30.length) * 10) / 10 : 0;
+        setClimbStats({ sessionsThisWeek, sessionsLastWeek, flashRate30d, avgAttempts30d });
+
+        // Goals progress
+        const goals: Array<{ year: number; type: string; grade: string; target: number }> = Array.isArray(data?.goals) ? data.goals : [];
+        const climbY: Array<{ date: string; type: string; grade: string }> = Array.isArray(data?.climbY) ? data.climbY : [];
+        const currentYear = new Date().getFullYear();
+        const yearGoals = goals.filter(g => Number(g.year) === currentYear);
+        const nowMonth = new Date().getMonth() + 1; // 1..12
+        const expectedPct = Math.round((nowMonth / 12) * 100);
+        const gs = yearGoals.map(g => {
+            const done = climbY.filter(c => c.type === g.type && c.grade === g.grade).length;
+            const pct = Math.min(100, Math.round((done / (Number(g.target) || 1)) * 100));
+            const onTrack = pct >= expectedPct ? 'on track' : 'behind';
+            return { label: `${g.type[0].toUpperCase() + g.type.slice(1)} ${g.grade}`, percent: pct, onTrack } as { label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' };
+        });
+        setGoalStats(gs);
+
+        // Consistency
+        const weekKeyFor = (iso: string) => weekKey(new Date(iso));
+        const climbWeeksYTD = new Set(climbY.filter(c => new Date(c.date).getFullYear() === currentYear).map(c => weekKeyFor(c.date))).size;
+        const timeY2: TimeEntryAny[] = Array.isArray(data?.timeY) ? data.timeY as TimeEntryAny[] : [];
+        const timeWeeksYTD = new Set(timeY2.filter(t => new Date(t.date).getFullYear() === currentYear).map(t => weekKeyFor(t.date))).size;
+        const climbDatesSet = new Set(climbY.map(c => c.date));
+        let streak = 0; // consecutive days with climbing ending today
+        let cursor = new Date(sTodayISO);
+        for (let i = 0; i < 60; i++) { // limit to 60 days for safety
+            const iso = toISODate(cursor);
+            if (climbDatesSet.has(iso)) { streak += 1; cursor.setDate(cursor.getDate() - 1); } else { break; }
+        }
+        setConsistency({ climbingActiveWeeksYTD: climbWeeksYTD, timeActiveWeeksYTD: timeWeeksYTD, moodStreakDays: Number(metrics?.summary?.currentStreakDays) || 0, climbingStreakDays: streak });
+
+        // Weekly highlights (last 12 weeks)
+        const twelveAgo: string = typeof dates?.twelveWeeksAgoISO === 'string' ? dates.twelveWeeksAgoISO : sWeekFromISO;
+        const climbWeeks = new Map<string, number>();
+        for (const c of climbY) { if (c.date >= twelveAgo) { const k = weekKeyFor(c.date); climbWeeks.set(k, (climbWeeks.get(k) || 0) + 1); } }
+        const bestClimbWeekCount = Array.from(climbWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
+        const timeWeeks = new Map<string, number>();
+        for (const t of timeY2) { if (t.date >= twelveAgo) { const k = weekKeyFor(t.date); timeWeeks.set(k, (timeWeeks.get(k) || 0) + 1); } }
+        const bestHourWeekCount = Array.from(timeWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
+        const weekTopCats = weekTop.map(x => x.name);
+        setWeeklyHighlights({ bestClimbWeekCount, bestHourWeekCount, topWeekCategories: weekTopCats });
+
+        // Updated timestamp
+        if (opts?.source === 'cache') {
+            const t = opts.cachedAt ? new Date(opts.cachedAt).toLocaleTimeString() : 'cache';
+            setLastUpdated(t);
+        } else {
+            setLastUpdated(new Date().toLocaleTimeString());
+        }
+        setHasData(true);
+    };
 
     useEffect(() => {
         // Try cookie first, then localStorage
@@ -160,6 +341,16 @@ export default function Dashboard() {
         setInsights([]);
         setMoodToday(null);
         setMoodAvg7(null);
+        setHasData(false);
+
+        // Try local cache immediately
+        try {
+            const cacheKey = `dashboard:${account}`;
+            const cached = getCache<any>(cacheKey);
+            if (cached && cached.data) {
+                applyFromPayload(cached.data, { source: 'cache', cachedAt: cached.cachedAt });
+            }
+        } catch { }
 
         const load = async () => {
             try {
@@ -167,184 +358,11 @@ export default function Dashboard() {
                 const res = await fetch(`/api/dashboard?account=${encodeURIComponent(account)}`, { signal: dashboardCtrlRef.current.signal });
                 if (!res.ok) throw new Error('Failed');
                 const data = await res.json();
-
-                // Base entities
-                const activitiesList: Activity[] = Array.isArray(data?.activities) ? data.activities : [];
-                setActivities(activitiesList);
-                if (Array.isArray(data?.catalog)) setCatalog(data.catalog);
-
-                // Dates (prefer server-provided)
-                const dates = (data?.dates && typeof data.dates === 'object') ? data.dates : {};
-                const sTodayISO: string = typeof dates?.todayISO === 'string' ? dates.todayISO : todayISO;
-                const sFrom7ISO: string = typeof dates?.from7ISO === 'string' ? dates.from7ISO : from7ISO;
-                const sFrom30ISO: string = typeof dates?.from30ISO === 'string' ? dates.from30ISO : from30ISO;
-                const sWeekFromISO: string = typeof dates?.weekFromISO === 'string' ? dates.weekFromISO : toISODate(weekStartLocal(new Date()));
-                const sWeekToISO: string = typeof dates?.weekToISO === 'string' ? dates.weekToISO : sTodayISO;
-                const sPrevWeekFromISO: string | undefined = typeof dates?.prevWeekFromISO === 'string' ? dates.prevWeekFromISO : undefined;
-                const sPrevWeekToISO: string | undefined = typeof dates?.prevWeekToISO === 'string' ? dates.prevWeekToISO : undefined;
-
-                // Activity logs (last 30 days)
-                const logs30: Array<{ date: string; activityId: string; completed: boolean }> = Array.isArray(data?.logs30) ? data.logs30 : [];
-                const isInRange = (d: string, a: string, b: string) => d >= a && d <= b;
-                const doneTodayVal = logs30.filter(l => l.completed && l.date === sTodayISO).length;
-                const doneLast7Val = logs30.filter(l => l.completed && isInRange(l.date, sFrom7ISO, sTodayISO)).length;
-                const doneLast30Val = logs30.filter(l => l.completed).length;
-                setDoneToday(doneTodayVal);
-                setLast7Done(doneLast7Val);
-                setLast30Done(doneLast30Val);
-
-                // Weights (8 weeks provided)
-                const weights8w: WeightPoint[] = Array.isArray(data?.weights8w) ? data.weights8w : [];
-                setWeights30(weights8w);
-
-                // Highlights (30 days)
-                const hl30: Array<{ date: string; text: string }> = Array.isArray(data?.highlights30) ? data.highlights30 : [];
-                setHighlights30(hl30);
-
-                // Mood (7 days)
-                const moods7: Array<{ date: string; score: number }> = Array.isArray(data?.moods7) ? data.moods7 : [];
-                setMood7(moods7);
-                if (moods7.length) {
-                    const avg = Math.round((moods7.reduce((acc, x) => acc + (Number(x.score) || 0), 0) / moods7.length) * 10) / 10;
-                    setMoodAvg7(avg);
-                    setMoodToday(Number(moods7[moods7.length - 1]?.score) || null);
-                } else {
-                    setMoodAvg7(null);
-                    setMoodToday(null);
-                }
-
-                // Weight trend (4 vs prev 4 samples)
-                if (weights8w.length >= 5) {
-                    const last4 = weights8w.slice(-4).map(w => Number(w.weight) || 0);
-                    const prev4 = weights8w.slice(-8, -4).map(w => Number(w.weight) || 0);
-                    const ma4 = Math.round((last4.reduce((a, b) => a + b, 0) / (last4.length || 1)) * 10) / 10;
-                    const prevMa4 = prev4.length ? Math.round((prev4.reduce((a, b) => a + b, 0) / prev4.length) * 10) / 10 : 0;
-                    const change = Math.round((ma4 - prevMa4) * 10) / 10;
-                    setWeightTrend({ ma4, prevMa4, change });
-                }
-
-                // Metrics (weekly activity rates)
-                const metrics: any = (data?.metrics && typeof data.metrics === 'object') ? data.metrics : null;
-                if (metrics?.summary) {
-                    setAvgWeeklyRate(Number(metrics.summary.avgRate) || 0);
-                    setBestWeekLabel(typeof metrics.summary.bestWeek?.week === 'string' ? metrics.summary.bestWeek.week : undefined);
-                    setBestWeekRate(Number(metrics.summary.bestWeek?.rate) || 0);
-                    setStreakDays(Number(metrics.summary.currentStreakDays) || 0);
-                }
-                if (Array.isArray(metrics?.weeks)) {
-                    const byDate = (d: string) => metrics.weeks.find((w: any) => String(w?.date) === d);
-                    const thisW = byDate(sWeekFromISO);
-                    const prevW = sPrevWeekFromISO ? byDate(sPrevWeekFromISO) : undefined;
-                    setThisWeekRate(Number(thisW?.rate) || 0);
-                    setLastWeekRate(Number(prevW?.rate) || 0);
-                }
-
-                // Time (categories and entries)
-                const timeCats: Array<{ id: string; name: string; color: string; order: number }> = Array.isArray(data?.timeCategories) ? data.timeCategories : [];
-                const timeY: Array<{ id: string; date: string; hour: number; category: number | string }> = Array.isArray(data?.timeY) ? data.timeY : [];
-                setTimeCategories(timeCats);
-                const numCat = (c: number | string) => Number(c);
-                const nameForCat = (cid: number) => {
-                    const found = timeCats.find(c => String(c.id) === String(cid));
-                    return found ? found.name : String(cid);
-                };
-                const countByCat = (items: Array<{ category: number | string }>) => {
-                    const m = new Map<number, number>();
-                    for (const it of items) {
-                        const k = numCat(it.category);
-                        m.set(k, (m.get(k) || 0) + 1);
-                    }
-                    return m;
-                };
-                const tToday = timeY.filter(t => t.date === sTodayISO);
-                const tWeek = timeY.filter(t => isInRange(t.date, sWeekFromISO, sWeekToISO));
-                const todayHours = tToday.length;
-                const weekTotal = tWeek.length;
-                const todayCounts = countByCat(tToday);
-                let todayTop: { id: number; name: string; count: number; percent: number } | undefined;
-                if (todayCounts.size) {
-                    let maxId = -1, maxVal = -1;
-                    for (const [cid, cnt] of todayCounts.entries()) { if (cnt > maxVal) { maxVal = cnt; maxId = cid; } }
-                    todayTop = { id: maxId, name: nameForCat(maxId), count: maxVal, percent: todayHours ? Math.round((maxVal / todayHours) * 100) : 0 };
-                }
-                const weekCounts = countByCat(tWeek);
-                const weekTop = Array.from(weekCounts.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 3)
-                    .map(([cid, cnt]) => ({ id: cid, name: nameForCat(cid), count: cnt }));
-                setTimeStats({ todayHours, todayTop, weekTotal, weekTop });
-
-                // Balance snapshot
-                const prodNames = ['work', 'hobbies / projects', 'exercise / sports', 'chores', 'travel', 'content'];
-                const restNames = ['relaxation / leisure', 'friends', 'wife', 'party', 'brain rot / misc'];
-                const idsForNames = (names: string[]) => new Set(names.map(n => {
-                    const f = timeCats.find(c => c.name.toLowerCase() === n.toLowerCase());
-                    return f ? Number(f.id) : NaN;
-                }).filter(x => !Number.isNaN(x)) as number[]);
-                const prodIds = idsForNames(prodNames);
-                const restIds = idsForNames(restNames);
-                const countForSet = (items: typeof tToday, idSet: Set<number>) => items.filter(t => idSet.has(numCat(t.category))).length;
-                const todayProductive = countForSet(tToday, prodIds);
-                const todayRest = countForSet(tToday, restIds);
-                const weekProductive = countForSet(tWeek, prodIds);
-                const weekRest = countForSet(tWeek, restIds);
-                const sleepCat = timeCats.find(c => c.name.toLowerCase() === 'sleep');
-                const sleepId = sleepCat ? Number(sleepCat.id) : 0;
-                const sleepToday = tToday.filter(t => numCat(t.category) === sleepId).length;
-                setBalanceStats({ todayProductive, todayRest, weekProductive, weekRest, sleepToday });
-
-                // Climbing stats
-                const climb30: Array<{ id: string; date: string; session: number; type: string; grade: string; attempts: number }> = Array.isArray(data?.climb30) ? data.climb30 : [];
-                const inWeek = (date: string, from: string | undefined, to: string | undefined) => {
-                    if (!from || !to) return false; return isInRange(date, from, to);
-                };
-                const sessionsThisWeek = new Set(climb30.filter(c => inWeek(c.date, sWeekFromISO, sWeekToISO)).map(c => c.date)).size;
-                const sessionsLastWeek = new Set(climb30.filter(c => inWeek(c.date, sPrevWeekFromISO, sPrevWeekToISO)).map(c => c.date)).size;
-                const flashCnt = climb30.filter(c => Number(c.attempts) === 1).length;
-                const flashRate30d = climb30.length ? Math.round((flashCnt / climb30.length) * 100) : 0;
-                const avgAttempts30d = climb30.length ? Math.round((climb30.reduce((acc, c) => acc + (Number(c.attempts) || 0), 0) / climb30.length) * 10) / 10 : 0;
-                setClimbStats({ sessionsThisWeek, sessionsLastWeek, flashRate30d, avgAttempts30d });
-
-                // Goals progress
-                const goals: Array<{ year: number; type: string; grade: string; target: number }> = Array.isArray(data?.goals) ? data.goals : [];
-                const climbY: Array<{ date: string; type: string; grade: string }> = Array.isArray(data?.climbY) ? data.climbY : [];
-                const currentYear = new Date().getFullYear();
-                const yearGoals = goals.filter(g => Number(g.year) === currentYear);
-                const nowMonth = new Date().getMonth() + 1; // 1..12
-                const expectedPct = Math.round((nowMonth / 12) * 100);
-                const gs = yearGoals.map(g => {
-                    const done = climbY.filter(c => c.type === g.type && c.grade === g.grade).length;
-                    const pct = Math.min(100, Math.round((done / (Number(g.target) || 1)) * 100));
-                    const onTrack = pct >= expectedPct ? 'on track' : 'behind';
-                    return { label: `${g.type[0].toUpperCase() + g.type.slice(1)} ${g.grade}`, percent: pct, onTrack } as { label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' };
-                });
-                setGoalStats(gs);
-
-                // Consistency
-                const weekKeyFor = (iso: string) => weekKey(new Date(iso));
-                const climbWeeksYTD = new Set(climbY.filter(c => new Date(c.date).getFullYear() === currentYear).map(c => weekKeyFor(c.date))).size;
-                const timeWeeksYTD = new Set(timeY.filter(t => new Date(t.date).getFullYear() === currentYear).map(t => weekKeyFor(t.date))).size;
-                const climbDatesSet = new Set(climbY.map(c => c.date));
-                let streak = 0; // consecutive days with climbing ending today
-                let cursor = new Date(sTodayISO);
-                for (let i = 0; i < 60; i++) { // limit to 60 days for safety
-                    const iso = toISODate(cursor);
-                    if (climbDatesSet.has(iso)) { streak += 1; cursor.setDate(cursor.getDate() - 1); } else { break; }
-                }
-                setConsistency({ climbingActiveWeeksYTD: climbWeeksYTD, timeActiveWeeksYTD: timeWeeksYTD, moodStreakDays: Number(metrics?.summary?.currentStreakDays) || 0, climbingStreakDays: streak });
-
-                // Weekly highlights (last 12 weeks)
-                const twelveAgo: string = typeof dates?.twelveWeeksAgoISO === 'string' ? dates.twelveWeeksAgoISO : sWeekFromISO;
-                const climbWeeks = new Map<string, number>();
-                for (const c of climbY) { if (c.date >= twelveAgo) { const k = weekKeyFor(c.date); climbWeeks.set(k, (climbWeeks.get(k) || 0) + 1); } }
-                const bestClimbWeekCount = Array.from(climbWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
-                const timeWeeks = new Map<string, number>();
-                for (const t of timeY) { if (t.date >= twelveAgo) { const k = weekKeyFor(t.date); timeWeeks.set(k, (timeWeeks.get(k) || 0) + 1); } }
-                const bestHourWeekCount = Array.from(timeWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
-                const weekTopCats = weekTop.map(x => x.name);
-                setWeeklyHighlights({ bestClimbWeekCount, bestHourWeekCount, topWeekCategories: weekTopCats });
-
-                setLastUpdated(new Date().toLocaleTimeString());
+                applyFromPayload(data, { source: 'fresh' });
+                try {
+                    const cacheKey = `dashboard:${account}`;
+                    setCache(cacheKey, data);
+                } catch { }
             } catch {
                 // fall back to cleared baseline already set above
             }
@@ -372,19 +390,19 @@ export default function Dashboard() {
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
                 <div className="card p-3">
                     <div className="subtle">Activities</div>
-                    <div className="text-lg font-semibold">{loadingDash ? '…' : activities.length}</div>
+                    <div className="text-lg font-semibold">{hasData ? activities.length : '…'}</div>
                 </div>
                 <div className="card p-3">
                     <div className="subtle">Today</div>
-                    <div className="text-lg font-semibold">{loadingDash ? '…' : `${doneToday}/${activities.length} done`}</div>
+                    <div className="text-lg font-semibold">{hasData ? `${doneToday}/${activities.length} done` : '…'}</div>
                 </div>
                 <div className="card p-3">
                     <div className="subtle">Last 7 Days</div>
-                    <div className="text-lg font-semibold">{loadingDash ? '…' : (activities.length ? Math.round((last7Done / (activities.length * 7)) * 100) : 0)}%</div>
+                    <div className="text-lg font-semibold">{hasData ? (activities.length ? Math.round((last7Done / (activities.length * 7)) * 100) : 0) : '…'}%</div>
                 </div>
                 <div className="card p-3">
                     <div className="subtle">Last 30 Days</div>
-                    <div className="text-lg font-semibold">{loadingDash ? '…' : last30Done}</div>
+                    <div className="text-lg font-semibold">{hasData ? last30Done : '…'}</div>
                 </div>
             </div>
             {/* Ordered groups for clear top-to-bottom reading on mobile */}

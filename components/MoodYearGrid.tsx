@@ -1,18 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from 'react';
-
-type MoodItem = { date: string; score: number };
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function localISO(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
-function moodEmoji(s: number) {
-  const map: Record<number, string> = {
-    0: '😭', 1: '😢', 2: '☹️', 3: '🙁', 4: '😕',
-    5: '😐', 6: '🙂', 7: '😊', 8: '😃', 9: '😁', 10: '🤩'
-  };
-  return map[Math.max(0, Math.min(10, Math.round(s)))] || '';
-}
+import type { MoodItem } from '@/lib/types';
+import { pad, localISO } from '@/lib/date';
+import { getCache, setCache } from '@/lib/cache';
+import { moodEmoji, moodBackground } from '@/lib/mood';
+// moodEmoji imported from shared lib
 
 export default function MoodYearGrid() {
   const now = new Date();
@@ -20,6 +13,7 @@ export default function MoodYearGrid() {
   const [account, setAccount] = useState<string>('Alex');
   const [items, setItems] = useState<MoodItem[]>([]);
   const ctrlRef = useRef<AbortController | null>(null);
+  const [lastUpdatedMs, setLastUpdatedMs] = useState<number | null>(null);
 
   // Resolve account from cookie/localStorage and listen to changes
   useEffect(() => {
@@ -51,17 +45,35 @@ export default function MoodYearGrid() {
   useEffect(() => {
     async function load() {
       try {
+        let appliedCache = false;
         if (ctrlRef.current) ctrlRef.current.abort();
         ctrlRef.current = new AbortController();
         const fromISO = `${year}-01-01`;
         const toISO = `${year}-12-31`;
+        // Apply cached immediately
+        const cacheKey = `moods:year:${account}:${year}`;
+        const cached = getCache<MoodItem[]>(cacheKey);
+        if (cached) {
+          const valid = Array.isArray(cached.data) ? cached.data.filter((x) => typeof x?.score === 'number' && x?.date) : [];
+          const normalized = valid.map((x) => ({ date: x.date.slice(0,10), score: Math.max(0, Math.min(10, Math.round(x.score))) }));
+          setItems(normalized);
+          try { setLastUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
+          appliedCache = true;
+        }
         const res = await fetch(`/api/moods?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
         const data: MoodItem[] = res.ok ? await res.json() : [];
         const valid = Array.isArray(data) ? data.filter((x) => typeof x?.score === 'number' && x?.date) : [];
         // Normalize dates to local ISO for display consistency
         const normalized = valid.map((x) => ({ date: x.date.slice(0,10), score: Math.max(0, Math.min(10, Math.round(x.score))) }));
         setItems(normalized);
-      } catch { setItems([]); }
+        try { setCache(cacheKey, data); } catch {}
+        setLastUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
+      } catch {
+        // Preserve cached items if applied; only clear when no cache
+        // Avoid wiping out UI when network fails but cache is present
+        // no-op if appliedCache; otherwise clear
+        if (!appliedCache) setItems([]);
+      }
     }
     if (account && year) load();
   }, [account, year]);
@@ -100,6 +112,7 @@ export default function MoodYearGrid() {
           </select>
         </div>
       </div>
+      {lastUpdatedMs ? (<div className="subtle text-xs">Updated at {new Date(lastUpdatedMs).toLocaleTimeString()}</div>) : null}
 
       <div className="mx-auto w-full max-w-[min(100%,72rem)] px-1 sm:px-2">
         <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -120,8 +133,8 @@ export default function MoodYearGrid() {
                 key={d.dateISO}
                 title={`${d.date.toLocaleDateString()}${emoji ? ` — ${score}/10` : ''}`}
                 aria-label={`${d.date.toLocaleDateString()}${emoji ? ` — ${score}/10` : ''}`}
-                className={`${base} ${size} ${color} ${monthBg}`}
-                style={{ aspectRatio: '1 / 1' }}
+                className={`${base} ${size} ${color} ${isEmpty ? monthBg : ''}`}
+                style={{ aspectRatio: '1 / 1', background: !isEmpty ? moodBackground(score) : undefined }}
               >
                 {isFirstOfMonth ? (
                   <span className="absolute left-1 top-1 text-[10px] sm:text-xs font-medium text-neutral-500">

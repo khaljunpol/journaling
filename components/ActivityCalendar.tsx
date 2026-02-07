@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
 import { normalizeStatus } from '@/lib/status';
+import { getCache, setCache } from '@/lib/cache';
 
 // Types are imported from shared lib
 
@@ -32,6 +33,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const logsVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
   const logsCtrlRef = useRef<AbortController | null>(null);
+  const [actsUpdatedMs, setActsUpdatedMs] = useState<number | null>(null);
+  const [logsUpdatedMs, setLogsUpdatedMs] = useState<number | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => {
@@ -67,11 +70,21 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     try {
       if (actsCtrlRef.current) actsCtrlRef.current.abort();
       actsCtrlRef.current = new AbortController();
+      // Apply cached immediately
+      const cacheKey = `activities:${account}`;
+      const cached = getCache<Activity[]>(cacheKey);
+      if (cached && vActs === actsVersionRef.current) {
+        const arr = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+        setActivities(arr);
+        try { setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
+      }
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
       const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
       if (vActs === actsVersionRef.current) setActivities(arr);
+      try { setCache<Activity[]>(cacheKey, arr); } catch {}
+      setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
   }
 
@@ -80,6 +93,15 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     try {
       if (logsCtrlRef.current) logsCtrlRef.current.abort();
       logsCtrlRef.current = new AbortController();
+      const cacheKey = `logs:${account}:${fromISO}|${toISO}`;
+      const cached = getCache<Log[]>(cacheKey);
+      if (cached && vLogs === logsVersionRef.current) {
+        const data = Array.isArray(cached.data) ? cached.data : [];
+        const map: Record<string, boolean> = {};
+        for (const l of data) { map[`${l.date}|${l.activityId}`] = !!l.completed; }
+        setLogs(map);
+        try { setLogsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
+      }
       const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: logsCtrlRef.current.signal });
       if (!res.ok) { if (vLogs === logsVersionRef.current) setLogs({}); return; }
       const data: Log[] = await res.json();
@@ -88,6 +110,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         map[`${l.date}|${l.activityId}`] = !!l.completed;
       }
       if (vLogs === logsVersionRef.current) setLogs(map);
+      try { setCache<Log[]>(cacheKey, Array.isArray(data) ? data : []); } catch {}
+      setLogsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch { if (vLogs === logsVersionRef.current) setLogs({}); }
   }
 
@@ -153,6 +177,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         <div className="font-medium">{new Date(year, month, 1).toLocaleString(undefined, { month: 'long' })} {year}</div>
         <button className="btn-outline" onClick={nextMonth}>Next</button>
       </div>
+      {(() => { const t = Math.max(actsUpdatedMs ?? 0, logsUpdatedMs ?? 0); return t ? (<div className="subtle text-xs">Updated at {new Date(t).toLocaleTimeString()}</div>) : null; })()}
 
       <div ref={scrollRef} className="overflow-auto card">
         <table className="min-w-full border-collapse">

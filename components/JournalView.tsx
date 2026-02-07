@@ -5,12 +5,9 @@ import ActivityCalendar from '@/components/ActivityCalendarClient';
 import DailyHighlight from '@/components/DailyHighlightClient';
 import DailyWeight from '@/components/DailyWeightClient';
 import { useTransition } from 'react';
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function localTodayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+import { localTodayISO, pad } from '@/lib/date';
+import { getCache, setCache } from '@/lib/cache';
+import { MOODS } from '@/lib/mood';
 
 export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
@@ -18,19 +15,8 @@ export default function JournalView() {
   const [isPending, startTransition] = useTransition();
   const [account, setAccount] = useState<string>('Alex');
   const [moodScore, setMoodScore] = useState<number | null>(null);
-  const moods: Array<{ score: number; emoji: string; label: string }> = [
-    { score: 0, emoji: '😭', label: 'Terrible' },
-    { score: 1, emoji: '😢', label: 'Very Bad' },
-    { score: 2, emoji: '☹️', label: 'Bad' },
-    { score: 3, emoji: '🙁', label: 'Down' },
-    { score: 4, emoji: '😕', label: 'Meh' },
-    { score: 5, emoji: '😐', label: 'Neutral' },
-    { score: 6, emoji: '🙂', label: 'Okay' },
-    { score: 7, emoji: '😊', label: 'Good' },
-    { score: 8, emoji: '😃', label: 'Great' },
-    { score: 9, emoji: '😁', label: 'Awesome' },
-    { score: 10, emoji: '🤩', label: 'Excellent' },
-  ];
+  const [moodUpdatedAt, setMoodUpdatedAt] = useState<string | null>(null);
+  const moods = MOODS;
 
   const moodCtrlRef = useRef<AbortController | null>(null);
 
@@ -63,13 +49,24 @@ export default function JournalView() {
 
   async function fetchMood() {
     try {
+      // Apply cached immediately
+      const cacheKey = `mood:${account}:${selectedDate}`;
+      const cached = getCache<{ score: number | null }>(cacheKey);
+      if (cached && typeof cached.data?.score === 'number') {
+        setMoodScore(cached.data.score);
+        try { setMoodUpdatedAt(new Date(cached.cachedAt).toLocaleTimeString()); } catch {}
+      }
+      // Fetch fresh
       if (moodCtrlRef.current) moodCtrlRef.current.abort();
       moodCtrlRef.current = new AbortController();
       const res = await fetch(`/api/moods?date=${selectedDate}&account=${encodeURIComponent(account)}`, { signal: moodCtrlRef.current.signal });
-      if (!res.ok) { setMoodScore(null); return; }
+      if (!res.ok) { return; }
       const data = await res.json();
-      setMoodScore(typeof data?.score === 'number' ? data.score : null);
-    } catch { setMoodScore(null); }
+      const score = typeof data?.score === 'number' ? data.score : null;
+      setMoodScore(score);
+      setCache(cacheKey, { score });
+      setMoodUpdatedAt(new Date().toLocaleTimeString());
+    } catch { /* ignore */ }
   }
 
   useEffect(() => { fetchMood(); }, [selectedDate, account]);
@@ -83,6 +80,7 @@ export default function JournalView() {
       });
       if (!res.ok) return;
       setMoodScore(score);
+      try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch {}
     } catch {}
   }
 
@@ -143,6 +141,7 @@ export default function JournalView() {
       </div>
       <div className="card p-4">
         <div className="card-title">How are you feeling today?</div>
+        {moodUpdatedAt ? (<div className="subtle text-xs">Updated at {moodUpdatedAt}</div>) : null}
         <div className="mt-2 flex flex-wrap gap-2">
           {moods.map((m) => (
             <button

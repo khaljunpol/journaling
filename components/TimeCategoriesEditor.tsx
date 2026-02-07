@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-
-type Category = { id: string; name: string; color: string; order: number };
+import type { TimeCategory as Category } from '@/lib/types';
 
 export default function TimeCategoriesEditor() {
   const [account, setAccount] = useState<string>('Alex');
