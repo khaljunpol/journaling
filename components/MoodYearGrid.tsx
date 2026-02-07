@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from 'react';
-import type { MoodItem } from '@/lib/types';
-import { pad, localISO } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
-import { moodEmoji, moodBackground } from '@/lib/mood';
+import { localISO } from '@/lib/date';
+import { moodBackground, moodEmoji } from '@/lib/mood';
+import type { MoodItem } from '@/lib/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
 // moodEmoji imported from shared lib
 
 export default function MoodYearGrid() {
@@ -44,8 +44,8 @@ export default function MoodYearGrid() {
   // Fetch moods for the entire year
   useEffect(() => {
     async function load() {
+      let appliedCache = false;
       try {
-        let appliedCache = false;
         if (ctrlRef.current) ctrlRef.current.abort();
         ctrlRef.current = new AbortController();
         const fromISO = `${year}-01-01`;
