@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from 'react';
 import ActivityCalendar from '@/components/ActivityCalendarClient';
 import DailyHighlight from '@/components/DailyHighlightClient';
 import DailyWeight from '@/components/DailyWeightClient';
-import { useTransition } from 'react';
-import { localTodayISO, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
+import { localTodayISO, pad } from '@/lib/date';
 import { MOODS } from '@/lib/mood';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
@@ -20,7 +19,7 @@ export default function JournalView() {
 
   const moodCtrlRef = useRef<AbortController | null>(null);
 
-  
+
 
   useEffect(() => {
     const cookieAccount = (() => {
@@ -54,7 +53,7 @@ export default function JournalView() {
       const cached = getCache<{ score: number | null }>(cacheKey);
       if (cached && typeof cached.data?.score === 'number') {
         setMoodScore(cached.data.score);
-        try { setMoodUpdatedAt(new Date(cached.cachedAt).toLocaleTimeString()); } catch {}
+        try { setMoodUpdatedAt(new Date(cached.cachedAt).toLocaleTimeString()); } catch { }
       }
       // Fetch fresh
       if (moodCtrlRef.current) moodCtrlRef.current.abort();
@@ -71,7 +70,7 @@ export default function JournalView() {
 
   useEffect(() => { fetchMood(); }, [selectedDate, account]);
 
-  
+
 
   async function setMood(score: number) {
     try {
@@ -80,12 +79,12 @@ export default function JournalView() {
       });
       if (!res.ok) return;
       setMoodScore(score);
-      try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch {}
-    } catch {}
+      try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch { }
+    } catch { }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 card p-4">
         <div className="text-lg font-medium">
           {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
@@ -93,51 +92,55 @@ export default function JournalView() {
         <div className="w-full sm:w-auto overflow-x-auto max-w-full">
           <div className="flex items-center gap-2 px-2 whitespace-nowrap">
             <button
-            className="shrink-0 btn-outline"
-            disabled={isPending}
-            onClick={() => {
-              startTransition(() => {
-                const d = new Date(selectedDate);
-                d.setDate(d.getDate() - 1);
-                setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-              });
-            }}
-          >
-            Previous
-          </button>
-          <button
-            className="shrink-0 btn-outline"
-            disabled={isPending}
-            onClick={() => startTransition(() => setSelectedDate(localTodayISO()))}
-          >
-            Today
-          </button>
-          <input
-            type="date"
-            className="shrink-0 input"
-            value={selectedDate}
-            onChange={(e) => startTransition(() => setSelectedDate(e.target.value))}
-          />
-          <button
-            className="shrink-0 btn-outline"
-            disabled={isPending}
-            onClick={() => {
-              startTransition(() => {
-                const d = new Date(selectedDate);
-                d.setDate(d.getDate() + 1);
-                setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-              });
-            }}
-          >
-            Next
-          </button>
+              className="shrink-0 btn-outline"
+              disabled={isPending}
+              onClick={() => {
+                startTransition(() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() - 1);
+                  setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+                });
+              }}
+            >
+              Previous
+            </button>
+            <button
+              className="shrink-0 btn-outline"
+              disabled={isPending}
+              onClick={() => startTransition(() => setSelectedDate(localTodayISO()))}
+            >
+              Today
+            </button>
+            <input
+              type="date"
+              className="shrink-0 input"
+              value={selectedDate}
+              onChange={(e) => startTransition(() => setSelectedDate(e.target.value))}
+            />
+            <button
+              className="shrink-0 btn-outline"
+              disabled={isPending}
+              onClick={() => {
+                startTransition(() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() + 1);
+                  setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+                });
+              }}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
-        <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={(d) => startTransition(() => setSelectedDate(d))} />
-        {isPending ? <span className="muted text-xs">Updating…</span> : null}
+        <div className="w-full overflow-x-auto max-w-full">
+          <div className="px-2">
+            <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={(d) => startTransition(() => setSelectedDate(d))} />
+          </div>
+        </div>
+        {isPending ? <span className="muted text-xs shrink-0 ml-2">Updating…</span> : null}
       </div>
       <div className="card p-4">
         <div className="card-title">How are you feeling today?</div>
@@ -159,7 +162,7 @@ export default function JournalView() {
       </div>
       <DailyHighlight dateISO={selectedDate} />
       <DailyWeight dateISO={selectedDate} />
-      
+
     </div>
   );
 }
