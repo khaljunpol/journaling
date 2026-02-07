@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from 'react';
-import ActivityCalendar from '@/components/ActivityCalendar';
-import DailyHighlight from '@/components/DailyHighlight';
-import DailyWeight from '@/components/DailyWeight';
+import ActivityCalendar from '@/components/ActivityCalendarClient';
+import DailyHighlight from '@/components/DailyHighlightClient';
+import DailyWeight from '@/components/DailyWeightClient';
+import { useTransition } from 'react';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() {
@@ -14,6 +15,7 @@ function localTodayISO() {
 export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [isPending, startTransition] = useTransition();
   const [account, setAccount] = useState<string>('Alex');
   const [moodScore, setMoodScore] = useState<number | null>(null);
   const moods: Array<{ score: number; emoji: string; label: string }> = [
@@ -94,17 +96,21 @@ export default function JournalView() {
           <div className="flex items-center gap-2 px-2 whitespace-nowrap">
             <button
             className="shrink-0 btn-outline"
+            disabled={isPending}
             onClick={() => {
-              const d = new Date(selectedDate);
-              d.setDate(d.getDate() - 1);
-              setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+              startTransition(() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+              });
             }}
           >
             Previous
           </button>
           <button
             className="shrink-0 btn-outline"
-            onClick={() => setSelectedDate(localTodayISO())}
+            disabled={isPending}
+            onClick={() => startTransition(() => setSelectedDate(localTodayISO()))}
           >
             Today
           </button>
@@ -112,14 +118,17 @@ export default function JournalView() {
             type="date"
             className="shrink-0 input"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(e) => startTransition(() => setSelectedDate(e.target.value))}
           />
           <button
             className="shrink-0 btn-outline"
+            disabled={isPending}
             onClick={() => {
-              const d = new Date(selectedDate);
-              d.setDate(d.getDate() + 1);
-              setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+              startTransition(() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+              });
             }}
           >
             Next
@@ -128,7 +137,10 @@ export default function JournalView() {
         </div>
       </div>
 
-      <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={setSelectedDate} />
+      <div className="flex items-center justify-between">
+        <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={(d) => startTransition(() => setSelectedDate(d))} />
+        {isPending ? <span className="muted text-xs">Updating…</span> : null}
+      </div>
       <div className="card p-4">
         <div className="card-title">How are you feeling today?</div>
         <div className="mt-2 flex flex-wrap gap-2">
