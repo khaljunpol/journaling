@@ -1,25 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { getCache, setCache } from '@/lib/cache';
+import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
- import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
- import { getCache, setCache } from '@/lib/cache';
- import type { TimeCategory, TimeEntry } from '@/lib/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 type CatItem = TimeCategory;
 
-function pad(n: number) { return String(n).padStart(2,'0'); }
-function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function parseLocalDate(s: string) { const [y,m,d] = s.split('-').map((x)=>parseInt(x,10)); return new Date(y,(m||1)-1,d||1); }
+function pad(n: number) { return String(n).padStart(2, '0'); }
+function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function parseLocalDate(s: string) { const [y, m, d] = s.split('-').map((x) => parseInt(x, 10)); return new Date(y, (m || 1) - 1, d || 1); }
 
 export default function TimeTrackerView() {
   const [account, setAccount] = useState<string>('Alex');
   const [date] = useState<string>(localTodayISO());
-  const [hours, setHours] = useState<Array<number | null>>(Array.from({ length: 24 }, ()=>null));
+  const [hours, setHours] = useState<Array<number | null>>(Array.from({ length: 24 }, () => null));
   const [yearLogs, setYearLogs] = useState<Array<TimeEntry>>([]);
   const [selectedCategory, setSelectedCategory] = useState<number>(1); // default to 'work'
   const [isPainting, setIsPainting] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'month'|'year'>('month');
+  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [viewYear, setViewYear] = useState<number>(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(new Date().getMonth()); // 0-11
   // Legend always open; no toggle state
@@ -27,7 +27,7 @@ export default function TimeTrackerView() {
   const [lastPaintAt, setLastPaintAt] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [cats, setCats] = useState<CatItem[]>([]);
-  const ctrlRef = useRef<AbortController|null>(null);
+  const ctrlRef = useRef<AbortController | null>(null);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [dayUpdatedMs, setDayUpdatedMs] = useState<number | null>(null);
   const [yearUpdatedMs, setYearUpdatedMs] = useState<number | null>(null);
@@ -60,40 +60,40 @@ export default function TimeTrackerView() {
       const cachedDay = getCache<Array<TimeEntry>>(dayKey);
       if (cachedDay) {
         const items = Array.isArray(cachedDay.data) ? cachedDay.data : [];
-        const arr = Array.from({ length: 24 }, ()=>null) as Array<number|null>;
+        const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
         for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
         setHours(arr);
-        try { setDayUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch {}
+        try { setDayUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch { }
       }
       const res = await fetch(`/api/time?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
       const items: Array<TimeEntry> = (res.ok ? await res.json() : []) || [];
-      const arr = Array.from({ length: 24 }, ()=>null) as Array<number|null>;
+      const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
       for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
       setHours(arr);
-      try { setCache(dayKey, items); } catch {}
+      try { setCache(dayKey, items); } catch { }
       setDayUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Year range based on selected viewYear
       const yFrom = `${viewYear}-01-01`;
       const yTo = `${viewYear}-12-31`;
       const yearKey = `time:year:${account}:${viewYear}`;
       const cachedYear = getCache<Array<TimeEntry>>(yearKey);
-      if (cachedYear) { setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []); try { setYearUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedYear.cachedAt))); } catch {} }
+      if (cachedYear) { setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []); try { setYearUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedYear.cachedAt))); } catch { } }
       const yRes = await fetch(`/api/time?from=${yFrom}&to=${yTo}&account=${encodeURIComponent(account)}`);
       const yItems: Array<TimeEntry> = yRes.ok ? await yRes.json() : [];
       setYearLogs(Array.isArray(yItems) ? yItems : []);
-      try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch {}
+      try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch { }
       setYearUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Categories for legend and colors
       const catsKey = `time:cats:${account}`;
       const cachedCats = getCache<CatItem[]>(catsKey);
-      if (cachedCats) { setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []); try { setCatsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedCats.cachedAt))); } catch {} }
+      if (cachedCats) { setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []); try { setCatsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedCats.cachedAt))); } catch { } }
       const cRes = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`);
       const list: CatItem[] = cRes.ok ? await cRes.json() : [];
       setCats(Array.isArray(list) ? list : []);
-      try { setCache(catsKey, Array.isArray(list) ? list : []); } catch {}
+      try { setCache(catsKey, Array.isArray(list) ? list : []); } catch { }
       setCatsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch {
-      setHours(Array.from({ length: 24 }, ()=>null));
+      setHours(Array.from({ length: 24 }, () => null));
     }
   }
 
@@ -101,7 +101,7 @@ export default function TimeTrackerView() {
 
   async function saveBatchForDate(iso: string, items: Array<{ h: number; category: number }>) {
     if (!items.length) return;
-    const body = { date: iso, entries: items.map((it)=>({ hour: it.h, category: it.category })) };
+    const body = { date: iso, entries: items.map((it) => ({ hour: it.h, category: it.category })) };
     const res = await fetch(`/api/time?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
       if (iso === localTodayISO()) {
@@ -124,7 +124,7 @@ export default function TimeTrackerView() {
         const category = hoursMap[h];
         if (Number.isFinite(h) && Number.isFinite(category)) arr.push({ h, category });
       }
-      if (arr.length) byIso[iso] = arr.sort((a,b)=>a.h-b.h);
+      if (arr.length) byIso[iso] = arr.sort((a, b) => a.h - b.h);
     }
     const isoKeys = Object.keys(byIso);
     if (isoKeys.length === 0) return;
@@ -150,21 +150,21 @@ export default function TimeTrackerView() {
 
   // Auto-save removed: only explicit Save triggers persist changes
 
-  const catsSorted = useMemo(() => [...cats].sort((a,b)=>a.order-b.order), [cats]);
+  const catsSorted = useMemo(() => [...cats].sort((a, b) => a.order - b.order), [cats]);
   function getColor(idNum: number) {
-    const it = cats.find((c)=>parseInt(c.id,10)===idNum);
+    const it = cats.find((c) => parseInt(c.id, 10) === idNum);
     return it?.color || 'transparent';
   }
   function getName(idNum: number) {
-    const it = cats.find((c)=>parseInt(c.id,10)===idNum);
+    const it = cats.find((c) => parseInt(c.id, 10) === idNum);
     return it?.name || String(idNum);
   }
   function buildDist(items: Array<{ date: string; hour: number; category: number }>) {
     const counts: Record<number, number> = {};
-    for (const it of items) { if (typeof it.category === 'number') counts[it.category] = (counts[it.category]||0) + 1; }
+    for (const it of items) { if (typeof it.category === 'number') counts[it.category] = (counts[it.category] || 0) + 1; }
     return catsSorted.map((c) => {
       const idNum = parseInt(c.id, 10);
-      return { name: `${c.id} ${c.name}`, value: counts[idNum] || 0, index: idNum };
+      return { name: c.name, value: counts[idNum] || 0, index: idNum };
     });
   }
   const yearDist = useMemo(() => buildDist(yearLogs), [yearLogs, catsSorted]);
@@ -179,17 +179,17 @@ export default function TimeTrackerView() {
     <section className="space-y-6">
       {/* Distribution summary for current view placed above tracker */}
       <div className="card p-4">
-        <div className="card-title">Distribution ({viewMode==='month' ? 'Month' : 'Year'})</div>
+        <div className="card-title">Distribution ({viewMode === 'month' ? 'Month' : 'Year'})</div>
         {(() => { const t = Math.max(dayUpdatedMs ?? 0, yearUpdatedMs ?? 0, catsUpdatedMs ?? 0); return t ? (<div className="subtle text-xs">Updated at {new Date(t).toLocaleTimeString()}</div>) : null; })()}
-        <div className="mt-2 h-48 w-full">
+        <div className="mt-2 h-56 md:h-64 w-full relative z-10 overflow-visible">
           {cats.length > 0 ? (
             (() => {
-              const currentData = (viewMode==='month' ? monthDist : yearDist).filter((d)=>d.value>0);
+              const currentData = (viewMode === 'month' ? monthDist : yearDist).filter((d) => d.value > 0);
               if (currentData.length === 0) {
                 return <div className="h-full w-full flex items-center justify-center subtle text-sm">No data for this {viewMode}.</div>;
               }
               return isMobile ? (
-                <PieChart width={320} height={192}>
+                <PieChart width={320} height={208}>
                   <Pie
                     data={currentData}
                     dataKey="value"
@@ -209,7 +209,7 @@ export default function TimeTrackerView() {
                       <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip wrapperStyle={{ zIndex: 50 }} />
                 </PieChart>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -233,7 +233,7 @@ export default function TimeTrackerView() {
                         <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip wrapperStyle={{ zIndex: 50 }} />
                   </PieChart>
                 </ResponsiveContainer>
               );
@@ -242,8 +242,8 @@ export default function TimeTrackerView() {
             <div className="h-full w-full flex items-center justify-center subtle text-sm">Loading categories…</div>
           )}
         </div>
-        <ul className="mt-2 text-sm space-y-1">
-          {(viewMode==='month' ? monthDist : yearDist).map((d) => (
+        <ul className="mt-4 text-sm space-y-1 relative z-0">
+          {[...(viewMode === 'month' ? monthDist : yearDist)].sort((a, b) => (b.value - a.value)).map((d) => (
             <li key={d.index} className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <span className="inline-block h-3 w-3 rounded" style={{ background: getColor(d.index) }} />
@@ -259,15 +259,15 @@ export default function TimeTrackerView() {
           <div className="flex items-center justify-between gap-2">
             <div className="text-lg font-medium">Time Tracker</div>
             <div className="flex rounded border overflow-hidden shrink-0">
-              <button className={`px-2 py-1 text-xs ${viewMode==='month'?'text-(--accent) border-(--accent) font-medium':''}`} onClick={()=>setViewMode('month')}>Month</button>
-              <button className={`px-2 py-1 text-xs ${viewMode==='year'?'text-(--accent) border-(--accent) font-medium':''}`} onClick={()=>setViewMode('year')}>Year</button>
+              <button className={`px-2 py-1 text-xs ${viewMode === 'month' ? 'text-(--accent) border-(--accent) font-medium' : ''}`} onClick={() => setViewMode('month')}>Month</button>
+              <button className={`px-2 py-1 text-xs ${viewMode === 'year' ? 'text-(--accent) border-(--accent) font-medium' : ''}`} onClick={() => setViewMode('year')}>Year</button>
             </div>
             {/* Legend toggle removed; legend acts as picker and is always visible */}
           </div>
           <div className="flex items-center gap-2 justify-center sm:justify-start">
-            <button className="px-2 py-1 text-xs border rounded" onClick={()=>setViewYear(viewYear-1)} title="Previous year">Prev</button>
+            <button className="px-2 py-1 text-xs border rounded" onClick={() => setViewYear(viewYear - 1)} title="Previous year">Prev</button>
             <div className="text-sm subtle" title="Viewing year">{viewYear}</div>
-            <button className="px-2 py-1 text-xs border rounded" onClick={()=>setViewYear(viewYear+1)} title="Next year">Next</button>
+            <button className="px-2 py-1 text-xs border rounded" onClick={() => setViewYear(viewYear + 1)} title="Next year">Next</button>
           </div>
         </div>
         <div className="mt-3">
@@ -281,21 +281,21 @@ export default function TimeTrackerView() {
                   <li
                     key={c.id}
                     className={`flex items-center gap-2 px-2 py-1 rounded border cursor-pointer ${selected ? 'ring-2 ring-(--accent) font-medium' : ''}`}
-                    onClick={()=>setSelectedCategory(i)}
-                    title={`Select ${c.id} ${c.name}`}
+                    onClick={() => setSelectedCategory(i)}
+                    title={`Select ${c.name}`}
                   >
                     <span className="inline-block h-3 w-3 rounded" style={{ background: c.color }} />
-                    <span className="subtle">{c.id}</span> {c.name}
+                    {c.name}
                   </li>
                 );
               })}
             </ul>
           </div>
           <div className="mt-2">
-            <button className="px-2 py-1 text-xs border rounded" onClick={flushDraft} disabled={isSaving || Object.keys(draft).length===0} title="Save changes">{isSaving ? 'Saving…' : 'Save'}</button>
+            <button className="px-2 py-1 text-xs border rounded" onClick={flushDraft} disabled={isSaving || Object.keys(draft).length === 0} title="Save changes">{isSaving ? 'Saving…' : 'Save'}</button>
           </div>
           <div className="mt-4">
-            <div className="card-title">{viewMode==='month' ? 'This Month' : 'This Year'}</div>
+            <div className="card-title">{viewMode === 'month' ? 'This Month' : 'This Year'}</div>
             <div className="mt-2 -mx-2 px-2">
               <DaysRows
                 viewYear={viewYear}
@@ -306,8 +306,8 @@ export default function TimeTrackerView() {
                 getColor={getColor}
                 paint={{
                   isPainting,
-                  start: ()=> setIsPainting(true),
-                  paint: (iso: string, h: number)=> {
+                  start: () => setIsPainting(true),
+                  paint: (iso: string, h: number) => {
                     setDraft((prev) => {
                       const next = { ...prev };
                       const hm = { ...(next[iso] || {}) };
@@ -327,7 +327,7 @@ export default function TimeTrackerView() {
   );
 }
 
-function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint }:{ viewYear: number; viewMode: 'month'|'year'; viewMonth: number; yearLogs: Array<{ date: string; hour: number; category: number }>; draft: Record<string, Record<number, number>>; getColor: (id: number)=>string; paint: { isPainting: boolean; start: ()=>void; paint: (iso: string, h: number)=>void } }) {
+function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint }: { viewYear: number; viewMode: 'month' | 'year'; viewMonth: number; yearLogs: Array<{ date: string; hour: number; category: number }>; draft: Record<string, Record<number, number>>; getColor: (id: number) => string; paint: { isPainting: boolean; start: () => void; paint: (iso: string, h: number) => void } }) {
   const year = viewYear;
   const byDate = new Map<string, Array<{ hour: number; category: number }>>();
   for (const it of yearLogs) {
@@ -351,8 +351,8 @@ function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, pa
     }
     const days = new Date(year, m + 1, 0).getDate();
     for (let di = 1; di <= days; di++) {
-      const iso = `${year}-${pad(m+1)}-${pad(di)}`;
-      const label = `${pad(m+1)}-${pad(di)}`; // month-day only
+      const iso = `${year}-${pad(m + 1)}-${pad(di)}`;
+      const label = `${pad(m + 1)}-${pad(di)}`; // month-day only
       const isToday = (year === currentYear) && (iso === todayISO);
       rows.push(
         <div key={iso} className={`flex items-center gap-0 relative ${isToday ? 'ring-2 ring-(--accent) rounded' : ''}`}>
@@ -361,7 +361,7 @@ function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, pa
             <div className="grid grid-cols-24 gap-px">
               {Array.from({ length: 24 }, (_, h) => {
                 const logs = byDate.get(iso) || [];
-                const hit = logs.find((x)=>x.hour===h);
+                const hit = logs.find((x) => x.hour === h);
                 const draftCategory = (draft && draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
                 const bgCategory = draftCategory !== null ? draftCategory : (hit ? hit.category : null);
                 const cellBg = (bgCategory !== null && bgCategory !== undefined) ? getColor(bgCategory as number) : 'transparent';
@@ -370,10 +370,10 @@ function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, pa
                     key={h}
                     className="h-5 sm:h-6 md:h-7 rounded border flex items-center justify-center select-none text-[6px] sm:text-[7px] md:text-[10px] leading-none whitespace-nowrap overflow-hidden"
                     style={{ background: cellBg }}
-                    onPointerDown={(e)=>{ e.preventDefault(); paint.start(); paint.paint(iso, h); }}
-                    onPointerEnter={()=>{ if (paint.isPainting) paint.paint(iso, h); }}
-                    title={`${iso} ${String(h+1).padStart(2,'0')}:00`}
-                  >{String(h+1).padStart(2,'0')}</div>
+                    onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
+                    onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
+                    title={`${iso} ${String(h + 1).padStart(2, '0')}:00`}
+                  >{String(h + 1).padStart(2, '0')}</div>
                 );
               })}
             </div>
