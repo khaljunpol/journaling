@@ -265,9 +265,35 @@ export default function TimeTrackerView() {
             {/* Legend toggle removed; legend acts as picker and is always visible */}
           </div>
           <div className="flex items-center gap-2 justify-center sm:justify-start">
-            <button className="px-2 py-1 text-xs border rounded" onClick={() => setViewYear(viewYear - 1)} title="Previous year">Prev</button>
-            <div className="text-sm subtle" title="Viewing year">{viewYear}</div>
-            <button className="px-2 py-1 text-xs border rounded" onClick={() => setViewYear(viewYear + 1)} title="Next year">Next</button>
+            <button
+              className="px-2 py-1 text-xs border rounded"
+              onClick={() => {
+                if (viewMode === 'month') {
+                  const prevMonth = viewMonth - 1;
+                  if (prevMonth < 0) { setViewYear(viewYear - 1); setViewMonth(11); }
+                  else { setViewMonth(prevMonth); }
+                } else {
+                  setViewYear(viewYear - 1);
+                }
+              }}
+              title={viewMode === 'month' ? 'Previous month' : 'Previous year'}
+            >Prev</button>
+            <div className="text-sm subtle" title={viewMode === 'month' ? 'Viewing month' : 'Viewing year'}>
+              {viewMode === 'month' ? new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: 'short', year: 'numeric' }) : viewYear}
+            </div>
+            <button
+              className="px-2 py-1 text-xs border rounded"
+              onClick={() => {
+                if (viewMode === 'month') {
+                  const nextMonth = viewMonth + 1;
+                  if (nextMonth > 11) { setViewYear(viewYear + 1); setViewMonth(0); }
+                  else { setViewMonth(nextMonth); }
+                } else {
+                  setViewYear(viewYear + 1);
+                }
+              }}
+              title={viewMode === 'month' ? 'Next month' : 'Next year'}
+            >Next</button>
           </div>
         </div>
         <div className="mt-3">
