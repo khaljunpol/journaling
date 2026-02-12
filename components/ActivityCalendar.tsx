@@ -35,6 +35,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const logsCtrlRef = useRef<AbortController | null>(null);
   const [actsUpdatedMs, setActsUpdatedMs] = useState<number | null>(null);
   const [logsUpdatedMs, setLogsUpdatedMs] = useState<number | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => {
@@ -73,16 +75,28 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       // Apply cached immediately
       const cacheKey = `activities:${account}`;
       const cached = getCache<Activity[]>(cacheKey);
+      // Helper to apply persisted order
+      const applyOrder = (arr: Activity[]) => {
+        const orderKey = `activitiesOrder:${account}`;
+        const cachedOrder = getCache<string[]>(orderKey);
+        const order = Array.isArray(cachedOrder?.data) ? cachedOrder!.data : [];
+        if (!order.length) return arr;
+        const idToItem = new Map(arr.map(a => [a.id, a] as const));
+        const ordered: Activity[] = [];
+        for (const id of order) { const item = idToItem.get(id); if (item) { ordered.push(item); idToItem.delete(id); } }
+        for (const item of idToItem.values()) ordered.push(item);
+        return ordered;
+      };
       if (cached && vActs === actsVersionRef.current) {
-        const arr = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
-        setActivities(arr);
+        const base = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+        setActivities(applyOrder(base));
         try { setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
       }
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
       const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
-      if (vActs === actsVersionRef.current) setActivities(arr);
+      if (vActs === actsVersionRef.current) setActivities(applyOrder(arr));
       try { setCache<Activity[]>(cacheKey, arr); } catch {}
       setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
@@ -207,8 +221,29 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
           </thead>
           <tbody>
             {activities.map((a) => (
-              <tr key={a.id}>
-                <td className="sticky left-0 bg-(--surface) p-2 text-sm">
+              <tr
+                key={a.id}
+                draggable
+                onDragStart={(e) => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverId(a.id); e.dataTransfer.dropEffect = 'move'; }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!dragId || dragId === a.id) { setDragOverId(null); return; }
+                  const fromIdx = activities.findIndex(x => x.id === dragId);
+                  const toIdx = activities.findIndex(x => x.id === a.id);
+                  if (fromIdx < 0 || toIdx < 0) { setDragOverId(null); return; }
+                  const next = activities.slice();
+                  const [moved] = next.splice(fromIdx, 1);
+                  next.splice(toIdx, 0, moved);
+                  setActivities(next);
+                  setDragOverId(null);
+                  setDragId(null);
+                  try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
+                }}
+                onDragEnd={() => { setDragOverId(null); setDragId(null); }}
+                className={dragOverId === a.id ? 'bg-neutral-50 dark:bg-neutral-900' : ''}
+              >
+                <td className="sticky left-0 bg-(--surface) p-2 text-sm cursor-move" title="Drag to reorder">
                   <div className="flex items-center gap-2">
                     <span className={(a.status || 'to continue') === 'to stop' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
                       {a.name}

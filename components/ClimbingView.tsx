@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bar, BarChart, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import dynamic from 'next/dynamic';
-import { useTransition } from 'react';
-import type { ClimbLog, ClimbGoal } from '@/lib/types';
 import { getCache, setCache } from '@/lib/cache';
+import type { ClimbGoal, ClimbLog } from '@/lib/types';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -34,6 +33,19 @@ function weekStartLocal(d: Date) {
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   start.setDate(start.getDate() - (day === 0 ? 6 : day - 1)); // Monday start
   return start;
+}
+
+// Normalize grade strings to a canonical form for reliable matching
+function normalizeGrade(type: 'boulder' | 'rope', grade: string): string {
+  const g = grade.trim().toLowerCase();
+  if (type === 'boulder') {
+    const n = vScaleToNumber(g);
+    // Canonical: 'v<number>' if parseable, else compact string without spaces
+    return n != null ? `v${n}` : g.replace(/\s+/g, '');
+  }
+  // Rope: map to canonical French grade from list if possible
+  const idx = frenchToIndex(g);
+  return idx != null ? frenchGrades[idx] : g.replace(/\s+/g, '');
 }
 
 export default function ClimbingView() {
@@ -84,13 +96,13 @@ export default function ClimbingView() {
       const rangeKey = `climb:range:${account}:${fromISO}|${toISO}`;
       const cachedDay = getCache<typeof logs>(dayKey);
       if (cachedDay) setLogs(Array.isArray(cachedDay.data) ? cachedDay.data : []);
-      if (cachedDay) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch {} }
+      if (cachedDay) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch { } }
       const cachedGoals = getCache<typeof goals>(goalsKey);
       if (cachedGoals) setGoals(Array.isArray(cachedGoals.data) ? cachedGoals.data : []);
-      if (cachedGoals) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedGoals.cachedAt))); } catch {} }
+      if (cachedGoals) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedGoals.cachedAt))); } catch { } }
       const cachedRange = getCache<typeof rangeLogs>(rangeKey);
       if (cachedRange) setRangeLogs(Array.isArray(cachedRange.data) ? cachedRange.data : []);
-      if (cachedRange) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedRange.cachedAt))); } catch {} }
+      if (cachedRange) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedRange.cachedAt))); } catch { } }
       // Fetch logs, goals, and range logs in parallel
       const [dayResp, goalsResp, rangeResp] = await Promise.all([
         fetch(`/api/climbing/logs?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal }),
@@ -103,24 +115,24 @@ export default function ClimbingView() {
       setLogs(Array.isArray(dayItems) ? dayItems : []);
       setGoals(Array.isArray(gs) ? gs : []);
       setRangeLogs(Array.isArray(rangeItems) ? rangeItems : []);
-      try { setCache(dayKey, Array.isArray(dayItems) ? dayItems : []); } catch {}
-      try { setCache(goalsKey, Array.isArray(gs) ? gs : []); } catch {}
-      try { setCache(rangeKey, Array.isArray(rangeItems) ? rangeItems : []); } catch {}
+      try { setCache(dayKey, Array.isArray(dayItems) ? dayItems : []); } catch { }
+      try { setCache(goalsKey, Array.isArray(gs) ? gs : []); } catch { }
+      try { setCache(rangeKey, Array.isArray(rangeItems) ? rangeItems : []); } catch { }
       setUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Fetch logs per goal year for accurate progress (use simple client cache to avoid repeat calls)
       const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g: any) => g.year))) : [];
       if (gYears.length) {
+        const YEAR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes freshness window
         const entries = await Promise.all(gYears.map(async (yr: number) => {
           const cacheKey = `${account}|${yr}`;
-          if (yearCacheRef.current.has(cacheKey)) {
-            return [yr, yearCacheRef.current.get(cacheKey) || []] as const;
-          }
-          // Try localStorage cache first
+          // Prefer localStorage cache if fresh; otherwise fetch
           const lsKey = `climb:year:${account}:${yr}`;
           const cached = getCache<Array<ClimbLog>>(lsKey);
-          if (cached) {
-            yearCacheRef.current.set(cacheKey, cached.data || []);
-            return [yr, cached.data || []] as const;
+          const isFresh = cached && (() => { try { return (Date.now() - Date.parse(cached.cachedAt)) < YEAR_CACHE_TTL_MS; } catch { return false; } })();
+          if (isFresh && cached) {
+            const arr = Array.isArray(cached.data) ? cached.data : [];
+            yearCacheRef.current.set(cacheKey, arr);
+            return [yr, arr] as const;
           }
           const yrStart = `${yr}-01-01`;
           const yrEnd = `${yr}-12-31`;
@@ -128,7 +140,7 @@ export default function ClimbingView() {
           const items: Array<ClimbLog> = resp.ok ? await resp.json() : [];
           const arr: Array<ClimbLog> = Array.isArray(items) ? items : [];
           yearCacheRef.current.set(cacheKey, arr);
-          try { setCache(lsKey, arr); } catch {}
+          try { setCache(lsKey, arr); } catch { }
           return [yr, arr] as const;
         }));
         const map: Record<number, Array<ClimbLog>> = {};
@@ -236,7 +248,9 @@ export default function ClimbingView() {
     return goals.map((g) => {
       const logsForYear = yearLogsByYear[g.year] || [];
       const done = logsForYear.reduce((acc, l) => {
-        return acc + ((l.type === g.type && l.grade.toLowerCase() === g.grade.toLowerCase()) ? 1 : 0);
+        const lg = normalizeGrade(l.type, l.grade);
+        const gg = normalizeGrade(g.type, g.grade);
+        return acc + ((l.type === g.type && lg === gg) ? 1 : 0);
       }, 0);
       const pct = g.target ? Math.min(100, Math.round((done / g.target) * 100)) : 0;
       return { ...g, done, pct };
@@ -492,10 +506,10 @@ export default function ClimbingView() {
   const goalLogs = useMemo(() => {
     if (!selectedGoal) return [] as Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>;
     const keyType = selectedGoal.type;
-    const keyGrade = selectedGoal.grade.toLowerCase();
+    const keyGrade = normalizeGrade(selectedGoal.type, selectedGoal.grade);
     const logsForYear = yearLogsByYear[selectedGoal.year] || [];
     return logsForYear
-      .filter((l) => l.type === keyType && l.grade.toLowerCase() === keyGrade)
+      .filter((l) => l.type === keyType && normalizeGrade(l.type, l.grade) === keyGrade)
       .sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
   }, [yearLogsByYear, selectedGoal]);
 
