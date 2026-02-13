@@ -340,7 +340,7 @@ export default function ClimbingView() {
     write(title, 88, cx, padY, true);
     // Primary stat block (big numbers like Strava)
     write(String(yearSummary.total), 140, cx, padY + 160, true, accent);
-    write('Total Climbs', 44, cx, padY + 210);
+    write('Total Sends', 44, cx, padY + 210);
     // Secondary stats with label/value styling
     const writePair = (label: string, value: string, size: number, y: number) => {
       const space = 14;
@@ -650,7 +650,7 @@ export default function ClimbingView() {
               <>
                 <YearSummaryChart series={yearSummary.series} weeklyAvg={yearSummary.weeklyAvg} goalsYear={goalsYear} />
                 <ul className="mt-2 space-y-1 text-sm">
-                  <li className="flex justify-between"><span>Total climbs</span><span className="subtle">{yearSummary.total}</span></li>
+                  <li className="flex justify-between"><span>Total sends</span><span className="subtle">{yearSummary.total}</span></li>
                   <li className="flex justify-between"><span>Flash rate</span><span className="subtle">{yearSummary.flashRate}%</span></li>
                   <li className="flex justify-between"><span>Avg attempts</span><span className="subtle">{yearSummary.avgAttempts}</span></li>
                   <li className="flex justify-between"><span>Active weeks</span><span className="subtle">{yearSummary.weeks}</span></li>
@@ -668,7 +668,7 @@ export default function ClimbingView() {
         </div>
         <div className="card p-4">
           <div className="card-title">Last 30 Days</div>
-          <div className="text-2xl font-semibold">{stats.total} climbs</div>
+          <div className="text-2xl font-semibold">{stats.total} sends</div>
           <div className="subtle">{stats.flashRate}% flash • avg {stats.avgAttempts} attempts</div>
           <div className="subtle">Boulder trend: {stats.vTrend >= 0 ? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend >= 0 ? '+' : ''}{stats.ropeTrend}</div>
           <div className="subtle">Attempts trend (30d): {stats.attemptsTrend <= 0 ? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
