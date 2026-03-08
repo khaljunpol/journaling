@@ -464,7 +464,7 @@ export default function Dashboard() {
                                     <XAxis dataKey="date" tick={false} axisLine={false} tickLine={false} />
                                     <YAxis tick={false} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
                                     <Tooltip
-                                        formatter={(v: any, name: string) => [`${v} kg`, name === 'ma' ? '5-pt avg' : 'Weight']}
+                                        formatter={(v: any, name?: string) => [`${v} kg`, name === 'ma' ? '5-pt avg' : 'Weight']}
                                         labelFormatter={(l: any) => l}
                                         contentStyle={{ fontSize: 12 }}
                                     />
