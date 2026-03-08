@@ -621,15 +621,15 @@ export default function ClimbingView() {
           </div>
           <ul className="mt-2 space-y-2 text-sm">
             {goalsForSelectedYear.length ? goalsForSelectedYear.map((g) => (
-              <li key={g.id} className="rounded border p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900" onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
+              <li key={g.id} className="rounded border p-2 cursor-pointer" style={{ borderColor: 'var(--border)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
                 <div className="flex items-center justify-between">
                   <span>{g.type} • {g.grade}</span>
                   <span className="flex items-center gap-2">
-                    <span className="font-medium" style={{ color: '#fc4c02' }}>{g.done}/{g.target}</span>
+                    <span className="font-medium" style={{ color: 'var(--accent)' }}>{g.done}/{g.target}</span>
                     <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
                   </span>
                 </div>
-                <div className="mt-1 h-2 w-full rounded bg-neutral-200 dark:bg-neutral-800">
+                <div className="mt-1 h-2 w-full rounded" style={{ background: 'var(--surface-alt)' }}>
                   <div className="h-2 rounded bg-(--accent)" style={{ width: `${g.pct}%` }} />
                 </div>
                 <GoalPaceLine year={g.year} done={g.done} target={g.target} />
@@ -681,28 +681,28 @@ export default function ClimbingView() {
                 <XAxis dataKey="date" tick={false} axisLine={false} />
                 <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
                 <Tooltip formatter={(v: any) => [String(v), 'Sessions']} labelFormatter={(l: any) => l} />
-                <ReferenceLine y={weekly.avg} stroke="#9CA3AF" strokeDasharray="3 3" />
+                <ReferenceLine y={weekly.avg} stroke="var(--border)" strokeDasharray="3 3" />
                 <Line type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-1">
             <span className="subtle">Avg: </span>
-            <span className="font-medium" style={{ color: '#fc4c02' }}>{weekly.avg}</span>
+            <span className="font-medium" style={{ color: 'var(--accent)' }}>{weekly.avg}</span>
             <span className="subtle"> • Active weeks: </span>
-            <span className="font-medium" style={{ color: '#fc4c02' }}>{weekly.activeWeeks}/{weekly.series.length}</span>
+            <span className="font-medium" style={{ color: 'var(--accent)' }}>{weekly.activeWeeks}/{weekly.series.length}</span>
           </div>
         </div>
         <div className="card p-4">
           <div className="card-title">Consistency</div>
-          <div className="text-2xl font-semibold" style={{ color: '#fc4c02' }}>{consistency.weeksActiveRate}%</div>
+          <div className="text-2xl font-semibold" style={{ color: 'var(--accent)' }}>{consistency.weeksActiveRate}%</div>
           <div>
             <span className="subtle">Weeks active (12w): </span>
-            <span className="font-medium" style={{ color: '#fc4c02' }}>{consistency.weeksActive}/{consistency.weeksTotal}</span>
+            <span className="font-medium" style={{ color: 'var(--accent)' }}>{consistency.weeksActive}/{consistency.weeksTotal}</span>
           </div>
           <div>
             <span className="subtle">Days climbed (7d): </span>
-            <span className="font-medium" style={{ color: '#fc4c02' }}>{consistency.daysLast7}/7</span>
+            <span className="font-medium" style={{ color: 'var(--accent)' }}>{consistency.daysLast7}/7</span>
           </div>
         </div>
         <div className="card p-4">

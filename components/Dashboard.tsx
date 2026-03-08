@@ -3,598 +3,604 @@
 import type { Activity, CatalogItem, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
 import { useEffect, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { pad, localISO, toISODate, weekStartLocal, weekKey } from '@/lib/date';
+import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
-import { moodEmoji } from '@/lib/mood';
+import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
 
+// ─── Skeleton primitive ───────────────────────────────────────────────────────
+function Sk({ w = 'w-16', h = 'h-4' }: { w?: string; h?: string }) {
+    return <div className={`${w} ${h} rounded bg-neutral-200 dark:bg-neutral-800 animate-pulse`} />;
+}
+
+// ─── Stat card ────────────────────────────────────────────────────────────────
+function StatCard({
+    label, value, sub, trend, loading,
+}: {
+    label: string;
+    value: string | number;
+    sub?: string;
+    trend?: 'up' | 'down' | 'flat' | null;
+    loading?: boolean;
+}) {
+    const arrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : null;
+    const arrowColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-400' : '';
+    return (
+        <div className="card p-4 flex flex-col gap-1">
+            <div className="subtle text-xs uppercase tracking-wide">{label}</div>
+            {loading ? (
+                <Sk w="w-20" h="h-7" />
+            ) : (
+                <div className="text-2xl font-bold leading-none flex items-baseline gap-1">
+                    {value}
+                    {arrow && <span className={`text-sm font-semibold ${arrowColor}`}>{arrow}</span>}
+                </div>
+            )}
+            {sub && !loading && <div className="subtle">{sub}</div>}
+        </div>
+    );
+}
+
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+function ProgressBar({ pct, color = 'bg-blue-500', label, sub, onTrack }: {
+    pct: number; color?: string; label: string; sub?: string;
+    onTrack?: 'ahead' | 'on track' | 'behind';
+}) {
+    const dot = onTrack === 'on track' || onTrack === 'ahead'
+        ? 'bg-emerald-500'
+        : 'bg-amber-400';
+    return (
+        <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{label}</span>
+                <span className="flex items-center gap-1.5 subtle">
+                    {onTrack && <span className={`inline-block w-2 h-2 rounded-full ${dot}`} />}
+                    {pct}%
+                </span>
+            </div>
+            <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+                <div
+                    className={`h-full rounded-full transition-all duration-500 ${color}`}
+                    style={{ width: `${Math.min(100, pct)}%` }}
+                />
+            </div>
+            {sub && <div className="subtle text-xs">{sub}</div>}
+        </div>
+    );
+}
+
+// ─── Balance bar ──────────────────────────────────────────────────────────────
+function BalanceBar({ productive, rest, sleep, total }: {
+    productive: number; rest: number; sleep: number; total: number;
+}) {
+    if (!total) return <div className="subtle text-xs">No data</div>;
+    const pPct = Math.round((productive / total) * 100);
+    const rPct = Math.round((rest / total) * 100);
+    const sPct = Math.round((sleep / total) * 100);
+    return (
+        <div className="space-y-2">
+            <div className="flex h-3 rounded-full overflow-hidden gap-0.5">
+                <div className="bg-blue-500 transition-all duration-500" style={{ width: `${pPct}%` }} title={`Productive ${pPct}%`} />
+                <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${rPct}%` }} title={`Rest ${rPct}%`} />
+                <div className="bg-neutral-300 dark:bg-neutral-600 transition-all duration-500" style={{ width: `${sPct}%` }} title={`Sleep ${sPct}%`} />
+            </div>
+            <div className="flex gap-4 text-xs subtle">
+                <span><span className="inline-block w-2 h-2 rounded-sm bg-blue-500 mr-1" />Productive {productive}h</span>
+                <span><span className="inline-block w-2 h-2 rounded-sm bg-emerald-400 mr-1" />Rest {rest}h</span>
+                <span><span className="inline-block w-2 h-2 rounded-sm bg-neutral-300 dark:bg-neutral-600 mr-1" />Sleep {sleep}h</span>
+            </div>
+        </div>
+    );
+}
+
+// ─── Section header ───────────────────────────────────────────────────────────
+function SectionHeader({ title }: { title: string }) {
+    return (
+        <div className="flex items-center gap-3 mt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">{title}</h3>
+            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+        </div>
+    );
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
     const now = new Date();
-    // Date helpers now imported from '@/lib/date'
     const y = now.getFullYear();
-    const m = now.getMonth() + 1;
-    const fromISO = `${y}-${pad(m)}-01`;
-    const toISO = `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`;
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayISO = localISO(today);
-    const d7 = new Date(today);
-    d7.setDate(d7.getDate() - 6);
+    const d7 = new Date(today); d7.setDate(d7.getDate() - 6);
     const from7ISO = localISO(d7);
-    const d30 = new Date(today);
-    d30.setDate(d30.getDate() - 29);
+    const d30 = new Date(today); d30.setDate(d30.getDate() - 29);
     const from30ISO = localISO(d30);
 
     const [account, setAccount] = useState<string>('Alex');
+    const [loading, setLoading] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+    const [hasData, setHasData] = useState(false);
+    const dashCtrl = useRef<AbortController | null>(null);
+
+    // ── Activity state
     const [activities, setActivities] = useState<Activity[]>([]);
-    const [summary7, setSummary7] = useState<{ exercise: number; caffeine: number; supplements: number; alcohol: number; leisure: number; content: number; stopped: number }>({ exercise: 0, caffeine: 0, supplements: 0, alcohol: 0, leisure: 0, content: 0, stopped: 0 });
     const [doneToday, setDoneToday] = useState(0);
-    const [streakDays, setStreakDays] = useState(0);
     const [last7Done, setLast7Done] = useState(0);
     const [last30Done, setLast30Done] = useState(0);
+    const [streakDays, setStreakDays] = useState(0);
     const [avgWeeklyRate, setAvgWeeklyRate] = useState(0);
-    const [bestWeekLabel, setBestWeekLabel] = useState<string | undefined>(undefined);
-    const [bestWeekRate, setBestWeekRate] = useState(0);
     const [thisWeekRate, setThisWeekRate] = useState(0);
     const [lastWeekRate, setLastWeekRate] = useState(0);
-    const [topActivities30, setTopActivities30] = useState<Array<{ name: string; count: number }>>([]);
-    const [recentCompletions, setRecentCompletions] = useState<Array<{ date: string; activityId: string; name: string }>>([]);
-    const [weights30, setWeights30] = useState<WeightPoint[]>([]);
-    const [highlights30, setHighlights30] = useState<Array<{ date: string; text: string }>>([]);
-    const [insights, setInsights] = useState<string[]>([]);
-    const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-    // Removed stoppedTop7 in favor of explicit To Stop / To Continue lists
-    const [toStopActs, setToStopActs] = useState<Array<{ name: string; count: number; prev: number }>>([]);
-    const [toContinueActs, setToContinueActs] = useState<Array<{ name: string; count: number }>>([]);
+    const [bestWeekLabel, setBestWeekLabel] = useState<string | undefined>();
+    const [bestWeekRate, setBestWeekRate] = useState(0);
+
+    // ── Mood state
     const [moodToday, setMoodToday] = useState<number | null>(null);
     const [moodAvg7, setMoodAvg7] = useState<number | null>(null);
     const [mood7, setMood7] = useState<Array<{ date: string; score: number }>>([]);
-    const fetchVersionRef = useRef(0);
-    const actsCtrlRef = useRef<AbortController | null>(null);
-    const dashboardCtrlRef = useRef<AbortController | null>(null);
-    const catalogCtrlRef = useRef<AbortController | null>(null);
-    const logsTodayCtrlRef = useRef<AbortController | null>(null);
-    const logs7CtrlRef = useRef<AbortController | null>(null);
-    const logs30CtrlRef = useRef<AbortController | null>(null);
-    const metricsCtrlRef = useRef<AbortController | null>(null);
-    const weightsCtrlRef = useRef<AbortController | null>(null);
-    const highlightsCtrlRef = useRef<AbortController | null>(null);
-    const moodsCtrlRef = useRef<AbortController | null>(null);
-    const timeCtrlRef = useRef<AbortController | null>(null);
-    const timeCatsCtrlRef = useRef<AbortController | null>(null);
-    const climbCtrlRef = useRef<AbortController | null>(null);
-    const goalsCtrlRef = useRef<AbortController | null>(null);
-    const extraWeightsCtrlRef = useRef<AbortController | null>(null);
+    const [moodPrevAvg, setMoodPrevAvg] = useState<number | null>(null);
 
-    // Dashboard snapshots
-    const [timeCategories, setTimeCategories] = useState<Array<{ id: string; name: string; color: string; order: number }>>([]);
-    const [timeStats, setTimeStats] = useState<{ todayHours: number; todayTop?: { id: number; name: string; count: number; percent: number }; weekTotal: number; weekTop: Array<{ id: number; name: string; count: number }> }>({ todayHours: 0, weekTotal: 0, weekTop: [] });
-    const [climbStats, setClimbStats] = useState<{ sessionsThisWeek: number; sessionsLastWeek: number; flashRate30d: number; avgAttempts30d: number }>({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 });
-    const [moodStats, setMoodStats] = useState<{ weekAvg: number; lastWeekAvg: number; spark: Array<{ date: string; score: number | null }> }>({ weekAvg: 0, lastWeekAvg: 0, spark: [] });
-    const [goalStats, setGoalStats] = useState<Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }>>([]);
-    const [consistency, setConsistency] = useState<{ climbingActiveWeeksYTD: number; timeActiveWeeksYTD: number; moodStreakDays: number; climbingStreakDays: number }>({ climbingActiveWeeksYTD: 0, timeActiveWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 });
-    const [balanceStats, setBalanceStats] = useState<{ todayProductive: number; todayRest: number; weekProductive: number; weekRest: number; sleepToday: number }>({ todayProductive: 0, todayRest: 0, weekProductive: 0, weekRest: 0, sleepToday: 0 });
-    const [weeklyHighlights, setWeeklyHighlights] = useState<{ bestClimbWeekCount: number; bestHourWeekCount: number; topWeekCategories: Array<string> }>({ bestClimbWeekCount: 0, bestHourWeekCount: 0, topWeekCategories: [] });
-    const [loadingDash, setLoadingDash] = useState(false);
+    // ── Weight state
+    const [weights, setWeights] = useState<WeightPoint[]>([]);
     const [weightTrend, setWeightTrend] = useState<{ ma4: number; prevMa4: number; change: number }>({ ma4: 0, prevMa4: 0, change: 0 });
-    const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-    const [hasData, setHasData] = useState(false);
 
-    const applyFromPayload = (data: any, opts?: { source?: 'fresh' | 'cache'; cachedAt?: string }) => {
-        // Base entities
+    // ── Time state
+    const [timeCategories, setTimeCategories] = useState<Array<{ id: string; name: string; color: string; order: number }>>([]);
+    const [timeStats, setTimeStats] = useState<{ todayHours: number; weekTotal: number; weekTop: Array<{ name: string; count: number }>; balance: { productive: number; rest: number; sleep: number } }>({ todayHours: 0, weekTotal: 0, weekTop: [], balance: { productive: 0, rest: 0, sleep: 0 } });
+
+    // ── Climbing state
+    const [climbStats, setClimbStats] = useState<{ sessionsThisWeek: number; sessionsLastWeek: number; flashRate30d: number; avgAttempts30d: number }>({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 });
+    const [goalStats, setGoalStats] = useState<Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }>>([]);
+    const [consistency, setConsistency] = useState<{ climbingWeeksYTD: number; timeWeeksYTD: number; moodStreakDays: number; climbingStreakDays: number }>({ climbingWeeksYTD: 0, timeWeeksYTD: 0, moodStreakDays: 0, climbingStreakDays: 0 });
+
+    // ── Apply API payload ─────────────────────────────────────────────────────
+    const applyFromPayload = (data: any, opts?: { source?: 'cache' | 'fresh'; cachedAt?: string }) => {
         const activitiesList: Activity[] = Array.isArray(data?.activities) ? data.activities : [];
         setActivities(activitiesList);
-        if (Array.isArray(data?.catalog)) setCatalog(data.catalog);
 
-        // Dates (prefer server-provided)
-        const dates = (data?.dates && typeof data.dates === 'object') ? data.dates : {};
-        const sTodayISO: string = typeof dates?.todayISO === 'string' ? dates.todayISO : todayISO;
-        const sFrom7ISO: string = typeof dates?.from7ISO === 'string' ? dates.from7ISO : from7ISO;
-        const sFrom30ISO: string = typeof dates?.from30ISO === 'string' ? dates.from30ISO : from30ISO;
-        const sWeekFromISO: string = typeof dates?.weekFromISO === 'string' ? dates.weekFromISO : toISODate(weekStartLocal(new Date()));
-        const sWeekToISO: string = typeof dates?.weekToISO === 'string' ? dates.weekToISO : sTodayISO;
-        const sPrevWeekFromISO: string | undefined = typeof dates?.prevWeekFromISO === 'string' ? dates.prevWeekFromISO : undefined;
-        const sPrevWeekToISO: string | undefined = typeof dates?.prevWeekToISO === 'string' ? dates.prevWeekToISO : undefined;
+        const dates = data?.dates ?? {};
+        const sTodayISO: string = dates.todayISO ?? todayISO;
+        const sFrom7ISO: string = dates.from7ISO ?? from7ISO;
+        const sFrom30ISO: string = dates.from30ISO ?? from30ISO;
+        const sWeekFromISO: string = dates.weekFromISO ?? toISODate(weekStartLocal(new Date()));
+        const sWeekToISO: string = dates.weekToISO ?? sTodayISO;
+        const sPrevWeekFrom: string | undefined = dates.prevWeekFromISO;
+        const sPrevWeekTo: string | undefined = dates.prevWeekToISO;
 
-        // Activity logs (last 30 days)
+        const inRange = (d: string, a: string, b: string) => d >= a && d <= b;
+
+        // Activity logs
         const logs30: Array<{ date: string; activityId: string; completed: boolean }> = Array.isArray(data?.logs30) ? data.logs30 : [];
-        const isInRange = (d: string, a: string, b: string) => d >= a && d <= b;
-        const doneTodayVal = logs30.filter(l => l.completed && l.date === sTodayISO).length;
-        const doneLast7Val = logs30.filter(l => l.completed && isInRange(l.date, sFrom7ISO, sTodayISO)).length;
-        const doneLast30Val = logs30.filter(l => l.completed).length;
-        setDoneToday(doneTodayVal);
-        setLast7Done(doneLast7Val);
-        setLast30Done(doneLast30Val);
+        setDoneToday(logs30.filter(l => l.completed && l.date === sTodayISO).length);
+        setLast7Done(logs30.filter(l => l.completed && inRange(l.date, sFrom7ISO, sTodayISO)).length);
+        setLast30Done(logs30.filter(l => l.completed).length);
 
-        // Weights (8 weeks provided)
-        const weights8w: WeightPoint[] = Array.isArray(data?.weights8w) ? data.weights8w : [];
-        setWeights30(weights8w);
-
-        // Highlights (30 days)
-        const hl30: Array<{ date: string; text: string }> = Array.isArray(data?.highlights30) ? data.highlights30 : [];
-        setHighlights30(hl30);
-
-        // Mood (7 days)
-        const moods7: MoodItem[] = Array.isArray(data?.moods7) ? data.moods7 : [];
-        setMood7(moods7);
-        if (moods7.length) {
-            const avg = Math.round((moods7.reduce((acc, x) => acc + (Number(x.score) || 0), 0) / moods7.length) * 10) / 10;
-            setMoodAvg7(avg);
-            setMoodToday(Number(moods7[moods7.length - 1]?.score) || null);
-        } else {
-            setMoodAvg7(null);
-            setMoodToday(null);
-        }
-
-        // Weight trend (4 vs prev 4 samples)
-        if (weights8w.length >= 5) {
-            const last4 = weights8w.slice(-4).map(w => Number(w.weight) || 0);
-            const prev4 = weights8w.slice(-8, -4).map(w => Number(w.weight) || 0);
-            const ma4 = Math.round((last4.reduce((a, b) => a + b, 0) / (last4.length || 1)) * 10) / 10;
-            const prevMa4 = prev4.length ? Math.round((prev4.reduce((a, b) => a + b, 0) / prev4.length) * 10) / 10 : 0;
-            const change = Math.round((ma4 - prevMa4) * 10) / 10;
-            setWeightTrend({ ma4, prevMa4, change });
-        } else {
-            setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 });
-        }
-
-        // Metrics (weekly activity rates)
-        const metrics: any = (data?.metrics && typeof data.metrics === 'object') ? data.metrics : null;
+        // Metrics
+        const metrics: any = data?.metrics ?? null;
         if (metrics?.summary) {
             setAvgWeeklyRate(Number(metrics.summary.avgRate) || 0);
             setBestWeekLabel(typeof metrics.summary.bestWeek?.week === 'string' ? metrics.summary.bestWeek.week : undefined);
             setBestWeekRate(Number(metrics.summary.bestWeek?.rate) || 0);
             setStreakDays(Number(metrics.summary.currentStreakDays) || 0);
-        } else {
-            setAvgWeeklyRate(0);
-            setBestWeekLabel(undefined);
-            setBestWeekRate(0);
         }
         if (Array.isArray(metrics?.weeks)) {
-            const byDate = (d: string) => metrics.weeks.find((w: any) => String(w?.date) === d);
-            const thisW = byDate(sWeekFromISO);
-            const prevW = sPrevWeekFromISO ? byDate(sPrevWeekFromISO) : undefined;
-            setThisWeekRate(Number(thisW?.rate) || 0);
-            setLastWeekRate(Number(prevW?.rate) || 0);
-        } else {
-            setThisWeekRate(0);
-            setLastWeekRate(0);
+            const byDate = (d: string) => metrics.weeks.find((w: any) => w?.date === d);
+            setThisWeekRate(Number(byDate(sWeekFromISO)?.rate) || 0);
+            setLastWeekRate(Number(sPrevWeekFrom ? byDate(sPrevWeekFrom)?.rate : undefined) || 0);
         }
 
-        // Time (categories and entries)
+        // Mood
+        const moods7: MoodItem[] = Array.isArray(data?.moods7) ? data.moods7 : [];
+        setMood7(moods7);
+        const moodsPrev: MoodItem[] = Array.isArray(data?.moodsPrev7) ? data.moodsPrev7 : [];
+        if (moods7.length) {
+            const avg = Math.round((moods7.reduce((a, x) => a + (Number(x.score) || 0), 0) / moods7.length) * 10) / 10;
+            setMoodAvg7(avg);
+            // today's mood = entry matching today's date, or last entry
+            const todayEntry = moods7.find(m => m.date === sTodayISO);
+            setMoodToday(todayEntry ? Number(todayEntry.score) : null);
+        } else {
+            setMoodAvg7(null); setMoodToday(null);
+        }
+        if (moodsPrev.length) {
+            const avg = Math.round((moodsPrev.reduce((a, x) => a + (Number(x.score) || 0), 0) / moodsPrev.length) * 10) / 10;
+            setMoodPrevAvg(avg);
+        } else {
+            setMoodPrevAvg(null);
+        }
+
+        // Weight
+        const weights8w: WeightPoint[] = Array.isArray(data?.weights8w) ? data.weights8w : [];
+        setWeights(weights8w);
+        if (weights8w.length >= 5) {
+            const last4 = weights8w.slice(-4).map(w => Number(w.weight) || 0);
+            const prev4 = weights8w.slice(-8, -4).map(w => Number(w.weight) || 0);
+            const ma4 = Math.round((last4.reduce((a, b) => a + b, 0) / last4.length) * 10) / 10;
+            const prevMa4 = prev4.length ? Math.round((prev4.reduce((a, b) => a + b, 0) / prev4.length) * 10) / 10 : 0;
+            setWeightTrend({ ma4, prevMa4, change: Math.round((ma4 - prevMa4) * 10) / 10 });
+        } else {
+            setWeightTrend({ ma4: 0, prevMa4: 0, change: 0 });
+        }
+
+        // Time
         const timeCats: Array<{ id: string; name: string; color: string; order: number }> = Array.isArray(data?.timeCategories) ? data.timeCategories : [];
         const timeY: TimeEntryAny[] = Array.isArray(data?.timeY) ? data.timeY as TimeEntryAny[] : [];
         setTimeCategories(timeCats);
+
         const numCat = (c: number | string) => Number(c);
-        const nameForCat = (cid: number) => {
-            const found = timeCats.find(c => String(c.id) === String(cid));
-            return found ? found.name : String(cid);
-        };
-        const countByCat = (items: Array<{ category: number | string }>) => {
+        const nameForCat = (cid: number) => timeCats.find(c => String(c.id) === String(cid))?.name ?? String(cid);
+        const tToday = timeY.filter(t => t.date === sTodayISO);
+        const tWeek = timeY.filter(t => inRange(t.date, sWeekFromISO, sWeekToISO));
+
+        const countByCat = (items: typeof tToday) => {
             const m = new Map<number, number>();
-            for (const it of items) {
-                const k = numCat(it.category);
-                m.set(k, (m.get(k) || 0) + 1);
-            }
+            for (const it of items) { const k = numCat(it.category); m.set(k, (m.get(k) || 0) + 1); }
             return m;
         };
-        const tToday = timeY.filter(t => t.date === sTodayISO);
-        const tWeek = timeY.filter(t => isInRange(t.date, sWeekFromISO, sWeekToISO));
-        const todayHours = tToday.length;
-        const weekTotal = tWeek.length;
-        const todayCounts = countByCat(tToday);
-        let todayTop: { id: number; name: string; count: number; percent: number } | undefined;
-        if (todayCounts.size) {
-            let maxId = -1, maxVal = -1;
-            for (const [cid, cnt] of todayCounts.entries()) { if (cnt > maxVal) { maxVal = cnt; maxId = cid; } }
-            todayTop = { id: maxId, name: nameForCat(maxId), count: maxVal, percent: todayHours ? Math.round((maxVal / todayHours) * 100) : 0 };
-        }
         const weekCounts = countByCat(tWeek);
-        const weekTop = Array.from(weekCounts.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([cid, cnt]) => ({ id: cid, name: nameForCat(cid), count: cnt }));
-        setTimeStats({ todayHours, todayTop, weekTotal, weekTop });
+        const weekTop = Array.from(weekCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([cid, cnt]) => ({ name: nameForCat(cid), count: cnt }));
 
-        // Balance snapshot
+        // Balance
         const prodNames = ['work', 'hobbies / projects', 'exercise / sports', 'chores', 'travel', 'content'];
         const restNames = ['relaxation / leisure', 'friends', 'wife', 'party', 'brain rot / misc'];
-        const idsForNames = (names: string[]) => new Set(names.map(n => {
-            const f = timeCats.find(c => c.name.toLowerCase() === n.toLowerCase());
-            return f ? Number(f.id) : NaN;
-        }).filter(x => !Number.isNaN(x)) as number[]);
-        const prodIds = idsForNames(prodNames);
-        const restIds = idsForNames(restNames);
-        const countForSet = (items: typeof tToday, idSet: Set<number>) => items.filter(t => idSet.has(numCat(t.category))).length;
-        const todayProductive = countForSet(tToday, prodIds);
-        const todayRest = countForSet(tToday, restIds);
-        const weekProductive = countForSet(tWeek, prodIds);
-        const weekRest = countForSet(tWeek, restIds);
+        const idsFor = (names: string[]) => new Set(names.map(n => { const f = timeCats.find(c => c.name.toLowerCase() === n.toLowerCase()); return f ? Number(f.id) : NaN; }).filter(x => !isNaN(x)));
+        const prodIds = idsFor(prodNames);
+        const restIds = idsFor(restNames);
         const sleepCat = timeCats.find(c => c.name.toLowerCase() === 'sleep');
-        const sleepId = sleepCat ? Number(sleepCat.id) : 0;
-        const sleepToday = tToday.filter(t => numCat(t.category) === sleepId).length;
-        setBalanceStats({ todayProductive, todayRest, weekProductive, weekRest, sleepToday });
+        const sleepId = sleepCat ? Number(sleepCat.id) : NaN;
+        const countSet = (items: typeof tToday, ids: Set<number>) => items.filter(t => ids.has(numCat(t.category))).length;
+        const weekProductive = countSet(tWeek, prodIds);
+        const weekRest = countSet(tWeek, restIds);
+        const weekSleep = isNaN(sleepId) ? 0 : tWeek.filter(t => numCat(t.category) === sleepId).length;
+        setTimeStats({ todayHours: tToday.length, weekTotal: tWeek.length, weekTop, balance: { productive: weekProductive, rest: weekRest, sleep: weekSleep } });
 
-        // Climbing stats
+        // Climbing
         const climb30: Array<{ id: string; date: string; session: number; type: string; grade: string; attempts: number }> = Array.isArray(data?.climb30) ? data.climb30 : [];
-        const inWeek = (date: string, from: string | undefined, to: string | undefined) => {
-            if (!from || !to) return false; return isInRange(date, from, to);
-        };
-        const sessionsThisWeek = new Set(climb30.filter(c => inWeek(c.date, sWeekFromISO, sWeekToISO)).map(c => c.date)).size;
-        const sessionsLastWeek = new Set(climb30.filter(c => inWeek(c.date, sPrevWeekFromISO, sPrevWeekToISO)).map(c => c.date)).size;
-        const flashCnt = climb30.filter(c => Number(c.attempts) === 1).length;
-        const flashRate30d = climb30.length ? Math.round((flashCnt / climb30.length) * 100) : 0;
-        const avgAttempts30d = climb30.length ? Math.round((climb30.reduce((acc, c) => acc + (Number(c.attempts) || 0), 0) / climb30.length) * 10) / 10 : 0;
-        setClimbStats({ sessionsThisWeek, sessionsLastWeek, flashRate30d, avgAttempts30d });
-
-        // Goals progress
-        const goals: Array<{ year: number; type: string; grade: string; target: number }> = Array.isArray(data?.goals) ? data.goals : [];
         const climbY: Array<{ date: string; type: string; grade: string }> = Array.isArray(data?.climbY) ? data.climbY : [];
-        const currentYear = new Date().getFullYear();
-        const yearGoals = goals.filter(g => Number(g.year) === currentYear);
-        const nowMonth = new Date().getMonth() + 1; // 1..12
+        const inWeek = (d: string, f?: string, t?: string) => !!f && !!t && inRange(d, f, t);
+        setClimbStats({
+            sessionsThisWeek: new Set(climb30.filter(c => inWeek(c.date, sWeekFromISO, sWeekToISO)).map(c => c.date)).size,
+            sessionsLastWeek: new Set(climb30.filter(c => inWeek(c.date, sPrevWeekFrom, sPrevWeekTo)).map(c => c.date)).size,
+            flashRate30d: climb30.length ? Math.round((climb30.filter(c => Number(c.attempts) === 1).length / climb30.length) * 100) : 0,
+            avgAttempts30d: climb30.length ? Math.round((climb30.reduce((a, c) => a + (Number(c.attempts) || 0), 0) / climb30.length) * 10) / 10 : 0,
+        });
+
+        // Goals
+        const goals: Array<{ year: number; type: string; grade: string; target: number }> = Array.isArray(data?.goals) ? data.goals : [];
+        const nowMonth = new Date().getMonth() + 1;
         const expectedPct = Math.round((nowMonth / 12) * 100);
-        const gs = yearGoals.map(g => {
+        setGoalStats(goals.filter(g => Number(g.year) === y).map(g => {
             const done = climbY.filter(c => c.type === g.type && c.grade === g.grade).length;
             const pct = Math.min(100, Math.round((done / (Number(g.target) || 1)) * 100));
-            const onTrack = pct >= expectedPct ? 'on track' : 'behind';
-            return { label: `${g.type[0].toUpperCase() + g.type.slice(1)} ${g.grade}`, percent: pct, onTrack } as { label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' };
-        });
-        setGoalStats(gs);
+            return { label: `${g.type[0].toUpperCase() + g.type.slice(1)} ${g.grade}`, percent: pct, onTrack: pct >= expectedPct ? 'on track' : 'behind' } as const;
+        }));
 
         // Consistency
         const weekKeyFor = (iso: string) => weekKey(new Date(iso));
-        const climbWeeksYTD = new Set(climbY.filter(c => new Date(c.date).getFullYear() === currentYear).map(c => weekKeyFor(c.date))).size;
-        const timeY2: TimeEntryAny[] = Array.isArray(data?.timeY) ? data.timeY as TimeEntryAny[] : [];
-        const timeWeeksYTD = new Set(timeY2.filter(t => new Date(t.date).getFullYear() === currentYear).map(t => weekKeyFor(t.date))).size;
-        const climbDatesSet = new Set(climbY.map(c => c.date));
-        let streak = 0; // consecutive days with climbing ending today
-        let cursor = new Date(sTodayISO);
-        for (let i = 0; i < 60; i++) { // limit to 60 days for safety
-            const iso = toISODate(cursor);
-            if (climbDatesSet.has(iso)) { streak += 1; cursor.setDate(cursor.getDate() - 1); } else { break; }
-        }
-        setConsistency({ climbingActiveWeeksYTD: climbWeeksYTD, timeActiveWeeksYTD: timeWeeksYTD, moodStreakDays: Number(metrics?.summary?.currentStreakDays) || 0, climbingStreakDays: streak });
+        const climbWeeksYTD = new Set(climbY.filter(c => new Date(c.date).getFullYear() === y).map(c => weekKeyFor(c.date))).size;
+        const timeWeeksYTD = new Set(timeY.filter(t => new Date(t.date).getFullYear() === y).map(t => weekKeyFor(t.date))).size;
+        const climbDates = new Set(climbY.map(c => c.date));
+        let cStreak = 0;
+        const cur = new Date(sTodayISO);
+        for (let i = 0; i < 60; i++) { const iso = toISODate(cur); if (climbDates.has(iso)) { cStreak++; cur.setDate(cur.getDate() - 1); } else break; }
+        setConsistency({ climbingWeeksYTD: climbWeeksYTD, timeWeeksYTD, moodStreakDays: Number(metrics?.summary?.currentStreakDays) || 0, climbingStreakDays: cStreak });
 
-        // Weekly highlights (last 12 weeks)
-        const twelveAgo: string = typeof dates?.twelveWeeksAgoISO === 'string' ? dates.twelveWeeksAgoISO : sWeekFromISO;
-        const climbWeeks = new Map<string, number>();
-        for (const c of climbY) { if (c.date >= twelveAgo) { const k = weekKeyFor(c.date); climbWeeks.set(k, (climbWeeks.get(k) || 0) + 1); } }
-        const bestClimbWeekCount = Array.from(climbWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
-        const timeWeeks = new Map<string, number>();
-        for (const t of timeY2) { if (t.date >= twelveAgo) { const k = weekKeyFor(t.date); timeWeeks.set(k, (timeWeeks.get(k) || 0) + 1); } }
-        const bestHourWeekCount = Array.from(timeWeeks.values()).reduce((m, v) => Math.max(m, v), 0);
-        const weekTopCats = weekTop.map(x => x.name);
-        setWeeklyHighlights({ bestClimbWeekCount, bestHourWeekCount, topWeekCategories: weekTopCats });
-
-        // Updated timestamp
-        if (opts?.source === 'cache') {
-            const t = opts.cachedAt ? new Date(opts.cachedAt).toLocaleTimeString() : 'cache';
-            setLastUpdated(t);
-        } else {
-            setLastUpdated(new Date().toLocaleTimeString());
-        }
+        setLastUpdated(opts?.source === 'cache' && opts.cachedAt ? new Date(opts.cachedAt).toLocaleTimeString() : new Date().toLocaleTimeString());
         setHasData(true);
     };
 
+    // ── Account sync ──────────────────────────────────────────────────────────
     useEffect(() => {
-        // Try cookie first, then localStorage
-        const cookieAccount = (() => {
-            try {
-                const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-                return m ? decodeURIComponent(m[1]) : null;
-            } catch { return null; }
-        })();
-        const lsAccount = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
-        setAccount(cookieAccount || lsAccount || 'Alex');
-
-        const setFromSources = (detail?: string) => {
-            const cookieAcc = (() => {
-                try {
-                    const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-                    return m ? decodeURIComponent(m[1]) : null;
-                } catch { return null; }
-            })();
-            const lsAcc = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
-            setAccount(detail || cookieAcc || lsAcc || 'Alex');
-        };
-        const onAccountChange = (e: Event) => setFromSources((e as CustomEvent<string>).detail);
-        const onStorage = () => setFromSources();
-        window.addEventListener('account-change', onAccountChange as EventListener);
-        window.addEventListener('storage', onStorage as EventListener);
-        return () => {
-            window.removeEventListener('account-change', onAccountChange as EventListener);
-            window.removeEventListener('storage', onStorage as EventListener);
-        };
+        const fromCookie = () => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } };
+        setAccount(fromCookie() || localStorage.getItem('account') || 'Alex');
+        const onAcc = (e: Event) => setAccount((e as CustomEvent<string>).detail || fromCookie() || localStorage.getItem('account') || 'Alex');
+        const onStorage = () => setAccount(fromCookie() || localStorage.getItem('account') || 'Alex');
+        window.addEventListener('account-change', onAcc as EventListener);
+        window.addEventListener('storage', onStorage);
+        return () => { window.removeEventListener('account-change', onAcc as EventListener); window.removeEventListener('storage', onStorage); };
     }, []);
 
+    // ── Data load ─────────────────────────────────────────────────────────────
     useEffect(() => {
-        // On account change, abort in-flight requests and clear state before reloading
-        fetchVersionRef.current += 1;
-        if (actsCtrlRef.current) actsCtrlRef.current.abort();
-        if (dashboardCtrlRef.current) dashboardCtrlRef.current.abort();
-        if (catalogCtrlRef.current) catalogCtrlRef.current.abort();
-        if (logsTodayCtrlRef.current) logsTodayCtrlRef.current.abort();
-        if (logs7CtrlRef.current) logs7CtrlRef.current.abort();
-        if (logs30CtrlRef.current) logs30CtrlRef.current.abort();
-        if (metricsCtrlRef.current) metricsCtrlRef.current.abort();
-        if (weightsCtrlRef.current) weightsCtrlRef.current.abort();
-        if (highlightsCtrlRef.current) highlightsCtrlRef.current.abort();
-        if (moodsCtrlRef.current) moodsCtrlRef.current.abort();
-        if (timeCtrlRef.current) timeCtrlRef.current.abort();
-        if (timeCatsCtrlRef.current) timeCatsCtrlRef.current.abort();
-        if (climbCtrlRef.current) climbCtrlRef.current.abort();
-        if (goalsCtrlRef.current) goalsCtrlRef.current.abort();
-        if (extraWeightsCtrlRef.current) extraWeightsCtrlRef.current.abort();
-        setActivities([]);
-        setDoneToday(0);
-        setStreakDays(0);
-        setLast7Done(0);
-        setLast30Done(0);
-        setAvgWeeklyRate(0);
-        setBestWeekLabel(undefined);
-        setBestWeekRate(0);
-        setThisWeekRate(0);
-        setLastWeekRate(0);
-        setTopActivities30([]);
-        setRecentCompletions([]);
-        setWeights30([]);
-        setHighlights30([]);
-        setInsights([]);
-        setMoodToday(null);
-        setMoodAvg7(null);
+        if (dashCtrl.current) dashCtrl.current.abort();
         setHasData(false);
 
-        // Try local cache immediately
         try {
-            const cacheKey = `dashboard:${account}`;
-            const cached = getCache<any>(cacheKey);
-            if (cached && cached.data) {
-                applyFromPayload(cached.data, { source: 'cache', cachedAt: cached.cachedAt });
-            }
+            const cached = getCache<any>(`dashboard:${account}`);
+            if (cached?.data) applyFromPayload(cached.data, { source: 'cache', cachedAt: cached.cachedAt });
         } catch { }
 
         const load = async () => {
             try {
-                dashboardCtrlRef.current = new AbortController();
-                const res = await fetch(`/api/dashboard?account=${encodeURIComponent(account)}`, { signal: dashboardCtrlRef.current.signal });
+                dashCtrl.current = new AbortController();
+                const res = await fetch(`/api/dashboard?account=${encodeURIComponent(account)}`, { signal: dashCtrl.current.signal });
                 if (!res.ok) throw new Error('Failed');
                 const data = await res.json();
                 applyFromPayload(data, { source: 'fresh' });
-                try {
-                    const cacheKey = `dashboard:${account}`;
-                    setCache(cacheKey, data);
-                } catch { }
-            } catch {
-                // fall back to cleared baseline already set above
-            }
+                try { setCache(`dashboard:${account}`, data); } catch { }
+            } catch { }
         };
 
-        if (account) { setLoadingDash(true); load().finally(() => setLoadingDash(false)); }
+        setLoading(true);
+        load().finally(() => setLoading(false));
     }, [account]);
 
+    // ── Derived values ────────────────────────────────────────────────────────
     const last7Expected = activities.length * 7;
-    const maData = (() => {
-        const win = 5;
-        return weights30.map((p, i) => {
-            const start = Math.max(0, i - win + 1);
-            const slice = weights30.slice(start, i + 1);
-            const avg = slice.reduce((acc, x) => acc + x.weight, 0) / (slice.length || 1);
-            return { date: p.date, weight: p.weight, ma: Math.round(avg * 10) / 10 };
-        });
-    })();
+    const last7Pct = last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0;
+    const actWeekDelta: 'up' | 'down' | 'flat' | null = !hasData ? null : thisWeekRate > lastWeekRate ? 'up' : thisWeekRate < lastWeekRate ? 'down' : 'flat';
+    const moodDelta: 'up' | 'down' | 'flat' | null = moodAvg7 !== null && moodPrevAvg !== null
+        ? moodAvg7 > moodPrevAvg ? 'up' : moodAvg7 < moodPrevAvg ? 'down' : 'flat'
+        : null;
+    const weightDelta: 'up' | 'down' | 'flat' | null = weightTrend.change > 0.05 ? 'up' : weightTrend.change < -0.05 ? 'down' : weightTrend.ma4 ? 'flat' : null;
 
+    const maData = weights.map((p, i) => {
+        const slice = weights.slice(Math.max(0, i - 4), i + 1);
+        return { date: p.date, weight: p.weight, ma: Math.round((slice.reduce((a, x) => a + x.weight, 0) / slice.length) * 10) / 10 };
+    });
+
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <main key={account} className="space-y-8">
-            <h2 className="text-xl font-semibold">Dashboard</h2>
-            {lastUpdated ? (<div className="subtle">Updated at {lastUpdated}</div>) : null}
-            {/* Quick Stats: shows immediately, uses ellipses while loading */}
+        <main className="space-y-6 pb-8">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Dashboard</h2>
+                {lastUpdated && <span className="subtle text-xs">Updated {lastUpdated}</span>}
+            </div>
+
+            {/* ── TODAY ─────────────────────────────────────────────────────── */}
+            <SectionHeader title="Today" />
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                <div className="card p-3">
-                    <div className="subtle">Activities</div>
-                    <div className="text-lg font-semibold">{hasData ? activities.length : '…'}</div>
+                {/* Mood today */}
+                <div className="card p-4 col-span-1">
+                    <div className="subtle text-xs uppercase tracking-wide">Mood</div>
+                    {!hasData ? <Sk w="w-16" h="h-8" /> : typeof moodToday === 'number' ? (
+                        <div className="mt-1">
+                            <div className="text-3xl leading-none">{moodEmoji(moodToday)}</div>
+                            <div className="text-sm font-semibold mt-1" style={{ color: moodColor(moodToday) }}>
+                                {moodToday}/10 · {moodLabel(moodToday)}
+                            </div>
+                        </div>
+                    ) : <div className="text-sm subtle mt-1">Not logged</div>}
                 </div>
-                <div className="card p-3">
-                    <div className="subtle">Today</div>
-                    <div className="text-lg font-semibold">{hasData ? `${doneToday}/${activities.length} done` : '…'}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="subtle">Last 7 Days</div>
-                    <div className="text-lg font-semibold">{hasData ? (activities.length ? Math.round((last7Done / (activities.length * 7)) * 100) : 0) : '…'}%</div>
-                </div>
-                <div className="card p-3">
-                    <div className="subtle">Last 30 Days</div>
-                    <div className="text-lg font-semibold">{hasData ? last30Done : '…'}</div>
-                </div>
+
+                {/* Activities today */}
+                <StatCard
+                    label="Activities"
+                    value={hasData ? `${doneToday} / ${activities.length}` : '—'}
+                    sub={streakDays > 0 ? `${streakDays}-day streak` : undefined}
+                    loading={!hasData}
+                />
+
+                {/* Time today */}
+                <StatCard
+                    label="Hours tracked"
+                    value={hasData ? timeStats.todayHours : '—'}
+                    sub={timeStats.weekTop[0] ? `Top: ${timeStats.weekTop[0].name}` : undefined}
+                    loading={!hasData}
+                />
+
+                {/* Weight */}
+                <StatCard
+                    label="Weight (4w avg)"
+                    value={hasData && weightTrend.ma4 ? `${weightTrend.ma4} kg` : '—'}
+                    sub={weightTrend.change ? `${weightTrend.change >= 0 ? '+' : ''}${weightTrend.change} kg vs prev 4w` : undefined}
+                    trend={weightDelta}
+                    loading={!hasData}
+                />
             </div>
-            {/* Ordered groups for clear top-to-bottom reading on mobile */}
-            <h3 className="text-base font-semibold">Mood & Weight</h3>
-            {loadingDash && (
-                <div className="subtle">Loading dashboard data…</div>
-            )}
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                {/* Detailed Mood card */}
-                <div className="card p-4">
-                    <div className="card-title">Mood</div>
-                    <div className="text-2xl font-semibold">
-                        {typeof moodToday === 'number' ? (
-                            <span title={`${moodToday}/10`}>{moodEmoji(moodToday)} {moodToday}/10</span>
-                        ) : '-'}
+
+            {/* ── MOOD & WEIGHT ─────────────────────────────────────────────── */}
+            <SectionHeader title="Mood & Weight" />
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                {/* Mood card */}
+                <div className="card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="font-semibold">Mood — last 7 days</div>
+                        {moodAvg7 !== null && (
+                            <span className="text-sm font-medium" style={{ color: moodColor(moodAvg7) }}>
+                                avg {moodAvg7}/10 {moodDelta === 'up' ? '↑' : moodDelta === 'down' ? '↓' : ''}
+                            </span>
+                        )}
                     </div>
-                    <div className="subtle">7-day avg: {typeof moodAvg7 === 'number' ? `${moodAvg7}/10` : '-'}</div>
-                    <div className="mt-1 subtle">
-                        {typeof moodToday === 'number' && typeof moodAvg7 === 'number' ? (() => {
-                            const delta = Math.round((moodToday - moodAvg7) * 10) / 10;
-                            if (Math.abs(delta) < 0.1) return 'Today is on your weekly average.';
-                            return `Today is ${delta > 0 ? 'above' : 'below'} avg by ${Math.abs(delta)}`;
-                        })() : (mood7.length >= 2 ? (() => {
-                            const first = mood7[0].score;
-                            const last = mood7[mood7.length - 1].score;
-                            const trend = Math.round((last - first) * 10) / 10;
-                            return `7-day trend ${trend >= 0 ? 'up' : 'down'} by ${Math.abs(trend)}`;
-                        })() : 'Log your mood to see trends.')}
-                    </div>
-                    <div className="mt-2 h-12 w-full">
-                        {mood7.length ? (
+                    {!hasData ? (
+                        <div className="h-24 flex items-center justify-center"><Sk w="w-full" h="h-16" /></div>
+                    ) : mood7.length ? (
+                        <div className="h-24 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={mood7} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="date" tick={false} axisLine={false} />
-                                    <YAxis tick={false} axisLine={false} domain={[0, 10]} />
-                                    <Tooltip formatter={(v: any) => [`${v}/10`, 'Mood']} labelFormatter={(l: any) => new Date(l).toLocaleDateString()} />
-                                    {typeof moodAvg7 === 'number' ? (
-                                        <ReferenceLine y={moodAvg7} stroke="#9CA3AF" strokeDasharray="3 3" />
-                                    ) : null}
-                                    <Line type="monotone" dataKey="score" stroke="#16a34a" strokeWidth={1.8} dot={false} activeDot={{ r: 3 }} />
+                                <LineChart data={mood7} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="date" tick={false} axisLine={false} tickLine={false} />
+                                    <YAxis tick={false} axisLine={false} tickLine={false} domain={[0, 10]} />
+                                    <Tooltip
+                                        formatter={(v: any) => [`${v}/10`, 'Mood']}
+                                        labelFormatter={(l: any) => new Date(l).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                        contentStyle={{ fontSize: 12 }}
+                                    />
+                                    {moodAvg7 !== null && (
+                                        <ReferenceLine y={moodAvg7} stroke="#9CA3AF" strokeDasharray="3 3" strokeWidth={1} />
+                                    )}
+                                    <Line
+                                        type="monotone" dataKey="score" strokeWidth={2} dot={{ r: 3, fill: '#fff', strokeWidth: 2 }}
+                                        activeDot={{ r: 4 }}
+                                        stroke={moodAvg7 !== null ? moodColor(Math.round(moodAvg7)) : '#60a5fa'}
+                                    />
                                 </LineChart>
                             </ResponsiveContainer>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="h-24 flex items-center justify-center subtle text-sm">No mood data yet</div>
+                    )}
+                    {moodPrevAvg !== null && moodAvg7 !== null && (
+                        <div className="subtle text-xs">
+                            Previous week avg: {moodPrevAvg}/10
+                            {' · '}
+                            {moodAvg7 > moodPrevAvg ? `+${Math.round((moodAvg7 - moodPrevAvg) * 10) / 10} improvement` : moodAvg7 < moodPrevAvg ? `${Math.round((moodAvg7 - moodPrevAvg) * 10) / 10} vs last week` : 'Same as last week'}
+                        </div>
+                    )}
+                </div>
 
-                    {/* Mood Overview supplemental */}
-                    <div className="card-title">Weight Trend (30d)</div>
-                    <div className="text-2xl font-semibold">{weights30.length >= 2 ? `${(Math.round((weights30[weights30.length - 1].weight - weights30[0].weight) * 10) / 10)} kg` : '-'}</div>
-                    <div className="subtle">latest - earliest</div>
-                    <div className="mt-2 h-20 w-full">
-                        {weights30.length ? (
+                {/* Weight card */}
+                <div className="card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="font-semibold">Weight — 8 weeks</div>
+                        {weights.length >= 2 && (
+                            <span className={`text-sm font-medium ${weightTrend.change < 0 ? 'text-emerald-500' : weightTrend.change > 0 ? 'text-red-400' : 'subtle'}`}>
+                                {weightTrend.change >= 0 ? '+' : ''}{weightTrend.change} kg (4w)
+                            </span>
+                        )}
+                    </div>
+                    {!hasData ? (
+                        <div className="h-24 flex items-center justify-center"><Sk w="w-full" h="h-16" /></div>
+                    ) : weights.length ? (
+                        <div className="h-24 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={maData} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                                    <XAxis dataKey="date" tick={false} axisLine={false} />
-                                    <YAxis tick={false} axisLine={false} domain={['auto', 'auto']} />
-                                    <Tooltip formatter={(v: any) => [`${v} kg`, 'Weight']} labelFormatter={(l: any) => l} />
-                                    <Line type="monotone" dataKey="weight" stroke="#2563eb" strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="ma" stroke="#94a3b8" strokeWidth={1.5} dot={false} />
+                                <LineChart data={maData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="date" tick={false} axisLine={false} tickLine={false} />
+                                    <YAxis tick={false} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                                    <Tooltip
+                                        formatter={(v: any, name: string) => [`${v} kg`, name === 'ma' ? '5-pt avg' : 'Weight']}
+                                        labelFormatter={(l: any) => l}
+                                        contentStyle={{ fontSize: 12 }}
+                                    />
+                                    <Line type="monotone" dataKey="weight" stroke="#2563eb" strokeWidth={1.5} dot={false} />
+                                    <Line type="monotone" dataKey="ma" stroke="#94a3b8" strokeWidth={2} dot={false} strokeDasharray="4 2" />
                                 </LineChart>
                             </ResponsiveContainer>
-                        ) : null}
+                        </div>
+                    ) : (
+                        <div className="h-24 flex items-center justify-center subtle text-sm">No weight data yet</div>
+                    )}
+                    {weightTrend.ma4 > 0 && (
+                        <div className="subtle text-xs">
+                            4-week avg: {weightTrend.ma4} kg · Prev 4-week: {weightTrend.prevMa4} kg
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── ACTIVITIES ────────────────────────────────────────────────── */}
+            <SectionHeader title="Activities" />
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+                <StatCard label="7-day rate" value={hasData ? `${last7Pct}%` : '—'} sub={`${last7Done}/${last7Expected} done`} trend={actWeekDelta} loading={!hasData} />
+                <StatCard label="This week" value={hasData ? `${Math.round(thisWeekRate * 100)}%` : '—'} sub={`Last week: ${Math.round(lastWeekRate * 100)}%`} trend={actWeekDelta} loading={!hasData} />
+                <StatCard label="30-day total" value={hasData ? last30Done : '—'} sub={`Best week: ${bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '—'}`} loading={!hasData} />
+            </div>
+
+            {/* ── TIME ─────────────────────────────────────────────────────── */}
+            <SectionHeader title="Time" />
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="card p-4 space-y-3">
+                    <div className="font-semibold">This Week</div>
+                    <div className="flex gap-6">
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Hours logged</div>
+                            {!hasData ? <Sk w="w-12" h="h-7" /> : <div className="text-2xl font-bold">{timeStats.weekTotal}</div>}
+                        </div>
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Today</div>
+                            {!hasData ? <Sk w="w-10" h="h-7" /> : <div className="text-2xl font-bold">{timeStats.todayHours}</div>}
+                        </div>
                     </div>
+                    {hasData && timeStats.weekTop.length > 0 && (
+                        <div className="space-y-1">
+                            <div className="subtle text-xs">Top categories this week</div>
+                            <div className="flex flex-wrap gap-2">
+                                {timeStats.weekTop.map((c, i) => (
+                                    <span key={i} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                        {c.name} · {c.count}h
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
-                {/* Weight Trend summary (4w vs prev) */}
-                <div className="card p-4">
-                    <div className="card-title">Weight Trend (4w vs prev)</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>4-week MA: {weightTrend.ma4}</li>
-                        <li>Prev 4-week MA: {weightTrend.prevMa4}</li>
-                        <li>Change: {weightTrend.change >= 0 ? `+${weightTrend.change}` : `${weightTrend.change}`}</li>
-                    </ul>
+                <div className="card p-4 space-y-3">
+                    <div className="font-semibold">Weekly Balance</div>
+                    {!hasData ? (
+                        <div className="space-y-2"><Sk w="w-full" h="h-3" /><Sk w="w-32" h="h-3" /></div>
+                    ) : (
+                        <BalanceBar
+                            productive={timeStats.balance.productive}
+                            rest={timeStats.balance.rest}
+                            sleep={timeStats.balance.sleep}
+                            total={timeStats.balance.productive + timeStats.balance.rest + timeStats.balance.sleep}
+                        />
+                    )}
                 </div>
             </div>
 
-            <h3 className="text-base font-semibold">Time</h3>
-
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                <div className="card p-4">
-                    <div className="card-title">Time Snapshot</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>Hours today: {timeStats.todayHours}</li>
-                        <li>Top today: {timeStats.todayTop ? `${timeStats.todayTop.name} (${timeStats.todayTop.percent}%)` : '—'}</li>
-                        <li>Hours this week: {timeStats.weekTotal}</li>
-                        <li>Top categories (week): {timeStats.weekTop.length > 0 ? timeStats.weekTop.map((x) => x.name).join(', ') : '—'}</li>
-                    </ul>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">Time Balance</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>Today: {balanceStats.todayProductive} productive • {balanceStats.todayRest} rest</li>
-                        <li>Week: {balanceStats.weekProductive} productive • {balanceStats.weekRest} rest</li>
-                        <li>Sleep today: {balanceStats.sleepToday}h</li>
-                    </ul>
-                </div>
-            </div>
-
-            <h3 className="text-base font-semibold">Climbing</h3>
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                <div className="card p-4">
-                    <div className="card-title">Climbing Snapshot</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>Sessions this week: {climbStats.sessionsThisWeek}</li>
-                        <li>Sessions last week: {climbStats.sessionsLastWeek}</li>
-                        <li>Flash rate (30d): {climbStats.flashRate30d}%</li>
-                        <li>Avg attempts (30d): {climbStats.avgAttempts30d}</li>
-                    </ul>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">Goals Progress ({new Date().getFullYear()})</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        {goalStats.length > 0 ? goalStats.map((g, i) => (
-                            <li key={i}>{g.label}: {g.percent}% • {g.onTrack}</li>
-                        )) : <li>—</li>}
-                    </ul>
-                </div>
-            </div>
-
-            <h3 className="text-base font-semibold">Highlights & Consistency</h3>
-            <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-                <div className="card p-4">
-                    <div className="card-title">Weekly Highlights</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>Best week (climbs, 12w): {weeklyHighlights.bestClimbWeekCount}</li>
-                        <li>Best week (hours, 12w): {weeklyHighlights.bestHourWeekCount}</li>
-                        <li>Top week categories: {weeklyHighlights.topWeekCategories.length > 0 ? weeklyHighlights.topWeekCategories.join(', ') : '—'}</li>
-                    </ul>
-                </div>
-                <div className="card p-4">
-                    <div className="card-title">Consistency</div>
-                    <ul className="mt-2 space-y-1 text-sm">
-                        <li>Active weeks YTD (Climbing): {consistency.climbingActiveWeeksYTD}</li>
-                        <li>Active weeks YTD (Time): {consistency.timeActiveWeeksYTD}</li>
-                        <li>Mood streak: {consistency.moodStreakDays} days</li>
-                        <li>Climbing streak: {consistency.climbingStreakDays} days</li>
-                    </ul>
-                </div>
-            </div>
-            <h3 className="text-base font-semibold">Activities</h3>
-            <div className="card p-4 space-y-6">
-                <div>
-                    <div className="card-title">Overview</div>
-                    <div className="mt-2 grid gap-3 grid-cols-2 sm:grid-cols-3">
-                        <div className="card p-3">
-                            <div className="subtle">Activities</div>
-                            <div className="text-lg font-semibold">{activities.length}</div>
+            {/* ── CLIMBING ─────────────────────────────────────────────────── */}
+            <SectionHeader title="Climbing" />
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div className="card p-4 space-y-4">
+                    <div className="font-semibold">Sessions</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">This week</div>
+                            {!hasData ? <Sk w="w-10" h="h-7" /> : <div className="text-2xl font-bold">{climbStats.sessionsThisWeek}</div>}
                         </div>
-                        <div className="card p-3">
-                            <div className="subtle">Today</div>
-                            <div className="text-lg font-semibold">{doneToday}/{activities.length} done</div>
-                            <div className="subtle">Streak: {streakDays} days</div>
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Last week</div>
+                            {!hasData ? <Sk w="w-10" h="h-7" /> : (
+                                <div className={`text-2xl font-bold flex items-baseline gap-1`}>
+                                    {climbStats.sessionsLastWeek}
+                                    {hasData && climbStats.sessionsThisWeek !== climbStats.sessionsLastWeek && (
+                                        <span className={`text-sm ${climbStats.sessionsThisWeek > climbStats.sessionsLastWeek ? 'text-emerald-500' : 'text-red-400'}`}>
+                                            {climbStats.sessionsThisWeek > climbStats.sessionsLastWeek ? '↑' : '↓'}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                        <div className="card p-3">
-                            <div className="subtle">Last 7 Days</div>
-                            <div className="text-lg font-semibold">{last7Expected ? Math.round((last7Done / last7Expected) * 100) : 0}%</div>
-                            <div className="subtle">{last7Done}/{last7Expected} completions</div>
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Flash rate (30d)</div>
+                            {!hasData ? <Sk w="w-12" h="h-7" /> : <div className="text-2xl font-bold">{climbStats.flashRate30d}%</div>}
                         </div>
-                        <div className="card p-3">
-                            <div className="subtle">Avg Weekly Rate</div>
-                            <div className="text-lg font-semibold">{Math.round(avgWeeklyRate * 100)}%</div>
-                            <div className="subtle">Best: {bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '-'}</div>
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Avg attempts (30d)</div>
+                            {!hasData ? <Sk w="w-10" h="h-7" /> : <div className="text-2xl font-bold">{climbStats.avgAttempts30d}</div>}
                         </div>
-                        <div className="card p-3">
-                            <div className="subtle">This vs Last Week</div>
-                            <div className="text-lg font-semibold">{Math.round(thisWeekRate * 100)}% / {Math.round(lastWeekRate * 100)}%</div>
-                            <div className="subtle">current / previous</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Weeks climbing YTD</div>
+                            {!hasData ? <Sk w="w-10" h="h-6" /> : <div className="text-xl font-bold">{consistency.climbingWeeksYTD}</div>}
                         </div>
-                        <div className="card p-3">
-                            <div className="subtle">Last 30 Days</div>
-                            <div className="text-lg font-semibold">{last30Done}</div>
-                            <div className="subtle">total completions</div>
+                        <div>
+                            <div className="subtle text-xs uppercase tracking-wide">Streak</div>
+                            {!hasData ? <Sk w="w-10" h="h-6" /> : <div className="text-xl font-bold">{consistency.climbingStreakDays}d</div>}
                         </div>
                     </div>
                 </div>
-                <div>
-                    {/* Removed heavy recent completions list to reduce fetching */}
-                </div>
-                <div>
-                    {/* Removed category summary (7d) to streamline page */}
-                </div>
-                <div>
-                    {/* Removed top activities (30d) to reduce data volume */}
-                </div>
-                <div>
-                    {/* Removed statuses (7d) lists to simplify dashboard */}
-                </div>
-                <div>
-                    {/* Removed insights & suggestions to cut heavy processing */}
+
+                {/* Goals */}
+                <div className="card p-4 space-y-4">
+                    <div className="font-semibold">Goals {y}</div>
+                    {!hasData ? (
+                        <div className="space-y-3"><Sk w="w-full" h="h-4" /><Sk w="w-full" h="h-4" /><Sk w="w-3/4" h="h-4" /></div>
+                    ) : goalStats.length > 0 ? (
+                        <div className="space-y-4">
+                            {goalStats.map((g, i) => (
+                                <ProgressBar
+                                    key={i}
+                                    label={g.label}
+                                    pct={g.percent}
+                                    onTrack={g.onTrack}
+                                    color={g.onTrack === 'behind' ? 'bg-amber-400' : 'bg-emerald-500'}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="subtle text-sm">No goals set for {y}</div>
+                    )}
                 </div>
             </div>
 
-
-
+            {/* ── CONSISTENCY ──────────────────────────────────────────────── */}
+            <SectionHeader title="Consistency" />
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                <StatCard label="Mood streak" value={hasData ? `${consistency.moodStreakDays}d` : '—'} loading={!hasData} />
+                <StatCard label="Climbing streak" value={hasData ? `${consistency.climbingStreakDays}d` : '—'} loading={!hasData} />
+                <StatCard label="Weeks climbing YTD" value={hasData ? consistency.climbingWeeksYTD : '—'} loading={!hasData} />
+                <StatCard label="Weeks w/ time logged YTD" value={hasData ? consistency.timeWeeksYTD : '—'} loading={!hasData} />
+            </div>
         </main>
     );
 }

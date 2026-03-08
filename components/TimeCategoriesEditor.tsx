@@ -99,26 +99,23 @@ export default function TimeCategoriesEditor() {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="card p-4">
-        <div className="card-title">Time Categories</div>
-        <p className="subtle text-sm">Edit, add, remove categories for the Time tracker.</p>
-      </div>
+    <section className="space-y-6">
+      <h2 className="text-xl font-semibold">Time Categories</h2>
 
-      <div className="card p-4">
-        <div className="card-title">Add Category</div>
+      <div className="card p-4 space-y-3">
+        <div className="subtle text-xs uppercase tracking-wider">Add Category</div>
         <div className="mt-2 overflow-x-auto">
-          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 min-w-130">
-            <input className="input px-2 py-1 text-sm w-full" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
-            <input className="input px-2 py-1 text-sm w-24" type="color" value={color} onChange={(e)=>setColor(e.target.value)} />
-            <button className="btn px-2 py-1 text-xs" onClick={saveNew} disabled={isSaving || !name.trim()}>Add</button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <input className="input text-sm flex-1 min-w-40" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
+            <input className="input text-sm w-16" type="color" value={color} onChange={(e)=>setColor(e.target.value)} />
+            <button className="btn text-sm" onClick={saveNew} disabled={isSaving || !name.trim()}>Add</button>
           </div>
         </div>
       </div>
 
-      <div className="card p-4">
-        <div className="card-title">Categories</div>
-        <div className="mt-2 overflow-x-auto">
+      <div className="card p-4 space-y-3">
+        <div className="subtle text-xs uppercase tracking-wider">Categories ({items.length})</div>
+        <div className="overflow-x-auto">
           <ul className="space-y-2">
             {items.sort((a,b)=>a.order-b.order).map((it) => (
               <li key={it.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 min-w-180">

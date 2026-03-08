@@ -107,7 +107,7 @@ export default function MoodYearGrid() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Mood Year</h2>
         <div className="flex items-center gap-2">
-          <select className="rounded border px-2 py-1" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10))}>
+          <select className="input" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10))}>
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -123,9 +123,7 @@ export default function MoodYearGrid() {
             const isEmpty = !emoji;
             const base = 'relative flex items-center justify-center rounded-md';
             const size = isEmpty ? 'text-[0.75rem] sm:text-sm md:text-base' : 'text-xl sm:text-2xl';
-            const color = isEmpty ? 'text-neutral-400 dark:text-neutral-600' : '';
             const isOddMonth = d.date.getMonth() % 2 === 1;
-            const monthBg = isOddMonth ? 'bg-neutral-50 dark:bg-neutral-900' : 'bg-transparent';
             const isFirstOfMonth = d.date.getDate() === 1;
             const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.date.getMonth()];
             return (
@@ -133,11 +131,15 @@ export default function MoodYearGrid() {
                 key={d.dateISO}
                 title={`${d.date.toLocaleDateString()}${emoji ? ` — ${score}/10` : ''}`}
                 aria-label={`${d.date.toLocaleDateString()}${emoji ? ` — ${score}/10` : ''}`}
-                className={`${base} ${size} ${color} ${isEmpty ? monthBg : ''}`}
-                style={{ aspectRatio: '1 / 1', background: !isEmpty ? moodBackground(score) : undefined }}
+                className={`${base} ${size}`}
+                style={{
+                  aspectRatio: '1 / 1',
+                  background: !isEmpty ? moodBackground(score) : isOddMonth ? 'var(--surface-alt)' : undefined,
+                  color: isEmpty ? 'var(--muted-foreground)' : undefined,
+                }}
               >
                 {isFirstOfMonth ? (
-                  <span className="absolute left-1 top-1 text-[10px] sm:text-xs font-medium text-neutral-500">
+                  <span className="absolute left-1 top-1 text-[10px] sm:text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
                     {monthLabel}
                   </span>
                 ) : null}

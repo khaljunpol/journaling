@@ -58,73 +58,82 @@ export default function MetricsChart() {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded border p-4">
-          <div className="text-sm text-neutral-500">Avg Rate</div>
+    <section className="space-y-6">
+      <h2 className="text-xl font-semibold">Consistency Metrics</h2>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="card p-4 space-y-1">
+          <div className="subtle text-xs uppercase tracking-wider">Avg Rate</div>
           <div className="text-2xl font-semibold">{Math.round(summary.avgRate * 100)}%</div>
         </div>
-        <div className="rounded border p-4">
-          <div className="text-sm text-neutral-500">Best Week</div>
-          <div className="text-2xl font-semibold">{summary.bestWeek ? `${Math.round(summary.bestWeek.rate * 100)}%` : '-'}</div>
-          <div className="text-xs text-neutral-500">{summary.bestWeek?.week || ''}</div>
+        <div className="card p-4 space-y-1">
+          <div className="subtle text-xs uppercase tracking-wider">Best Week</div>
+          <div className="text-2xl font-semibold">{summary.bestWeek ? `${Math.round(summary.bestWeek.rate * 100)}%` : '—'}</div>
+          <div className="subtle text-xs">{summary.bestWeek?.week || ''}</div>
         </div>
-        <div className="rounded border p-4">
-          <div className="text-sm text-neutral-500">Current Streak</div>
-          <div className="text-2xl font-semibold">{summary.currentStreakDays} days</div>
+        <div className="card p-4 space-y-1">
+          <div className="subtle text-xs uppercase tracking-wider">Streak</div>
+          <div className="text-2xl font-semibold">{summary.currentStreakDays}<span className="text-base font-normal subtle"> d</span></div>
         </div>
-        <div className="rounded border p-4">
-          <div className="text-sm text-neutral-500">Total Completions</div>
+        <div className="card p-4 space-y-1">
+          <div className="subtle text-xs uppercase tracking-wider">Completions</div>
           <div className="text-2xl font-semibold">{summary.totalCompletions}</div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Weekly Consistency</h2>
-        <select className="rounded border px-2 py-1" value={range} onChange={(e) => setRange(Number(e.target.value))}>
-          <option value={12}>Last 12 weeks</option>
-          <option value={26}>Last 26 weeks</option>
-          <option value={52}>Last 52 weeks</option>
-          <option value={weeks.length}>All</option>
-        </select>
-      </div>
+      <div className="card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="font-medium">Weekly Consistency</div>
+          <select className="input py-1 text-sm" value={range} onChange={(e) => setRange(Number(e.target.value))}>
+            <option value={12}>Last 12 weeks</option>
+            <option value={26}>Last 26 weeks</option>
+            <option value={52}>Last 52 weeks</option>
+            <option value={weeks.length}>All</option>
+          </select>
+        </div>
 
-      <div className="h-72 w-full">
-        <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="week" />
-            <YAxis yAxisId="rate" domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} />
-            <YAxis yAxisId="count" orientation="right" allowDecimals={false} />
-            <Tooltip content={({ payload, label }) => {
-              const p = payload?.[0]?.payload as Week | undefined;
-              if (!p) return null;
-              return (
-                <div className="rounded border bg-white p-2 text-sm shadow dark:bg-neutral-900">
-                  <div className="font-medium">{label}</div>
-                  <div>Rate: {Math.round(p.rate * 100)}%</div>
-                  <div>Done: {p.done} / {p.total}</div>
-                </div>
-              );
-            }} />
-            <Legend />
-            <Bar yAxisId="count" dataKey="done" name="Completions" fill="#c084fc" />
-            <Line yAxisId="rate" type="monotone" dataKey="rate" name="Rate" stroke="#2563eb" dot={false} />
-            <Line yAxisId="rate" type="monotone" dataKey="movingAvg4" name="4-week MA" stroke="#16a34a" dot={false} />
-            {selectedSeries.map((s, i) => (
-              <Line key={s.id} yAxisId="rate" type="monotone" dataKey={`series_${s.id}`} name={s.name} stroke={colors[i % colors.length]} dot={false} />
-            ))}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+        <div className="h-72 w-full">
+          <ResponsiveContainer>
+            <ComposedChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="week" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
+              <YAxis yAxisId="rate" domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
+              <YAxis yAxisId="count" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
+              <Tooltip content={({ payload, label }) => {
+                const p = payload?.[0]?.payload as Week | undefined;
+                if (!p) return null;
+                return (
+                  <div className="card rounded-lg p-2 text-sm shadow-lg" style={{ borderColor: 'var(--border)' }}>
+                    <div className="font-medium">{label}</div>
+                    <div className="subtle">Rate: {Math.round(p.rate * 100)}%</div>
+                    <div className="subtle">Done: {p.done} / {p.total}</div>
+                  </div>
+                );
+              }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar yAxisId="count" dataKey="done" name="Completions" fill="var(--accent)" opacity={0.7} />
+              <Line yAxisId="rate" type="monotone" dataKey="rate" name="Rate" stroke="var(--accent)" dot={false} strokeWidth={2} />
+              <Line yAxisId="rate" type="monotone" dataKey="movingAvg4" name="4-week MA" stroke="#16a34a" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+              {selectedSeries.map((s, i) => (
+                <Line key={s.id} yAxisId="rate" type="monotone" dataKey={`series_${s.id}`} name={s.name} stroke={colors[i % colors.length]} dot={false} />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {series.map((s) => (
-          <label key={s.id} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSeries(s.id)} />
-            <span>{s.name}</span>
-          </label>
-        ))}
+        {series.length > 0 && (
+          <div>
+            <div className="subtle text-xs uppercase tracking-wider mb-2">Per-activity overlay</div>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {series.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSeries(s.id)} />
+                  <span>{s.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

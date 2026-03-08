@@ -199,16 +199,23 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
             <tr>
               <th className="sticky left-0 bg-(--surface) p-2 text-left">Activity</th>
               {days.map((d) => (
-                <th key={d} className={`p-2 text-xs font-medium ${selectedDay === d ? 'bg-neutral-100 dark:bg-neutral-900' : ''}`}>
+                <th key={d} className="p-2 text-xs font-medium" style={selectedDay === d ? { background: 'var(--surface-alt)' } : undefined}>
                   <button
                     ref={year === todayY && month === todayM && d === todayD ? (el) => { todayBtnRef.current = el; } : undefined}
                     className={`cursor-pointer rounded-full px-3 py-1 transition-colors ${
                       selectedDay === d
-                        ? 'bg-black text-white ring-2 ring-blue-500 dark:bg-white dark:text-black dark:ring-blue-400'
+                        ? 'ring-2'
                         : (year === todayY && month === todayM && d === todayD)
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
-                          : 'bg-neutral-200 text-black hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700'
+                          ? ''
+                          : ''
                     }`}
+                    style={
+                      selectedDay === d
+                        ? { background: 'var(--accent)', color: 'var(--accent-foreground)', outline: 'none', boxShadow: '0 0 0 2px var(--ring)' }
+                        : (year === todayY && month === todayM && d === todayD)
+                          ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.7 }
+                          : { background: 'var(--surface-alt)', color: 'var(--text)' }
+                    }
                     onClick={() => selectDay(d)}
                     aria-pressed={selectedDay === d}
                     title={`Select ${year}-${pad(month + 1)}-${pad(d)}`}
@@ -241,7 +248,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                   try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
                 }}
                 onDragEnd={() => { setDragOverId(null); setDragId(null); }}
-                className={dragOverId === a.id ? 'bg-neutral-50 dark:bg-neutral-900' : ''}
+                style={dragOverId === a.id ? { background: 'var(--surface-alt)' } : undefined}
               >
                 <td className="sticky left-0 bg-(--surface) p-2 text-sm cursor-move" title="Drag to reorder">
                   <div className="flex items-center gap-2">
@@ -258,13 +265,14 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                   return (
                     <td
                       key={d}
-                      className={`p-2 text-center ${
+                      className="p-2 text-center"
+                      style={
                         isSelected
-                          ? 'bg-neutral-50 ring-1 ring-neutral-300 dark:bg-neutral-900 dark:ring-neutral-700'
+                          ? { background: 'var(--surface-alt)', boxShadow: 'inset 0 0 0 1px var(--border)' }
                           : isToday
-                            ? 'bg-blue-50 ring-1 ring-blue-200 dark:bg-blue-950 dark:ring-blue-800'
-                            : ''
-                      }`}
+                            ? { background: 'color-mix(in oklab, var(--accent) 10%, transparent)', boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent)' }
+                            : undefined
+                      }
                     >
                       <label className="inline-flex cursor-pointer select-none items-center gap-2">
                         <input

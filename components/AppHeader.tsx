@@ -8,20 +8,14 @@ import { useEffect, useRef, useState } from 'react';
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-  // Initialize theme from localStorage or fallback to system
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem('theme');
-      if (stored === 'light' || stored === 'dark') {
-        setTheme(stored);
-        document.documentElement.setAttribute('data-theme', stored);
-      } else {
-        // Default to light if no preference stored
-        setTheme('light');
-        document.documentElement.setAttribute('data-theme', 'light');
-        try { localStorage.setItem('theme', 'light'); } catch { }
-      }
+      const resolved = stored === 'dark' ? 'dark' : 'light';
+      setTheme(resolved);
+      document.documentElement.setAttribute('data-theme', resolved);
     } catch { }
   }, []);
 
@@ -31,16 +25,19 @@ export default function AppHeader() {
     try { localStorage.setItem('theme', next); } catch { }
     document.documentElement.setAttribute('data-theme', next);
   }
-  if (pathname?.startsWith('/login')) {
-    return null;
-  }
+
+  if (pathname?.startsWith('/login')) return null;
 
   const link = (href: string, label: string) => {
     const active = pathname === href;
     return (
       <Link
         href={href}
-        className={`rounded-md px-2 py-1.5 whitespace-nowrap transition hover:bg-neutral-100 dark:hover:bg-neutral-900 ${active ? 'font-medium text-(--accent) bg-neutral-100 dark:bg-neutral-900' : 'text-(--text)'}`}
+        className="rounded-md px-2 py-1.5 whitespace-nowrap transition text-sm"
+        style={active
+          ? { color: 'var(--accent)', background: 'var(--surface-alt)', fontWeight: 500 }
+          : { color: 'var(--text)' }
+        }
       >
         {label}
       </Link>
@@ -48,45 +45,75 @@ export default function AppHeader() {
   };
 
   const settingsRef = useRef<HTMLDetailsElement | null>(null);
+  const closeSettings = () => { if (settingsRef.current) settingsRef.current.open = false; };
+
   return (
-    <header className="mb-4 sm:mb-6 sticky top-0 z-20 border-b" style={{ background: 'color-mix(in oklab, var(--bg) 85%, transparent)', borderColor: 'var(--border)', backdropFilter: 'saturate(180%) blur(8px)' }}>
+    <header
+      className="mb-4 sm:mb-6 sticky top-0 z-20 border-b"
+      style={{
+        background: 'color-mix(in oklab, var(--bg) 85%, transparent)',
+        borderColor: 'var(--border)',
+        backdropFilter: 'saturate(180%) blur(8px)',
+      }}
+    >
       <div className="mx-auto max-w-5xl px-3 py-3 sm:px-4">
         <div className="flex flex-col gap-3">
+          {/* Top row */}
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-xl font-semibold sm:text-2xl">Journaling</h1>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2">
               <AccountSwitcher />
+
+              {/* Theme toggle */}
               <button
                 onClick={toggleTheme}
-                className="btn-outline px-2 py-1 text-xs"
-                title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+                className="btn-outline px-2.5 py-1 text-xs flex items-center gap-1"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                 aria-label="Toggle theme"
               >
-                {theme === 'dark' ? '🌙' : '☀️'}
+                {theme === 'dark' ? (
+                  <><span>☀️</span><span className="hidden sm:inline">Light</span></>
+                ) : (
+                  <><span>🌙</span><span className="hidden sm:inline">Dark</span></>
+                )}
               </button>
+
+              {/* Settings gear */}
               <details className="relative" ref={settingsRef}>
-                <summary className="btn-outline px-2 py-1 text-xs cursor-pointer list-none select-none">⚙️</summary>
-                <div className="absolute right-0 mt-2 w-48 card p-2 space-y-1 z-30">
-                  <Link href="/activities" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Activities</Link>
-                  <Link href="/catalog" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Catalog</Link>
-                  <Link href="/time-categories" className="block rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>Time Categories</Link>
-                  <hr className="my-1 border-(--border)" />
-                  <div className="px-1" onClick={()=>{ if (settingsRef.current) settingsRef.current.open = false; }}>
+                <summary
+                  className="btn-outline px-2.5 py-1 text-xs cursor-pointer list-none select-none flex items-center gap-1"
+                  title="Settings"
+                >
+                  <span>⚙</span><span className="hidden sm:inline">More</span>
+                </summary>
+                <div
+                  className="absolute right-0 mt-2 w-52 card p-1.5 space-y-0.5 z-30 shadow-lg"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Manage</div>
+                  <Link href="/activities" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Activities</Link>
+                  <Link href="/catalog" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Catalog</Link>
+                  <Link href="/time-categories" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Time Categories</Link>
+                  <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+                  <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>
+                  <Link href="/climbing-log" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Climbing Log</Link>
+                  <Link href="/metrics" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Metrics</Link>
+                  <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+                  <div className="px-2 py-1.5" onClick={closeSettings}>
                     <LogoutButton />
                   </div>
                 </div>
               </details>
             </div>
           </div>
-          <nav className="flex max-w-full items-center gap-1 overflow-x-auto text-xs sm:gap-2 sm:text-sm">
+
+          {/* Nav — 5 primary pages */}
+          <nav className="flex max-w-full items-center gap-0.5 overflow-x-auto">
             {link('/', 'Dashboard')}
             {link('/journal', 'Journal')}
             {link('/time', 'Time')}
             {link('/climbing', 'Climbing')}
             {link('/mood', 'Mood')}
-            {link('/climbing-log', 'Climbing Log')}
-            {link('/metrics', 'Metrics')}
-            <div className="ml-1" />
           </nav>
         </div>
       </div>

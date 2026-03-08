@@ -38,7 +38,7 @@ export default function LoginPage() {
           <label className="block text-sm font-medium">Admin Password</label>
           <input
             type="password"
-            className="w-full rounded border px-3 py-2"
+            className="w-full input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter password"
@@ -47,7 +47,7 @@ export default function LoginPage() {
         {error && <div className="text-sm text-red-600">{error}</div>}
         <button
           type="submit"
-          className="w-full rounded-md bg-black px-3 py-2 text-white disabled:opacity-60 dark:bg-white dark:text-black"
+          className="w-full btn"
           disabled={loading || !password}
         >
           {loading ? 'Signing in…' : 'Sign In'}

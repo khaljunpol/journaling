@@ -46,9 +46,10 @@ export default function CatalogEditor() {
   }
 
   return (
-    <section className="space-y-3">
-      <h3 className="text-base font-medium">Activity Catalog Editor</h3>
-      <div className="card p-4">
+    <section className="space-y-6">
+      <h2 className="text-xl font-semibold">Catalog</h2>
+      <div className="card p-4 space-y-3">
+        <div className="subtle text-xs uppercase tracking-wider">Add Item</div>
         <div className="flex flex-wrap gap-2">
           <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className="input" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
@@ -56,16 +57,20 @@ export default function CatalogEditor() {
           <button className="btn" onClick={add}>Add to Catalog</button>
         </div>
       </div>
-      <ul className="space-y-2">
-        {items.map((c) => (
-          <li key={c.id} className="flex flex-wrap items-center gap-2">
-            <input className="min-w-48 flex-1 input" defaultValue={c.name} onBlur={(e) => update(c.id, { name: e.target.value })} />
-            <input className="min-w-40 input" defaultValue={c.category} onBlur={(e) => update(c.id, { category: e.target.value })} />
-            <input className="min-w-48 input" defaultValue={c.tags || ''} onBlur={(e) => update(c.id, { tags: e.target.value })} />
-            <button className="btn-outline" onClick={() => remove(c.id)}>Delete</button>
-          </li>
-        ))}
-      </ul>
+      <div className="card p-4 space-y-2">
+        <div className="subtle text-xs uppercase tracking-wider mb-2">Items ({items.length})</div>
+        <ul className="space-y-2">
+          {items.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-2">
+              <input className="min-w-48 flex-1 input" defaultValue={c.name} onBlur={(e) => update(c.id, { name: e.target.value })} />
+              <input className="min-w-40 input" defaultValue={c.category} onBlur={(e) => update(c.id, { category: e.target.value })} />
+              <input className="min-w-48 input" defaultValue={c.tags || ''} onBlur={(e) => update(c.id, { tags: e.target.value })} />
+              <button className="btn-outline" onClick={() => remove(c.id)}>Delete</button>
+            </li>
+          ))}
+          {items.length === 0 && <li className="subtle text-sm">No catalog items yet.</li>}
+        </ul>
+      </div>
     </section>
   );
 }

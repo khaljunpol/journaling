@@ -219,11 +219,11 @@ export default function ClimbingLogPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <div className="card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-lg font-medium">Climbing Log</div>
-          <div className="w-full">
+    <section className="mx-auto max-w-5xl px-3 py-4 sm:px-4 space-y-6">
+      <h2 className="text-xl font-semibold">Climbing Log</h2>
+      <div className="card p-4 space-y-4">
+        <div className="font-medium" style={{ color: 'var(--muted-foreground)' }}>Add Entry</div>
+        <div className="w-full">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
               <input type="date" className="input w-full" value={date} onChange={(e) => setDate(e.target.value)} />
               <input type="number" min={1} className="input w-full" value={session} onChange={(e) => setSession(parseInt(e.target.value || '1', 10) || 1)} placeholder="Session #" />
@@ -245,19 +245,23 @@ export default function ClimbingLogPage() {
               <button className="btn w-full sm:w-auto" onClick={addLog}>Add</button>
             </div>
           </div>
-        </div>
-        <ul className="mt-2 space-y-2">
-          {logs.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2">
-              <div className="text-sm">S{l.session} • {l.type} • {l.grade} • {l.attempts === 0 ? 'flash' : `${l.attempts} attempts`}{l.location ? ` • ${l.location}` : ''}</div>
-              <div className="flex items-center gap-2">
-                <button className="btn-outline text-xs" onClick={() => createLogOverlay(l)}>Overlay</button>
-                <button className="btn-outline text-xs" onClick={() => removeLog(l.id)}>Delete</button>
-              </div>
-            </li>
-          ))}
-          {logs.length === 0 && <li className="subtle">No climbs logged for this day.</li>}
-        </ul>
+        {logs.length > 0 && (
+          <ul className="space-y-2">
+            {logs.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: 'var(--surface-alt)' }}>
+                <div className="text-sm">
+                  <span className="font-medium" style={{ color: 'var(--accent)' }}>{l.grade}</span>
+                  {' '}· S{l.session} · {l.type} · {l.attempts === 0 ? 'flash' : `${l.attempts} att`}{l.location ? ` · ${l.location}` : ''}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="btn-outline text-xs" onClick={() => createLogOverlay(l)}>Overlay</button>
+                  <button className="btn-outline text-xs" onClick={() => removeLog(l.id)}>Delete</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {logs.length === 0 && <div className="subtle text-sm">No climbs logged for this day.</div>}
       </div>
 
       <AllLogsCard
@@ -271,9 +275,9 @@ export default function ClimbingLogPage() {
         onDelete={(id) => { removeLog(id); }}
         onOverlay={(l) => { createLogOverlay(l); }}
       />
-      <div className="card p-4">
-        <div className="card-title">Set Goal</div>
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="card p-4 space-y-3">
+        <div className="font-medium">Set Goal</div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <input type="number" className="input" value={goalForm.year} onChange={(e) => setGoalForm({ ...goalForm, year: parseInt(e.target.value || String(new Date().getFullYear()), 10) || new Date().getFullYear() })} />
           <select className="input" value={goalForm.type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setGoalForm({ ...goalForm, type: t, grade: t === 'boulder' ? 'V4' : '6a' }); }}>
             <option value="boulder">Boulder</option>
@@ -286,7 +290,7 @@ export default function ClimbingLogPage() {
           </select>
           <input type="number" min={1} className="input" value={goalForm.target} onChange={(e) => setGoalForm({ ...goalForm, target: parseInt(e.target.value || '1', 10) || 1 })} />
         </div>
-        <div className="mt-2"><button className="btn" onClick={saveGoal}>Save Goal</button></div>
+        <div><button className="btn" onClick={saveGoal}>Save Goal</button></div>
       </div>
     </section>
   );
@@ -295,49 +299,49 @@ export default function ClimbingLogPage() {
 function AllLogsCard({ items, total, page, limit, loading, onPrev, onNext, onDelete, onOverlay }: { items: Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>; total: number; page: number; limit: number; loading: boolean; onPrev: () => void; onNext: () => void; onDelete: (id: string) => void; onOverlay: (l: { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }) => void }) {
   const maxPage = Math.max(1, Math.ceil(total / limit));
   return (
-    <div className="card p-4">
+    <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <div className="card-title">All Logs</div>
-        <div className="text-sm subtle">Page {page} of {maxPage} • {total} total</div>
+        <div className="font-medium">All Logs</div>
+        <div className="subtle text-xs">Page {page} of {maxPage} · {total} total</div>
       </div>
-      <div className="mt-2 w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left subtle">
-              <th className="py-1 pr-2">Date</th>
-              <th className="py-1 pr-2">S#</th>
-              <th className="py-1 pr-2">Type</th>
-              <th className="py-1 pr-2">Grade</th>
-              <th className="py-1 pr-2">Attempts</th>
-              <th className="py-1 pr-2">Location</th>
-              <th className="py-1 pr-2">Notes</th>
-              <th className="py-1 pr-2"></th>
-              <th className="py-1 pr-2"></th>
+            <tr className="subtle text-xs uppercase tracking-wider text-left" style={{ borderBottom: '1px solid var(--border)' }}>
+              <th className="pb-2 pr-3 font-medium">Date</th>
+              <th className="pb-2 pr-3 font-medium">S#</th>
+              <th className="pb-2 pr-3 font-medium">Type</th>
+              <th className="pb-2 pr-3 font-medium">Grade</th>
+              <th className="pb-2 pr-3 font-medium">Attempts</th>
+              <th className="pb-2 pr-3 font-medium">Location</th>
+              <th className="pb-2 pr-3 font-medium">Notes</th>
+              <th className="pb-2 pr-3"></th>
+              <th className="pb-2 pr-3"></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((l) => (
-              <tr key={l.id} className="border-t">
-                <td className="py-1 pr-2 whitespace-nowrap">{l.date.slice(0, 10)}</td>
-                <td className="py-1 pr-2">{l.session}</td>
-                <td className="py-1 pr-2 capitalize">{l.type}</td>
-                <td className="py-1 pr-2">{l.grade}</td>
-                <td className="py-1 pr-2">{l.attempts === 0 ? 'flash' : l.attempts}</td>
-                <td className="py-1 pr-2">{l.location || ''}</td>
-                <td className="py-1 pr-2 max-w-[20rem] truncate" title={l.notes || ''}>{l.notes || ''}</td>
-                <td className="py-1 pr-2 text-right"><button className="btn-outline text-xs" onClick={() => onOverlay(l)}>Overlay</button></td>
-                <td className="py-1 pr-2 text-right"><button className="btn-outline text-xs" onClick={() => onDelete(l.id)}>Delete</button></td>
+            {items.map((l, i) => (
+              <tr key={l.id} style={{ background: i % 2 === 1 ? 'var(--surface-alt)' : undefined }}>
+                <td className="py-1.5 pr-3 whitespace-nowrap">{l.date.slice(0, 10)}</td>
+                <td className="py-1.5 pr-3">{l.session}</td>
+                <td className="py-1.5 pr-3 capitalize">{l.type}</td>
+                <td className="py-1.5 pr-3 font-medium" style={{ color: 'var(--accent)' }}>{l.grade}</td>
+                <td className="py-1.5 pr-3">{l.attempts === 0 ? 'flash' : l.attempts}</td>
+                <td className="py-1.5 pr-3">{l.location || ''}</td>
+                <td className="py-1.5 pr-3 max-w-[20rem] truncate subtle" title={l.notes || ''}>{l.notes || ''}</td>
+                <td className="py-1.5 pr-1 text-right"><button className="btn-outline text-xs" onClick={() => onOverlay(l)}>Overlay</button></td>
+                <td className="py-1.5 text-right"><button className="btn-outline text-xs" onClick={() => onDelete(l.id)}>Delete</button></td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={9} className="py-3 text-center subtle">{loading ? 'Loading…' : 'No logs found'}</td></tr>
+              <tr><td colSpan={9} className="py-4 text-center subtle text-sm">{loading ? 'Loading…' : 'No logs found'}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      <div className="mt-3 flex items-center justify-between">
-        <button className="btn-outline" disabled={page <= 1} onClick={onPrev}>Previous</button>
-        <button className="btn-outline" disabled={page >= maxPage} onClick={onNext}>Next</button>
+      <div className="flex items-center justify-between pt-1">
+        <button className="btn-outline text-sm" disabled={page <= 1} onClick={onPrev}>← Previous</button>
+        <button className="btn-outline text-sm" disabled={page >= maxPage} onClick={onNext}>Next →</button>
       </div>
     </div>
   );

@@ -4,8 +4,7 @@ export const metadata = { title: 'Journal' };
 
 export default function JournalPage() {
   return (
-    <main className="space-y-8">
-      <h2 className="text-xl font-semibold">Journal</h2>
+    <main className="mx-auto max-w-5xl px-3 py-4 sm:px-4 space-y-6">
       <JournalView />
     </main>
   );

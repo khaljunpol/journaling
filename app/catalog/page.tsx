@@ -4,9 +4,7 @@ export const dynamic = 'force-dynamic';
 
 export default function CatalogPage() {
   return (
-    <main className="space-y-6">
-      <h2 className="text-xl font-semibold">Catalog</h2>
-      <p className="text-sm text-neutral-600">Manage shared activity catalog (name, category, tags).</p>
+    <main className="mx-auto max-w-5xl px-3 py-4 sm:px-4 space-y-6">
       <CatalogEditor />
     </main>
   );

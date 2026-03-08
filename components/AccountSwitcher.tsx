@@ -44,7 +44,7 @@ export default function AccountSwitcher() {
         value={account}
         onChange={onChange}
         title="Switch account"
-        className="rounded-md border border-black bg-black px-3 py-1 text-white shadow-sm hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 dark:focus-visible:ring-white"
+        className="input py-1 text-sm"
         aria-label="Select account"
       >
         {ACCOUNTS.map((a) => (

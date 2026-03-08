@@ -5,6 +5,7 @@
   /* Theme tokens */
   --bg: #fafafa;
   --surface: #ffffff;
+  --surface-alt: #f0f0f0;   /* subtle raised surface, hover backgrounds */
   --muted: #6b7280; /* neutral-500 */
   --muted-foreground: #6b7280;
   --text: #0b0f14;
@@ -28,6 +29,7 @@ body {
   :root {
     --bg: #0a0a0a; /* neutral-950-ish */
     --surface: #0f1113; /* near-neutral-900 */
+    --surface-alt: #1a1d20;
     --muted: #9ca3af;
     --muted-foreground: #9ca3af;
     --text: #e5e7eb;
@@ -42,6 +44,7 @@ body {
 :root[data-theme="light"] {
   --bg: #fafafa;
   --surface: #ffffff;
+  --surface-alt: #f0f0f0;
   --muted: #6b7280;
   --muted-foreground: #6b7280;
   --text: #0b0f14;
@@ -54,6 +57,7 @@ body {
 :root[data-theme="dark"] {
   --bg: #0a0a0a;
   --surface: #0f1113;
+  --surface-alt: #1a1d20;
   --muted: #9ca3af;
   --muted-foreground: #9ca3af;
   --text: #e5e7eb;
@@ -86,21 +90,29 @@ body {
 }
 .btn:hover { filter: brightness(0.95); }
 .btn:disabled { @apply opacity-60; }
+
 .btn-outline {
   @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium border transition;
   border-color: var(--border);
   color: var(--text);
   background: var(--surface);
 }
-.btn-outline:hover { @apply bg-neutral-50 dark:bg-neutral-900; }
+.btn-outline:hover { background: var(--surface-alt); }
 
-.input {
+.input, select.input-select {
   @apply rounded-md border px-3 py-2 text-sm outline-none transition;
   background: var(--surface);
   color: var(--text);
   border-color: var(--border);
 }
-.input:focus { box-shadow: 0 0 0 3px var(--ring); }
+.input:focus, select.input-select:focus { box-shadow: 0 0 0 3px var(--ring); }
+
+/* Native select inherits text color in some browsers but not all */
+select {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
 
 .subtle {
   @apply text-xs;
