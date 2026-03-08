@@ -6,6 +6,7 @@ import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
 import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
+import Link from 'next/link';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
 function Sk({ w = 'w-16', h = 'h-4' }: { w?: string; h?: string }) {
@@ -14,18 +15,19 @@ function Sk({ w = 'w-16', h = 'h-4' }: { w?: string; h?: string }) {
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({
-    label, value, sub, trend, loading,
+    label, value, sub, trend, loading, href,
 }: {
     label: string;
     value: string | number;
     sub?: string;
     trend?: 'up' | 'down' | 'flat' | null;
     loading?: boolean;
+    href?: string;
 }) {
     const arrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : null;
     const arrowColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-400' : '';
-    return (
-        <div className="card p-4 flex flex-col gap-1">
+    const inner = (
+        <div className={`card p-4 flex flex-col gap-1${href ? ' cursor-pointer hover:ring-2 hover:ring-(--ring) transition-shadow' : ''}`}>
             <div className="subtle text-xs uppercase tracking-wide">{label}</div>
             {loading ? (
                 <Sk w="w-20" h="h-7" />
@@ -38,6 +40,8 @@ function StatCard({
             {sub && !loading && <div className="subtle">{sub}</div>}
         </div>
     );
+    if (href) return <Link href={href} className="block">{inner}</Link>;
+    return inner;
 }
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
@@ -349,7 +353,8 @@ export default function Dashboard() {
             <SectionHeader title="Today" />
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
                 {/* Mood today */}
-                <div className="card p-4 col-span-1">
+                <Link href="/mood" className="block">
+                <div className="card p-4 col-span-1 cursor-pointer hover:ring-2 hover:ring-(--ring) transition-shadow">
                     <div className="subtle text-xs uppercase tracking-wide">Mood</div>
                     {!hasData ? <Sk w="w-16" h="h-8" /> : typeof moodToday === 'number' ? (
                         <div className="mt-1">
@@ -360,6 +365,7 @@ export default function Dashboard() {
                         </div>
                     ) : <div className="text-sm subtle mt-1">Not logged</div>}
                 </div>
+                </Link>
 
                 {/* Activities today */}
                 <StatCard
@@ -367,6 +373,7 @@ export default function Dashboard() {
                     value={hasData ? `${doneToday} / ${activities.length}` : '—'}
                     sub={streakDays > 0 ? `${streakDays}-day streak` : undefined}
                     loading={!hasData}
+                    href="/journal"
                 />
 
                 {/* Time today */}
@@ -375,6 +382,7 @@ export default function Dashboard() {
                     value={hasData ? timeStats.todayHours : '—'}
                     sub={timeStats.weekTop[0] ? `Top: ${timeStats.weekTop[0].name}` : undefined}
                     loading={!hasData}
+                    href="/time"
                 />
 
                 {/* Weight */}
@@ -384,6 +392,7 @@ export default function Dashboard() {
                     sub={weightTrend.change ? `${weightTrend.change >= 0 ? '+' : ''}${weightTrend.change} kg vs prev 4w` : undefined}
                     trend={weightDelta}
                     loading={!hasData}
+                    href="/journal"
                 />
             </div>
 
@@ -478,9 +487,9 @@ export default function Dashboard() {
             {/* ── ACTIVITIES ────────────────────────────────────────────────── */}
             <SectionHeader title="Activities" />
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-                <StatCard label="7-day rate" value={hasData ? `${last7Pct}%` : '—'} sub={`${last7Done}/${last7Expected} done`} trend={actWeekDelta} loading={!hasData} />
-                <StatCard label="This week" value={hasData ? `${Math.round(thisWeekRate * 100)}%` : '—'} sub={`Last week: ${Math.round(lastWeekRate * 100)}%`} trend={actWeekDelta} loading={!hasData} />
-                <StatCard label="30-day total" value={hasData ? last30Done : '—'} sub={`Best week: ${bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '—'}`} loading={!hasData} />
+                <StatCard label="7-day rate" value={hasData ? `${last7Pct}%` : '—'} sub={`${last7Done}/${last7Expected} done`} trend={actWeekDelta} loading={!hasData} href="/metrics" />
+                <StatCard label="This week" value={hasData ? `${Math.round(thisWeekRate * 100)}%` : '—'} sub={`Last week: ${Math.round(lastWeekRate * 100)}%`} trend={actWeekDelta} loading={!hasData} href="/metrics" />
+                <StatCard label="30-day total" value={hasData ? last30Done : '—'} sub={`Best week: ${bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '—'}`} loading={!hasData} href="/metrics" />
             </div>
 
             {/* ── TIME ─────────────────────────────────────────────────────── */}
@@ -596,10 +605,10 @@ export default function Dashboard() {
             {/* ── CONSISTENCY ──────────────────────────────────────────────── */}
             <SectionHeader title="Consistency" />
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                <StatCard label="Mood streak" value={hasData ? `${consistency.moodStreakDays}d` : '—'} loading={!hasData} />
-                <StatCard label="Climbing streak" value={hasData ? `${consistency.climbingStreakDays}d` : '—'} loading={!hasData} />
-                <StatCard label="Weeks climbing YTD" value={hasData ? consistency.climbingWeeksYTD : '—'} loading={!hasData} />
-                <StatCard label="Weeks w/ time logged YTD" value={hasData ? consistency.timeWeeksYTD : '—'} loading={!hasData} />
+                <StatCard label="Mood streak" value={hasData ? `${consistency.moodStreakDays}d` : '—'} loading={!hasData} href="/mood" />
+                <StatCard label="Climbing streak" value={hasData ? `${consistency.climbingStreakDays}d` : '—'} loading={!hasData} href="/climbing" />
+                <StatCard label="Weeks climbing YTD" value={hasData ? consistency.climbingWeeksYTD : '—'} loading={!hasData} href="/climbing" />
+                <StatCard label="Weeks w/ time logged YTD" value={hasData ? consistency.timeWeeksYTD : '—'} loading={!hasData} href="/time" />
             </div>
         </main>
     );

@@ -604,6 +604,54 @@ export default function ClimbingView() {
   return (
     <section className="space-y-6">
       {updatedMs ? (<div className="subtle text-xs">Updated at {new Date(updatedMs).toLocaleTimeString()}</div>) : null}
+
+      {/* ── TODAY'S SESSION SUMMARY ────────────────────────────────── */}
+      {logs.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">{new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+            <a href="/climbing-log" className="btn-outline text-xs">Full log →</a>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <div className="subtle text-xs uppercase tracking-wider">Sends</div>
+              <div className="text-2xl font-bold">{logs.length}</div>
+            </div>
+            <div>
+              <div className="subtle text-xs uppercase tracking-wider">Sessions</div>
+              <div className="text-2xl font-bold">{sessionsToday}</div>
+            </div>
+            <div>
+              <div className="subtle text-xs uppercase tracking-wider">Flashes</div>
+              <div className="text-2xl font-bold">{logs.filter(l => l.attempts === 0).length}</div>
+            </div>
+            <div>
+              <div className="subtle text-xs uppercase tracking-wider">Best Grade</div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>
+                {(() => {
+                  const vNums = logs.filter(l => l.type === 'boulder').map(l => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+                  if (vNums.length) return `V${Math.max(...vNums)}`;
+                  const rIdxs = logs.filter(l => l.type === 'rope').map(l => frenchToIndex(l.grade)).filter((n): n is number => n != null);
+                  if (rIdxs.length) return frenchGrades[Math.max(...rIdxs)];
+                  return '—';
+                })()}
+              </div>
+            </div>
+          </div>
+          <ul className="space-y-1">
+            {logs.map(l => (
+              <li key={l.id} className="flex items-center justify-between text-sm rounded px-2 py-1.5" style={{ background: 'var(--surface-alt)' }}>
+                <span>
+                  <span className="font-medium" style={{ color: 'var(--accent)' }}>{l.grade}</span>
+                  {' '}· {l.type} · S{l.session} · {l.attempts === 0 ? 'flash' : `${l.attempts} att`}
+                  {l.location ? ` · ${l.location}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
         <div className="card p-4">
           <div className="flex items-center justify-between">

@@ -3,11 +3,12 @@
 import AccountSwitcher from '@/components/AccountSwitcher';
 import LogoutButton from '@/components/LogoutButton';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 export default function AppHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -18,6 +19,23 @@ export default function AppHeader() {
       document.documentElement.setAttribute('data-theme', resolved);
     } catch { }
   }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      switch (e.key) {
+        case 'd': router.push('/'); break;
+        case 'j': router.push('/journal'); break;
+        case 't': router.push('/time'); break;
+        case 'c': router.push('/climbing'); break;
+        case 'm': router.push('/mood'); break;
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [router]);
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';

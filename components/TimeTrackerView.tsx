@@ -4,7 +4,7 @@ import { getCache, setCache } from '@/lib/cache';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 type CatItem = TimeCategory;
 
@@ -175,8 +175,45 @@ export default function TimeTrackerView() {
     }));
   }, [yearLogs, viewYear, viewMonth, catsSorted]);
 
+  const weeklyHours = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const count = yearLogs.filter(l => l.date === iso).length;
+      return { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), hours: count };
+    });
+  }, [yearLogs]);
+
   return (
     <section className="space-y-6">
+      {/* ── LAST 7 DAYS ────────────────────────────────────────────── */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="font-semibold">Last 7 Days</div>
+          <div className="subtle text-xs">{weeklyHours.reduce((a, d) => a + d.hours, 0)}h total</div>
+        </div>
+        <div className="h-28 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={weeklyHours} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+              <Tooltip
+                cursor={{ fill: 'var(--surface-alt)' }}
+                content={({ payload, label }) => {
+                  if (!payload?.length) return null;
+                  return (
+                    <div className="card rounded-lg px-2 py-1 text-xs shadow-lg" style={{ borderColor: 'var(--border)' }}>
+                      <span className="font-medium">{label}</span> · {payload[0]?.value}h
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="hours" fill="var(--accent)" opacity={0.85} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* Distribution summary for current view placed above tracker */}
       <div className="card p-4">
         <div className="card-title">Distribution ({viewMode === 'month' ? 'Month' : 'Year'})</div>

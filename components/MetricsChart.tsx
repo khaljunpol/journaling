@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, ComposedChart, LineChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 type Week = { week: string; rate: number; done: number; total: number; movingAvg4?: number };
 type Summary = { avgRate: number; bestWeek: { week: string; rate: number } | null; currentStreakDays: number; totalCompletions: number };
@@ -135,6 +135,44 @@ export default function MetricsChart() {
           </div>
         )}
       </div>
+
+      {/* ── PER-ACTIVITY SPARKLINES ──────────────────────────────────── */}
+      {series.length > 0 && (
+        <div className="space-y-3">
+          <div className="subtle text-xs uppercase tracking-wider font-medium">Per-Activity (last 12 weeks)</div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {series.map((s, i) => {
+              const recent = s.weeks.slice(-12);
+              const avg = recent.length ? recent.reduce((a, w) => a + w.rate, 0) / recent.length : 0;
+              const color = colors[i % colors.length];
+              return (
+                <div key={s.id} className="card p-3 space-y-2">
+                  <div className="text-xs font-medium truncate" title={s.name}>{s.name}</div>
+                  <div className="text-xl font-bold" style={{ color }}>{Math.round(avg * 100)}%</div>
+                  <div className="h-10 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={recent} margin={{ top: 2, right: 2, left: 0, bottom: 0 }}>
+                        <Line type="monotone" dataKey="rate" stroke={color} dot={false} strokeWidth={1.5} />
+                        <Tooltip
+                          content={({ payload }) => {
+                            if (!payload?.length) return null;
+                            const p = payload[0]?.payload as { week: string; rate: number };
+                            return (
+                              <div className="card rounded px-2 py-1 text-xs shadow" style={{ borderColor: 'var(--border)' }}>
+                                {p.week}: {Math.round(p.rate * 100)}%
+                              </div>
+                            );
+                          }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
