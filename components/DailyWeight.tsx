@@ -56,10 +56,15 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
   async function save() {
     const w = parseFloat(weight);
     if (!isFinite(w)) return;
-    setSaving(true);
-    await fetch(`/api/weights?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: dateISO, weight: w }) });
+    // Optimistic: update cache and mark saved immediately
     try { setCache(`weight:${account}:${dateISO}`, { weight: w }); } catch {}
-    setSaving(false);
+    setLastUpdated(new Date().toLocaleTimeString());
+    setSaving(true);
+    fetch(`/api/weights?account=${encodeURIComponent(account)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateISO, weight: w }),
+    }).finally(() => setSaving(false));
   }
 
   const pretty = new Date(dateISO).toLocaleDateString(undefined);

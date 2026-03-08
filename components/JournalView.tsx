@@ -73,14 +73,23 @@ export default function JournalView() {
 
 
   async function setMood(score: number) {
+    const prev = moodScore;
+    // Optimistic update — apply immediately
+    setMoodScore(score);
+    try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch { }
     try {
       const res = await fetch(`/api/moods?account=${encodeURIComponent(account)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: selectedDate, score })
       });
-      if (!res.ok) return;
-      setMoodScore(score);
-      try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch { }
-    } catch { }
+      if (!res.ok) {
+        // Roll back on failure
+        setMoodScore(prev);
+        try { setCache(`mood:${account}:${selectedDate}`, { score: prev }); } catch { }
+      }
+    } catch {
+      setMoodScore(prev);
+      try { setCache(`mood:${account}:${selectedDate}`, { score: prev }); } catch { }
+    }
   }
 
   return (

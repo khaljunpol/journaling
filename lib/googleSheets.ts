@@ -25,7 +25,12 @@ function getSpreadsheetId() {
   return id;
 }
 
+// Sheets confirmed to exist in this process — avoids redundant metadata fetches
+const knownSheets = new Set<string>();
+
 async function ensureSheetExists(title: string, headers?: string[]) {
+  if (knownSheets.has(title)) return;
+
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
@@ -37,15 +42,17 @@ async function ensureSheetExists(title: string, headers?: string[]) {
         requests: [{ addSheet: { properties: { title } } }],
       },
     });
+    if (headers && headers.length) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${title}!A1`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [headers] },
+      });
+    }
   }
-  if (headers && headers.length) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${title}!A1`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [headers] },
-    });
-  }
+
+  knownSheets.add(title);
 }
 
 // Data model (separate tabs per account):

@@ -47,10 +47,15 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   }, [dateISO, account]);
 
   async function save() {
-    setSaving(true);
-    await fetch(`/api/highlights?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: dateISO, text }) });
+    // Optimistic: update cache and mark saved immediately
     try { setCache(`highlight:${account}:${dateISO}`, { text }); } catch {}
-    setSaving(false);
+    setLastUpdated(new Date().toLocaleTimeString());
+    setSaving(true);
+    fetch(`/api/highlights?account=${encodeURIComponent(account)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateISO, text }),
+    }).finally(() => setSaving(false));
   }
 
   const pretty = new Date(dateISO).toLocaleDateString(undefined );

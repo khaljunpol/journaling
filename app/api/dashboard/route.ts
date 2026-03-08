@@ -36,20 +36,24 @@ export async function GET(req: Request) {
       return await res.json();
     };
 
-    // Sequential to avoid Sheets burst limits
-    const activities = await fetchJson(`/api/activities?account=${encodeURIComponent(account)}`);
-    const catalog = await fetchJson(`/api/catalog`);
-    const logs30 = await fetchJson(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-    const weights8w = await fetchJson(`/api/weights?from=${eightWeeksAgoISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-    const highlights30 = await fetchJson(`/api/highlights?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-    const moods7 = await fetchJson(`/api/moods?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-    const moodsPrev7 = await fetchJson(`/api/moods?from=${prevWeekFromISO}&to=${prevWeekToISO}&account=${encodeURIComponent(account)}`);
-    const metrics = await fetchJson(`/api/metrics?account=${encodeURIComponent(account)}`);
-    const timeCategories = await fetchJson(`/api/time/categories?account=${encodeURIComponent(account)}`);
-    const timeY = await fetchJson(`/api/time?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`);
-    const climb30 = await fetchJson(`/api/climbing/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`);
-    const goals = await fetchJson(`/api/climbing/goals?account=${encodeURIComponent(account)}`);
-    const climbY = await fetchJson(`/api/climbing/logs?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`);
+    // Run in parallel batches to balance speed vs. Sheets API rate limits
+    const [activities, catalog, logs30, weights8w, highlights30] = await Promise.all([
+      fetchJson(`/api/activities?account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/catalog`),
+      fetchJson(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/weights?from=${eightWeeksAgoISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/highlights?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+    ]);
+    const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY] = await Promise.all([
+      fetchJson(`/api/moods?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/moods?from=${prevWeekFromISO}&to=${prevWeekToISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/metrics?account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/time/categories?account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/time?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/climbing/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/climbing/goals?account=${encodeURIComponent(account)}`),
+      fetchJson(`/api/climbing/logs?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`),
+    ]);
 
     return NextResponse.json({
       account,
