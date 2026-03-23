@@ -10,7 +10,7 @@ async function verify(token: string) {
 }
 
 // Public routes that don't require authentication
-const PUBLIC_PATHS = ['/login', '/api/login', '/api/logout'];
+const PUBLIC_PATHS = ['/login', '/api/login', '/api/logout', '/sw.js', '/manifest.webmanifest', '/icon'];
 
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;

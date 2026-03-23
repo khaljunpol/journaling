@@ -1,10 +1,8 @@
 const CACHE_NAME = 'journal-v1';
-const PRECACHE = ['/'];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE))
-  );
+self.addEventListener('install', () => {
+  // Nothing to precache — pages require auth so fetching them here would fail.
+  // skipWaiting ensures the SW activates immediately after install.
   self.skipWaiting();
 });
 
@@ -18,40 +16,41 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle same-origin GET requests; let API/auth pass through normally
   const { request } = event;
   const url = new URL(request.url);
 
-  if (request.method !== 'GET' || url.origin !== self.location.origin) {
-    return;
-  }
+  // Only handle same-origin GET requests
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // API and auth routes: always network-first, no caching
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/login')) {
-    return;
-  }
-
-  // Static assets: cache-first
+  // Never cache auth, API, or SW itself
   if (
-    url.pathname.startsWith('/_next/static/') ||
-    url.pathname.startsWith('/static/')
-  ) {
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/login') ||
+    url.pathname === '/sw.js'
+  ) return;
+
+  // Static Next.js assets: cache-first (they have content hashes so never go stale)
+  if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        return res;
-      }))
+      caches.match(request).then(
+        (cached) => cached || fetch(request).then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return res;
+        })
+      )
     );
     return;
   }
 
-  // Pages: network-first, fall back to cache
+  // Everything else (pages, icons): network-first, fall back to cache
   event.respondWith(
     fetch(request)
       .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(request))
