@@ -1,6 +1,7 @@
 "use client";
 
 import { getCache, setCache } from '@/lib/cache';
+import { parseCookies } from '@/lib/apiHelpers';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,86 +13,87 @@ function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function parseLocalDate(s: string) { const [y, m, d] = s.split('-').map((x) => parseInt(x, 10)); return new Date(y, (m || 1) - 1, d || 1); }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 export default function TimeTrackerView() {
   const [account, setAccount] = useState<string>('Alex');
   const [date] = useState<string>(localTodayISO());
   const [hours, setHours] = useState<Array<number | null>>(Array.from({ length: 24 }, () => null));
   const [yearLogs, setYearLogs] = useState<Array<TimeEntry>>([]);
-  const [selectedCategory, setSelectedCategory] = useState<number>(1); // default to 'work'
+  const [selectedCategory, setSelectedCategory] = useState<number>(1);
   const [isPainting, setIsPainting] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [viewYear, setViewYear] = useState<number>(new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState<number>(new Date().getMonth()); // 0-11
-  // Legend always open; no toggle state
+  const [viewMonth, setViewMonth] = useState<number>(new Date().getMonth());
   const [draft, setDraft] = useState<Record<string, Record<number, number>>>({});
-  const [lastPaintAt, setLastPaintAt] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [cats, setCats] = useState<CatItem[]>([]);
   const ctrlRef = useRef<AbortController | null>(null);
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [dayUpdatedMs, setDayUpdatedMs] = useState<number | null>(null);
-  const [yearUpdatedMs, setYearUpdatedMs] = useState<number | null>(null);
-  const [catsUpdatedMs, setCatsUpdatedMs] = useState<number | null>(null);
+
+  const unsavedCount = useMemo(
+    () => Object.values(draft).reduce((sum, hm) => sum + Object.keys(hm).length, 0),
+    [draft],
+  );
 
   useEffect(() => {
-    const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
+    const cookieAccount = (() => {
+      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
+    })();
     const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
     const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
     const onAccountChange = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
+      const cookieAcc = (() => { try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; } })();
       setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
     };
-    const onResize = () => setIsMobile(window.innerWidth < 640);
-    onResize();
     window.addEventListener('storage', onStorage);
     window.addEventListener('account-change', onAccountChange as EventListener);
-    window.addEventListener('resize', onResize);
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); window.removeEventListener('resize', onResize); };
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('account-change', onAccountChange as EventListener);
+    };
   }, []);
 
   async function refresh() {
     try {
       if (ctrlRef.current) ctrlRef.current.abort();
       ctrlRef.current = new AbortController();
-      // Apply cached immediately
+
       const dayKey = `time:day:${account}:${date}`;
       const cachedDay = getCache<Array<TimeEntry>>(dayKey);
       if (cachedDay) {
-        const items = Array.isArray(cachedDay.data) ? cachedDay.data : [];
         const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
-        for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
+        for (const it of Array.isArray(cachedDay.data) ? cachedDay.data : []) {
+          if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null;
+        }
         setHours(arr);
-        try { setDayUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch { }
       }
       const res = await fetch(`/api/time?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
       const items: Array<TimeEntry> = (res.ok ? await res.json() : []) || [];
       const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
       for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
       setHours(arr);
-      try { setCache(dayKey, items); } catch { }
-      setDayUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
-      // Year range based on selected viewYear
+      try { setCache(dayKey, items); } catch {}
+
       const yFrom = `${viewYear}-01-01`;
       const yTo = `${viewYear}-12-31`;
       const yearKey = `time:year:${account}:${viewYear}`;
       const cachedYear = getCache<Array<TimeEntry>>(yearKey);
-      if (cachedYear) { setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []); try { setYearUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedYear.cachedAt))); } catch { } }
+      if (cachedYear) setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []);
       const yRes = await fetch(`/api/time?from=${yFrom}&to=${yTo}&account=${encodeURIComponent(account)}`);
       const yItems: Array<TimeEntry> = yRes.ok ? await yRes.json() : [];
       setYearLogs(Array.isArray(yItems) ? yItems : []);
-      try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch { }
-      setYearUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
-      // Categories for legend and colors
+      try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch {}
+
       const catsKey = `time:cats:${account}`;
       const cachedCats = getCache<CatItem[]>(catsKey);
-      if (cachedCats) { setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []); try { setCatsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedCats.cachedAt))); } catch { } }
+      if (cachedCats) setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []);
       const cRes = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`);
       const list: CatItem[] = cRes.ok ? await cRes.json() : [];
       setCats(Array.isArray(list) ? list : []);
-      try { setCache(catsKey, Array.isArray(list) ? list : []); } catch { }
-      setCatsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
+      try { setCache(catsKey, Array.isArray(list) ? list : []); } catch {}
     } catch {
       setHours(Array.from({ length: 24 }, () => null));
     }
@@ -100,42 +102,39 @@ export default function TimeTrackerView() {
   useEffect(() => { refresh(); }, [account, viewYear]);
 
   async function saveBatchForDate(iso: string, items: Array<{ h: number; category: number }>) {
-    if (!items.length) return;
-    const body = { date: iso, entries: items.map((it) => ({ hour: it.h, category: it.category })) };
-    const res = await fetch(`/api/time?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (res.ok) {
-      if (iso === localTodayISO()) {
-        const next = hours.slice();
-        for (const it of items) { next[it.h] = it.category; }
-        setHours(next);
-      }
-      return true;
+    if (!items.length) return false;
+    const res = await fetch(`/api/time?account=${encodeURIComponent(account)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: iso, entries: items.map((it) => ({ hour: it.h, category: it.category })) }),
+    });
+    if (res.ok && iso === localTodayISO()) {
+      const next = hours.slice();
+      for (const it of items) next[it.h] = it.category;
+      setHours(next);
     }
-    return false;
+    return res.ok;
   }
 
   async function flushDraft() {
     const byIso: Record<string, Array<{ h: number; category: number }>> = {};
     for (const iso of Object.keys(draft)) {
-      const hoursMap = draft[iso] || {};
       const arr: Array<{ h: number; category: number }> = [];
-      for (const k of Object.keys(hoursMap)) {
+      for (const k of Object.keys(draft[iso] || {})) {
         const h = parseInt(k, 10);
-        const category = hoursMap[h];
+        const category = draft[iso][h];
         if (Number.isFinite(h) && Number.isFinite(category)) arr.push({ h, category });
       }
       if (arr.length) byIso[iso] = arr.sort((a, b) => a.h - b.h);
     }
-    const isoKeys = Object.keys(byIso);
-    if (isoKeys.length === 0) return;
+    if (!Object.keys(byIso).length) return;
     setIsSaving(true);
     try {
-      for (const iso of isoKeys) {
+      for (const iso of Object.keys(byIso)) {
         // eslint-disable-next-line no-await-in-loop
         await saveBatchForDate(iso, byIso[iso]);
       }
       setDraft({});
-      setLastPaintAt(null);
       await refresh();
     } finally {
       setIsSaving(false);
@@ -145,20 +144,18 @@ export default function TimeTrackerView() {
   function onPointerUp() { setIsPainting(false); }
   useEffect(() => {
     window.addEventListener('pointerup', onPointerUp);
-    return () => { window.removeEventListener('pointerup', onPointerUp); };
+    return () => window.removeEventListener('pointerup', onPointerUp);
   }, []);
 
-  // Auto-save removed: only explicit Save triggers persist changes
-
   const catsSorted = useMemo(() => [...cats].sort((a, b) => a.order - b.order), [cats]);
+
   function getColor(idNum: number) {
-    const it = cats.find((c) => parseInt(c.id, 10) === idNum);
-    return it?.color || 'transparent';
+    return cats.find((c) => parseInt(c.id, 10) === idNum)?.color || 'transparent';
   }
   function getName(idNum: number) {
-    const it = cats.find((c) => parseInt(c.id, 10) === idNum);
-    return it?.name || String(idNum);
+    return cats.find((c) => parseInt(c.id, 10) === idNum)?.name || String(idNum);
   }
+
   function buildDist(items: Array<{ date: string; hour: number; category: number }>) {
     const counts: Record<number, number> = {};
     for (const it of items) { if (typeof it.category === 'number') counts[it.category] = (counts[it.category] || 0) + 1; }
@@ -167,283 +164,410 @@ export default function TimeTrackerView() {
       return { name: c.name, value: counts[idNum] || 0, index: idNum };
     });
   }
+
   const yearDist = useMemo(() => buildDist(yearLogs), [yearLogs, catsSorted]);
-  const monthDist = useMemo(() => {
-    return buildDist(yearLogs.filter((it) => {
+  const monthDist = useMemo(() => buildDist(
+    yearLogs.filter((it) => {
       const d = parseLocalDate(it.date);
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }));
-  }, [yearLogs, viewYear, viewMonth, catsSorted]);
+    })
+  ), [yearLogs, viewYear, viewMonth, catsSorted]);
 
-  const weeklyHours = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      const count = yearLogs.filter(l => l.date === iso).length;
-      return { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), hours: count };
-    });
-  }, [yearLogs]);
+  const weeklyHours = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), hours: yearLogs.filter(l => l.date === iso).length };
+  }), [yearLogs]);
+
+  const weeklyTotal = weeklyHours.reduce((a, d) => a + d.hours, 0);
+
+  const currentDist = viewMode === 'month' ? monthDist : yearDist;
+  const distTotal = currentDist.reduce((s, d) => s + d.value, 0);
+  const distFiltered = [...currentDist].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+
+  function prevPeriod() {
+    if (viewMode === 'month') {
+      if (viewMonth === 0) { setViewYear(v => v - 1); setViewMonth(11); }
+      else setViewMonth(m => m - 1);
+    } else {
+      setViewYear(v => v - 1);
+    }
+  }
+  function nextPeriod() {
+    if (viewMode === 'month') {
+      if (viewMonth === 11) { setViewYear(v => v + 1); setViewMonth(0); }
+      else setViewMonth(m => m + 1);
+    } else {
+      setViewYear(v => v + 1);
+    }
+  }
+
+  const periodLabel = viewMode === 'month'
+    ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
+    : String(viewYear);
 
   return (
     <section className="space-y-6">
-      {/* ── LAST 7 DAYS ────────────────────────────────────────────── */}
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold">Last 7 Days</div>
-          <div className="subtle text-xs">{weeklyHours.reduce((a, d) => a + d.hours, 0)}h total</div>
+
+      {/* ── LAST 7 DAYS ──────────────────────────────────────── */}
+      <div
+        className="rounded-2xl p-5 space-y-4"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-base font-semibold">Last 7 days</h2>
+          <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>
+            {weeklyTotal}h
+          </span>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>logged</span>
         </div>
-        <div className="h-28 w-full">
+        <div className="h-32 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyHours} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+            <BarChart data={weeklyHours} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip
                 cursor={{ fill: 'var(--surface-alt)' }}
                 content={({ payload, label }) => {
                   if (!payload?.length) return null;
                   return (
-                    <div className="card rounded-lg px-2 py-1 text-xs shadow-lg" style={{ borderColor: 'var(--border)' }}>
+                    <div
+                      className="rounded-xl px-3 py-1.5 text-xs shadow-lg"
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                    >
                       <span className="font-medium">{label}</span> · {payload[0]?.value}h
                     </div>
                   );
                 }}
               />
-              <Bar dataKey="hours" fill="var(--accent)" opacity={0.85} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="hours" fill="var(--accent)" opacity={0.85} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Distribution summary for current view placed above tracker */}
-      <div className="card p-4">
-        <div className="card-title">Distribution ({viewMode === 'month' ? 'Month' : 'Year'})</div>
-        {(() => { const t = Math.max(dayUpdatedMs ?? 0, yearUpdatedMs ?? 0, catsUpdatedMs ?? 0); return t ? (<div className="subtle text-xs">Updated at {new Date(t).toLocaleTimeString()}</div>) : null; })()}
-        <div className="mt-2 h-56 md:h-64 w-full relative z-10 overflow-visible">
-          {cats.length > 0 ? (
-            (() => {
-              const currentData = (viewMode === 'month' ? monthDist : yearDist).filter((d) => d.value > 0);
-              if (currentData.length === 0) {
-                return <div className="h-full w-full flex items-center justify-center subtle text-sm">No data for this {viewMode}.</div>;
-              }
-              return isMobile ? (
-                <PieChart width={320} height={208}>
+      {/* ── DISTRIBUTION ─────────────────────────────────────── */}
+      <div
+        className="rounded-2xl p-5"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        {/* Header + period nav */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold">Distribution</h2>
+          <div className="flex items-center gap-2">
+            {/* Month / Year pill toggle */}
+            <div
+              className="flex rounded-full p-0.5 text-xs"
+              style={{ background: 'var(--surface-alt)' }}
+            >
+              {(['month', 'year'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className="rounded-full px-3 py-1 font-medium transition-all capitalize"
+                  style={viewMode === mode
+                    ? { background: 'var(--accent)', color: 'var(--accent-foreground)' }
+                    : { color: 'var(--muted-foreground)' }
+                  }
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+            <button
+              aria-label="Previous period"
+              onClick={prevPeriod}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+            >←</button>
+            <span className="text-sm min-w-[110px] text-center" style={{ color: 'var(--muted-foreground)' }}>
+              {periodLabel}
+            </span>
+            <button
+              aria-label="Next period"
+              onClick={nextPeriod}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+            >→</button>
+          </div>
+        </div>
+
+        {cats.length === 0 ? (
+          <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            Loading…
+          </div>
+        ) : distFiltered.length === 0 ? (
+          <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            No data logged for this {viewMode}.
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            {/* Donut chart */}
+            <div className="relative shrink-0" style={{ width: 180, height: 180 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
                   <Pie
-                    data={currentData}
+                    data={distFiltered}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={80}
-                    label={(props: any) => {
-                      const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
-                      const x = props?.x ?? 0;
-                      const y = props?.y ?? 0;
-                      const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
-                      return (
-                        <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
-                      );
-                    }}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={58}
+                    outerRadius={82}
+                    strokeWidth={0}
+                    paddingAngle={2}
                   >
-                    {currentData.map((entry, index) => (
-                      <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
+                    {distFiltered.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={getColor(entry.index)} />
                     ))}
                   </Pie>
-                  <Tooltip wrapperStyle={{ zIndex: 50 }} />
+                  <Tooltip
+                    wrapperStyle={{ zIndex: 50 }}
+                    content={({ payload }) => {
+                      if (!payload?.length) return null;
+                      const d = payload[0];
+                      return (
+                        <div
+                          className="rounded-xl px-3 py-1.5 text-xs shadow-lg"
+                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                        >
+                          <span className="font-medium">{d.name}</span> · {d.value}h
+                        </div>
+                      );
+                    }}
+                  />
                 </PieChart>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={currentData}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={80}
-                      label={(props: any) => {
-                        const color = getColor((props && typeof props.index === 'number' ? props.index : 0));
-                        const x = props?.x ?? 0;
-                        const y = props?.y ?? 0;
-                        const pct = typeof props?.percent === 'number' ? Math.round(props.percent * 100) : '';
-                        return (
-                          <text x={x} y={y} dy={8} textAnchor="middle" fill={color} fontSize={12}>{pct !== '' ? `${pct}%` : ''}</text>
-                        );
-                      }}
-                    >
-                      {currentData.map((entry, index) => (
-                        <Cell key={`cell-dist-top-${index}`} fill={getColor(entry.index)} />
-                      ))}
-                    </Pie>
-                    <Tooltip wrapperStyle={{ zIndex: 50 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              );
-            })()
-          ) : (
-            <div className="h-full w-full flex items-center justify-center subtle text-sm">Loading categories…</div>
-          )}
-        </div>
-        <ul className="mt-4 text-sm space-y-1 relative z-0">
-          {[...(viewMode === 'month' ? monthDist : yearDist)].sort((a, b) => (b.value - a.value)).map((d) => (
-            <li key={d.index} className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded" style={{ background: getColor(d.index) }} />
-                {d.name}
-              </span>
-              <span style={{ color: getColor(d.index) }}>{d.value}h</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-lg font-medium">Time Tracker</div>
-            <div className="flex rounded border overflow-hidden shrink-0">
-              <button className={`px-2 py-1 text-xs ${viewMode === 'month' ? 'text-(--accent) border-(--accent) font-medium' : ''}`} onClick={() => setViewMode('month')}>Month</button>
-              <button className={`px-2 py-1 text-xs ${viewMode === 'year' ? 'text-(--accent) border-(--accent) font-medium' : ''}`} onClick={() => setViewMode('year')}>Year</button>
+              </ResponsiveContainer>
+              {/* Center label */}
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-semibold">{distTotal}</span>
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>hours</span>
+              </div>
             </div>
-            {/* Legend toggle removed; legend acts as picker and is always visible */}
-          </div>
-          <div className="flex items-center gap-2 justify-center sm:justify-start">
-            <button
-              className="px-2 py-1 text-xs border rounded"
-              onClick={() => {
-                if (viewMode === 'month') {
-                  const prevMonth = viewMonth - 1;
-                  if (prevMonth < 0) { setViewYear(viewYear - 1); setViewMonth(11); }
-                  else { setViewMonth(prevMonth); }
-                } else {
-                  setViewYear(viewYear - 1);
-                }
-              }}
-              title={viewMode === 'month' ? 'Previous month' : 'Previous year'}
-            >Prev</button>
-            <div className="text-sm subtle" title={viewMode === 'month' ? 'Viewing month' : 'Viewing year'}>
-              {viewMode === 'month' ? new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: 'short', year: 'numeric' }) : viewYear}
-            </div>
-            <button
-              className="px-2 py-1 text-xs border rounded"
-              onClick={() => {
-                if (viewMode === 'month') {
-                  const nextMonth = viewMonth + 1;
-                  if (nextMonth > 11) { setViewYear(viewYear + 1); setViewMonth(0); }
-                  else { setViewMonth(nextMonth); }
-                } else {
-                  setViewYear(viewYear + 1);
-                }
-              }}
-              title={viewMode === 'month' ? 'Next month' : 'Next year'}
-            >Next</button>
-          </div>
-        </div>
-        <div className="mt-3">
-          <div className="mb-3">
-            <div className="card-title">Legend</div>
-            <ul className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm">
-              {catsSorted.map((c) => {
-                const i = parseInt(c.id, 10);
-                const selected = selectedCategory === i;
+
+            {/* Distribution list with mini bars */}
+            <ul className="flex-1 w-full space-y-2">
+              {distFiltered.map((d) => {
+                const pct = distTotal > 0 ? Math.round((d.value / distTotal) * 100) : 0;
+                const color = getColor(d.index);
                 return (
-                  <li
-                    key={c.id}
-                    className={`flex items-center gap-2 px-2 py-1 rounded border cursor-pointer ${selected ? 'ring-2 ring-(--accent) font-medium' : ''}`}
-                    onClick={() => setSelectedCategory(i)}
-                    title={`Select ${c.name}`}
-                  >
-                    <span className="inline-block h-3 w-3 rounded" style={{ background: c.color }} />
-                    {c.name}
+                  <li key={d.index}>
+                    <div className="flex items-center justify-between mb-1 text-sm">
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full shrink-0"
+                          style={{ background: color }}
+                        />
+                        {d.name}
+                      </span>
+                      <span className="tabular-nums text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        {d.value}h · {pct}%
+                      </span>
+                    </div>
+                    <div className="h-1 w-full rounded-full overflow-hidden" style={{ background: 'var(--surface-alt)' }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: color }}
+                      />
+                    </div>
                   </li>
                 );
               })}
             </ul>
           </div>
-          <div className="mt-2">
-            <button className="px-2 py-1 text-xs border rounded" onClick={flushDraft} disabled={isSaving || Object.keys(draft).length === 0} title="Save changes">{isSaving ? 'Saving…' : 'Save'}</button>
+        )}
+      </div>
+
+      {/* ── TIME TRACKER GRID ────────────────────────────────── */}
+      <div
+        className="rounded-2xl p-5 space-y-4"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Time tracker</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+              {viewMode === 'month' ? periodLabel : `${periodLabel} · all months`}
+            </p>
           </div>
-          <div className="mt-4">
-            <div className="card-title">{viewMode === 'month' ? 'This Month' : 'This Year'}</div>
-            <div className="mt-2 -mx-2 px-2">
-              <DaysRows
-                viewYear={viewYear}
-                viewMode={viewMode}
-                viewMonth={viewMonth}
-                yearLogs={yearLogs}
-                draft={draft}
-                getColor={getColor}
-                paint={{
-                  isPainting,
-                  start: () => setIsPainting(true),
-                  paint: (iso: string, h: number) => {
-                    setDraft((prev) => {
-                      const next = { ...prev };
-                      const hm = { ...(next[iso] || {}) };
-                      hm[h] = selectedCategory;
-                      next[iso] = hm;
-                      return next;
-                    });
-                    setLastPaintAt(Date.now());
-                  },
-                }}
-              />
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              aria-label="Previous period"
+              onClick={prevPeriod}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+            >←</button>
+            <button
+              aria-label="Next period"
+              onClick={nextPeriod}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+            >→</button>
           </div>
+        </div>
+
+        {/* Category picker */}
+        <div>
+          <p className="text-xs mb-2 font-medium" style={{ color: 'var(--muted-foreground)' }}>Painting with</p>
+          <div className="flex flex-wrap gap-2">
+            {catsSorted.map((c) => {
+              const i = parseInt(c.id, 10);
+              const isSelected = selectedCategory === i;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(i)}
+                  title={c.name}
+                  className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                  style={isSelected
+                    ? { background: `${c.color}22`, color: c.color, boxShadow: `0 0 0 1.5px ${c.color}` }
+                    : { background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }
+                  }
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ background: c.color }}
+                  />
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Grid */}
+        <DaysRows
+          viewYear={viewYear}
+          viewMode={viewMode}
+          viewMonth={viewMonth}
+          yearLogs={yearLogs}
+          draft={draft}
+          getColor={getColor}
+          paint={{
+            isPainting,
+            start: () => setIsPainting(true),
+            paint: (iso: string, h: number) => {
+              setDraft((prev) => {
+                const next = { ...prev };
+                const hm = { ...(next[iso] || {}) };
+                hm[h] = selectedCategory;
+                next[iso] = hm;
+                return next;
+              });
+            },
+          }}
+        />
+
+        {/* Save */}
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            {unsavedCount > 0 ? `${unsavedCount} unsaved cell${unsavedCount > 1 ? 's' : ''}` : ''}
+          </span>
+          <button
+            className="rounded-xl px-4 py-2 text-sm font-medium transition-all disabled:opacity-40"
+            style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
+            onClick={flushDraft}
+            disabled={isSaving || unsavedCount === 0}
+          >
+            {isSaving ? '…' : 'Save'}
+          </button>
         </div>
       </div>
     </section>
   );
 }
 
-function DaysRows({ viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint }: { viewYear: number; viewMode: 'month' | 'year'; viewMonth: number; yearLogs: Array<{ date: string; hour: number; category: number }>; draft: Record<string, Record<number, number>>; getColor: (id: number) => string; paint: { isPainting: boolean; start: () => void; paint: (iso: string, h: number) => void } }) {
-  const year = viewYear;
+function DaysRows({
+  viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint,
+}: {
+  viewYear: number;
+  viewMode: 'month' | 'year';
+  viewMonth: number;
+  yearLogs: Array<{ date: string; hour: number; category: number }>;
+  draft: Record<string, Record<number, number>>;
+  getColor: (id: number) => string;
+  paint: { isPainting: boolean; start: () => void; paint: (iso: string, h: number) => void };
+}) {
   const byDate = new Map<string, Array<{ hour: number; category: number }>>();
   for (const it of yearLogs) {
     const arr = byDate.get(it.date) || [];
     arr.push({ hour: it.hour, category: it.category });
     byDate.set(it.date, arr);
   }
+
   const rows: Array<ReactNode> = [];
   const months = viewMode === 'year' ? Array.from({ length: 12 }, (_, i) => i) : [viewMonth];
   const todayISO = localTodayISO();
-  const currentYear = new Date().getFullYear();
+
   for (const m of months) {
-    // Month divider line with label only when showing the whole year
     if (viewMode === 'year') {
       rows.push(
-        <div key={`month-divider-${year}-${m}`} className="flex items-center gap-2 mt-3">
-          <div className="w-20 text-xs subtle">{new Date(year, m, 1).toLocaleString(undefined, { month: 'short' })}</div>
-          <div className="flex-1 border-t" />
+        <div key={`divider-${viewYear}-${m}`} className="flex items-center gap-2 mt-4 mb-1">
+          <span className="text-xs font-medium w-12 shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+            {MONTH_SHORT[m]}
+          </span>
+          <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
         </div>
       );
     }
-    const days = new Date(year, m + 1, 0).getDate();
+
+    const days = new Date(viewYear, m + 1, 0).getDate();
     for (let di = 1; di <= days; di++) {
-      const iso = `${year}-${pad(m + 1)}-${pad(di)}`;
-      const label = `${pad(m + 1)}-${pad(di)}`; // month-day only
-      const isToday = (year === currentYear) && (iso === todayISO);
+      const iso = `${viewYear}-${pad(m + 1)}-${pad(di)}`;
+      const isToday = iso === todayISO;
+      const weekday = new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' });
+
       rows.push(
-        <div key={iso} className={`flex items-center gap-0 relative ${isToday ? 'ring-2 ring-(--accent) rounded' : ''}`}>
-          <div className={`w-12 md:w-16 text-xs subtle sticky left-0 z-10 bg-(--card) ${isToday ? 'text-(--accent) font-medium' : ''}`}>{label}</div>
-          <div className="flex-1">
-            <div className="grid grid-cols-24 gap-px">
-              {Array.from({ length: 24 }, (_, h) => {
-                const logs = byDate.get(iso) || [];
-                const hit = logs.find((x) => x.hour === h);
-                const draftCategory = (draft && draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
-                const bgCategory = draftCategory !== null ? draftCategory : (hit ? hit.category : null);
-                const cellBg = (bgCategory !== null && bgCategory !== undefined) ? getColor(bgCategory as number) : 'transparent';
-                return (
-                  <div
-                    key={h}
-                    className="h-5 sm:h-6 md:h-7 rounded border flex items-center justify-center select-none text-[6px] sm:text-[7px] md:text-[10px] leading-none whitespace-nowrap overflow-hidden"
-                    style={{ background: cellBg }}
-                    onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
-                    onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
-                    title={`${iso} ${String(h + 1).padStart(2, '0')}:00`}
-                  >{String(h + 1).padStart(2, '0')}</div>
-                );
-              })}
-            </div>
+        <div
+          key={iso}
+          className="flex items-center gap-2"
+          style={isToday ? { borderRadius: 8, outline: `1.5px solid var(--accent)`, outlineOffset: 2 } : undefined}
+        >
+          {/* Date label */}
+          <div
+            className="w-8 shrink-0"
+            style={{ color: isToday ? 'var(--accent)' : 'var(--muted-foreground)' }}
+          >
+            <span className="text-[11px] font-medium">{pad(di)}</span>
+            {viewMode === 'month' && (
+              <span className="block text-[9px] leading-none opacity-60">{weekday}</span>
+            )}
+          </div>
+
+          {/* 24 hour cells */}
+          <div className="flex-1 grid grid-cols-24 gap-px">
+            {Array.from({ length: 24 }, (_, h) => {
+              const logs = byDate.get(iso) || [];
+              const hit = logs.find((x) => x.hour === h);
+              const draftCat = (draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
+              const bgCategory = draftCat !== null ? draftCat : (hit ? hit.category : null);
+              const filled = bgCategory !== null && bgCategory !== undefined;
+              const cellBg = filled ? getColor(bgCategory as number) : undefined;
+
+              return (
+                <div
+                  key={h}
+                  className="h-4 sm:h-5 rounded-[2px] select-none cursor-crosshair"
+                  style={{
+                    background: filled ? cellBg : 'var(--border)',
+                  }}
+                  onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
+                  onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
+                  title={`${iso} ${pad(h)}:00–${pad(h + 1)}:00`}
+                />
+              );
+            })}
           </div>
         </div>
       );
     }
   }
-  return <div className="mt-2 space-y-1">{rows}</div>;
+
+  return <div className="space-y-0.5">{rows}</div>;
 }

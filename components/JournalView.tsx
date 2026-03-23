@@ -6,7 +6,14 @@ import DailyWeight from '@/components/DailyWeightClient';
 import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, pad } from '@/lib/date';
 import { MOODS } from '@/lib/mood';
+import { parseCookies } from '@/lib/apiHelpers';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+
+function stepDate(iso: string, delta: number): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
@@ -14,19 +21,21 @@ export default function JournalView() {
   const [isPending, startTransition] = useTransition();
   const [account, setAccount] = useState<string>('Alex');
   const [moodScore, setMoodScore] = useState<number | null>(null);
-  const [moodUpdatedAt, setMoodUpdatedAt] = useState<string | null>(null);
-  const moods = MOODS;
-
   const moodCtrlRef = useRef<AbortController | null>(null);
 
+  const isToday = selectedDate === today;
 
+  const displayDate = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    return {
+      weekday: d.toLocaleDateString(undefined, { weekday: 'long' }),
+      full: d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
+    };
+  }, [selectedDate]);
 
   useEffect(() => {
     const cookieAccount = (() => {
-      try {
-        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : null;
-      } catch { return null; }
+      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
     })();
     const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
@@ -34,9 +43,9 @@ export default function JournalView() {
     const onAccountChange = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
       const cookieAcc = (() => {
-        try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
+        try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
       })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
+      setAccount(detail || cookieAcc || localStorage.getItem('account') || 'Alex');
     };
     window.addEventListener('storage', onStorage);
     window.addEventListener('account-change', onAccountChange as EventListener);
@@ -46,130 +55,147 @@ export default function JournalView() {
     };
   }, []);
 
-  async function fetchMood() {
-    try {
-      // Apply cached immediately
-      const cacheKey = `mood:${account}:${selectedDate}`;
-      const cached = getCache<{ score: number | null }>(cacheKey);
-      if (cached && typeof cached.data?.score === 'number') {
-        setMoodScore(cached.data.score);
-        try { setMoodUpdatedAt(new Date(cached.cachedAt).toLocaleTimeString()); } catch { }
-      }
-      // Fetch fresh
-      if (moodCtrlRef.current) moodCtrlRef.current.abort();
-      moodCtrlRef.current = new AbortController();
-      const res = await fetch(`/api/moods?date=${selectedDate}&account=${encodeURIComponent(account)}`, { signal: moodCtrlRef.current.signal });
-      if (!res.ok) { return; }
-      const data = await res.json();
-      const score = typeof data?.score === 'number' ? data.score : null;
-      setMoodScore(score);
-      setCache(cacheKey, { score });
-      setMoodUpdatedAt(new Date().toLocaleTimeString());
-    } catch { /* ignore */ }
-  }
+  useEffect(() => {
+    async function fetchMood() {
+      try {
+        const cacheKey = `mood:${account}:${selectedDate}`;
+        const cached = getCache<{ score: number | null }>(cacheKey);
+        if (cached && typeof cached.data?.score === 'number') setMoodScore(cached.data.score);
+        if (moodCtrlRef.current) moodCtrlRef.current.abort();
+        moodCtrlRef.current = new AbortController();
+        const res = await fetch(`/api/moods?date=${selectedDate}&account=${encodeURIComponent(account)}`, { signal: moodCtrlRef.current.signal });
+        if (!res.ok) return;
+        const data = await res.json();
+        const score = typeof data?.score === 'number' ? data.score : null;
+        setMoodScore(score);
+        setCache(cacheKey, { score });
+      } catch { /* ignore */ }
+    }
+    fetchMood();
+  }, [selectedDate, account]);
 
-  useEffect(() => { fetchMood(); }, [selectedDate, account]);
-
-
-
-  async function setMood(score: number) {
+  async function saveMood(score: number) {
     const prev = moodScore;
-    // Optimistic update — apply immediately
     setMoodScore(score);
-    try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch { }
+    try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch {}
     try {
       const res = await fetch(`/api/moods?account=${encodeURIComponent(account)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: selectedDate, score })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedDate, score }),
       });
-      if (!res.ok) {
-        // Roll back on failure
-        setMoodScore(prev);
-        try { setCache(`mood:${account}:${selectedDate}`, { score: prev }); } catch { }
-      }
-    } catch {
-      setMoodScore(prev);
-      try { setCache(`mood:${account}:${selectedDate}`, { score: prev }); } catch { }
-    }
+      if (!res.ok) { setMoodScore(prev); }
+    } catch { setMoodScore(prev); }
   }
+
+  const selectedMood = MOODS.find((m) => m.score === moodScore);
 
   return (
     <div className="space-y-8 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 card p-4">
-        <div className="text-lg font-medium">
-          {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-        </div>
-        <div className="w-full sm:w-auto overflow-x-auto max-w-full">
-          <div className="flex items-center gap-2 px-2 whitespace-nowrap">
-            <button
-              className="shrink-0 btn-outline"
-              disabled={isPending}
-              onClick={() => {
-                startTransition(() => {
-                  const d = new Date(selectedDate);
-                  d.setDate(d.getDate() - 1);
-                  setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-                });
-              }}
-            >
-              Previous
-            </button>
-            <button
-              className="shrink-0 btn-outline"
-              disabled={isPending}
-              onClick={() => startTransition(() => setSelectedDate(localTodayISO()))}
-            >
-              Today
-            </button>
-            <input
-              type="date"
-              className="shrink-0 input"
-              value={selectedDate}
-              onChange={(e) => startTransition(() => setSelectedDate(e.target.value))}
-            />
-            <button
-              className="shrink-0 btn-outline"
-              disabled={isPending}
-              onClick={() => {
-                startTransition(() => {
-                  const d = new Date(selectedDate);
-                  d.setDate(d.getDate() + 1);
-                  setSelectedDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-                });
-              }}
-            >
-              Next
-            </button>
+
+      {/* ── Date navigation ────────────────────────────────── */}
+      <div className="flex flex-col items-center gap-2 pt-2">
+        <div className="flex items-center gap-4">
+          <button
+            aria-label="Previous day"
+            disabled={isPending}
+            onClick={() => startTransition(() => setSelectedDate(stepDate(selectedDate, -1)))}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+          >
+            ←
+          </button>
+
+          <div className="text-center">
+            <div className="text-2xl font-semibold tracking-tight">{displayDate.weekday}</div>
+            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{displayDate.full}</div>
           </div>
+
+          <button
+            aria-label="Next day"
+            disabled={isPending}
+            onClick={() => startTransition(() => setSelectedDate(stepDate(selectedDate, 1)))}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+          >
+            →
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!isToday && (
+            <button
+              onClick={() => startTransition(() => setSelectedDate(today))}
+              className="text-xs px-3 py-1 rounded-full border transition-colors"
+              style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'transparent' }}
+            >
+              Jump to today
+            </button>
+          )}
+          <input
+            type="date"
+            className="text-xs rounded-full border px-3 py-1 outline-none"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--muted-foreground)' }}
+            value={selectedDate}
+            onChange={(e) => startTransition(() => setSelectedDate(e.target.value))}
+          />
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="w-full overflow-x-auto max-w-full">
-          <div className="px-2">
-            <ActivityCalendar selectedDateISO={selectedDate} onSelectDate={(d) => startTransition(() => setSelectedDate(d))} />
-          </div>
-        </div>
-        {isPending ? <span className="muted text-xs shrink-0 ml-2">Updating…</span> : null}
+      {/* ── Activity calendar ───────────────────────────────── */}
+      <div>
+        <ActivityCalendar
+          selectedDateISO={selectedDate}
+          onSelectDate={(d) => startTransition(() => setSelectedDate(d))}
+        />
+        {isPending && <div className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>Updating…</div>}
       </div>
-      <div className="card p-4">
-        <div className="card-title">How are you feeling today?</div>
-        {moodUpdatedAt ? (<div className="subtle text-xs">Updated at {moodUpdatedAt}</div>) : null}
-        <div className="mt-2 flex flex-wrap gap-2">
-          {moods.map((m) => (
-            <button
-              key={m.score}
-              className={`btn-outline text-xl px-3 py-2 ${moodScore === m.score ? '' : ''}`}
-              style={moodScore === m.score ? { boxShadow: '0 0 0 3px var(--ring)' } : undefined}
-              title={`${m.label} (${m.score}/10)`}
-              onClick={() => setMood(m.score)}
-            >
-              {m.emoji}
-            </button>
-          ))}
+
+      {/* ── Mood ────────────────────────────────────────────── */}
+      <div>
+        <div className="mb-3 flex items-baseline gap-2">
+          <h2 className="text-base font-semibold">How are you feeling?</h2>
+          {selectedMood && (
+            <span className="text-sm font-medium transition-all" style={{ color: selectedMood.color }}>
+              {selectedMood.label}
+            </span>
+          )}
         </div>
-        <div className="mt-2 subtle">Selected: {typeof moodScore === 'number' ? `${moodScore}/10` : '—'}</div>
+        <div className="flex flex-wrap gap-2">
+          {MOODS.map((m) => {
+            const isSelected = moodScore === m.score;
+            return (
+              <button
+                key={m.score}
+                title={`${m.label} (${m.score}/10)`}
+                onClick={() => saveMood(m.score)}
+                className="relative flex flex-col items-center justify-center rounded-xl transition-all"
+                style={{
+                  width: 52,
+                  height: 52,
+                  fontSize: 26,
+                  background: `${m.color}22`,
+                  boxShadow: isSelected ? `0 0 0 2px ${m.color}` : undefined,
+                  transform: isSelected ? 'scale(1.12)' : undefined,
+                }}
+              >
+                {m.emoji}
+                {isSelected && (
+                  <span
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full"
+                    style={{ background: m.color }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* ── Highlight ───────────────────────────────────────── */}
       <DailyHighlight dateISO={selectedDate} />
+
+      {/* ── Weight ──────────────────────────────────────────── */}
       <DailyWeight dateISO={selectedDate} />
 
     </div>

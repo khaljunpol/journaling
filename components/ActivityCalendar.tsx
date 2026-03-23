@@ -4,8 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
 import { normalizeStatus } from '@/lib/status';
 import { getCache, setCache } from '@/lib/cache';
-
-// Types are imported from shared lib
+import { parseCookies } from '@/lib/apiHelpers';
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -15,6 +14,8 @@ function pad(n: number) { return String(n).padStart(2, '0'); }
 function toLocalISO(y: number, m: number, d: number) {
   return `${y}-${pad(m + 1)}-${pad(d)}`;
 }
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { selectedDateISO?: string; onSelectDate?: (dateISO: string) => void }) {
   const now = new Date();
@@ -27,23 +28,17 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const todayM = today.getMonth();
   const todayD = today.getDate();
   const [account, setAccount] = useState<string>('Alex');
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const todayBtnRef = useRef<HTMLButtonElement | null>(null);
   const actsVersionRef = useRef(0);
   const logsVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
   const logsCtrlRef = useRef<AbortController | null>(null);
-  const [actsUpdatedMs, setActsUpdatedMs] = useState<number | null>(null);
-  const [logsUpdatedMs, setLogsUpdatedMs] = useState<number | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => {
-      try {
-        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : null;
-      } catch { return null; }
+      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
     })();
     const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
@@ -51,7 +46,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     const onAccountChange = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
       const cookieAcc = (() => {
-        try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
+        try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
       })();
       setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
     };
@@ -72,10 +67,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     try {
       if (actsCtrlRef.current) actsCtrlRef.current.abort();
       actsCtrlRef.current = new AbortController();
-      // Apply cached immediately
       const cacheKey = `activities:${account}`;
       const cached = getCache<Activity[]>(cacheKey);
-      // Helper to apply persisted order
       const applyOrder = (arr: Activity[]) => {
         const orderKey = `activitiesOrder:${account}`;
         const cachedOrder = getCache<string[]>(orderKey);
@@ -90,7 +83,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       if (cached && vActs === actsVersionRef.current) {
         const base = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
         setActivities(applyOrder(base));
-        try { setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
       }
       const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
@@ -98,7 +90,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
       if (vActs === actsVersionRef.current) setActivities(applyOrder(arr));
       try { setCache<Activity[]>(cacheKey, arr); } catch {}
-      setActsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
   }
 
@@ -114,7 +105,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         const map: Record<string, boolean> = {};
         for (const l of data) { map[`${l.date}|${l.activityId}`] = !!l.completed; }
         setLogs(map);
-        try { setLogsUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
       }
       const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: logsCtrlRef.current.signal });
       if (!res.ok) { if (vLogs === logsVersionRef.current) setLogs({}); return; }
@@ -125,12 +115,10 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
       }
       if (vLogs === logsVersionRef.current) setLogs(map);
       try { setCache<Log[]>(cacheKey, Array.isArray(data) ? data : []); } catch {}
-      setLogsUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
     } catch { if (vLogs === logsVersionRef.current) setLogs({}); }
   }
 
   useEffect(() => {
-    // Clear on account change and abort in-flight requests
     if (actsCtrlRef.current) actsCtrlRef.current.abort();
     if (logsCtrlRef.current) logsCtrlRef.current.abort();
     setActivities([]);
@@ -139,7 +127,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [account]);
   useEffect(() => { fetchRangeLogs(); }, [fromISO, toISO, account]);
 
-  // On load and when month/year changes, scroll horizontally to today's column if visible
   useEffect(() => {
     if (year === todayY && month === todayM && todayBtnRef.current) {
       todayBtnRef.current.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -147,7 +134,11 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [year, month]);
 
   async function toggle(dateISO: string, activityId: string, checked: boolean) {
-    const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: dateISO, activityId, completed: checked }) });
+    const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateISO, activityId, completed: checked }),
+    });
     if (!res.ok) return;
     setLogs((prev) => ({ ...prev, [`${dateISO}|${activityId}`]: checked }));
   }
@@ -157,19 +148,10 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }
 
   function prevMonth() {
-    setMonth((m) => {
-      const nm = m === 0 ? 11 : m - 1;
-      setYear((y) => (m === 0 ? y - 1 : y));
-      return nm;
-    });
+    setMonth((m) => { const nm = m === 0 ? 11 : m - 1; setYear((y) => (m === 0 ? y - 1 : y)); return nm; });
   }
-
   function nextMonth() {
-    setMonth((m) => {
-      const nm = m === 11 ? 0 : m + 1;
-      setYear((y) => (m === 11 ? y + 1 : y));
-      return nm;
-    });
+    setMonth((m) => { const nm = m === 11 ? 0 : m + 1; setYear((y) => (m === 11 ? y + 1 : y)); return nm; });
   }
 
   const selectedDay = useMemo(() => {
@@ -180,115 +162,171 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [selectedDateISO, year, month]);
 
   function selectDay(day: number) {
-    const dateISO = toLocalISO(year, month, day);
-    onSelectDate?.(dateISO);
+    onSelectDate?.(toLocalISO(year, month, day));
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button className="btn-outline" onClick={prevMonth}>Prev</button>
-        <div className="font-medium">{new Date(year, month, 1).toLocaleString(undefined, { month: 'long' })} {year}</div>
-        <button className="btn-outline" onClick={nextMonth}>Next</button>
+    <section className="space-y-3">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <button
+          aria-label="Previous month"
+          onClick={prevMonth}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+          style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+        >
+          ←
+        </button>
+        <span className="text-sm font-semibold tracking-wide">
+          {MONTH_NAMES[month]} {year}
+        </span>
+        <button
+          aria-label="Next month"
+          onClick={nextMonth}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+          style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+        >
+          →
+        </button>
       </div>
-      {(() => { const t = Math.max(actsUpdatedMs ?? 0, logsUpdatedMs ?? 0); return t ? (<div className="subtle text-xs">Updated at {new Date(t).toLocaleTimeString()}</div>) : null; })()}
 
-      <div ref={scrollRef} className="overflow-auto card">
+      {/* Scrollable grid */}
+      <div
+        className="overflow-auto rounded-2xl"
+        style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}
+      >
         <table className="min-w-full border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 bg-(--surface) p-2 text-left">Activity</th>
-              {days.map((d) => (
-                <th key={d} className="p-2 text-xs font-medium" style={selectedDay === d ? { background: 'var(--surface-alt)' } : undefined}>
-                  <button
-                    ref={year === todayY && month === todayM && d === todayD ? (el) => { todayBtnRef.current = el; } : undefined}
-                    className={`cursor-pointer rounded-full px-3 py-1 transition-colors ${
-                      selectedDay === d
-                        ? 'ring-2'
-                        : (year === todayY && month === todayM && d === todayD)
-                          ? ''
-                          : ''
-                    }`}
-                    style={
-                      selectedDay === d
-                        ? { background: 'var(--accent)', color: 'var(--accent-foreground)', outline: 'none', boxShadow: '0 0 0 2px var(--ring)' }
-                        : (year === todayY && month === todayM && d === todayD)
-                          ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.7 }
-                          : { background: 'var(--surface-alt)', color: 'var(--text)' }
-                    }
-                    onClick={() => selectDay(d)}
-                    aria-pressed={selectedDay === d}
-                    title={`Select ${year}-${pad(month + 1)}-${pad(d)}`}
+              {/* Activity column header */}
+              <th
+                className="sticky left-0 z-10 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                style={{ background: 'var(--surface)', color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}
+              >
+                Activity
+              </th>
+              {days.map((d) => {
+                const isToday = year === todayY && month === todayM && d === todayD;
+                const isSelected = selectedDay === d;
+                return (
+                  <th
+                    key={d}
+                    className="px-1 py-3 text-center"
+                    style={{ borderBottom: '1px solid var(--border)', minWidth: 36 }}
                   >
-                    {d}
-                  </button>
-                </th>
-              ))}
+                    <button
+                      ref={isToday ? (el) => { todayBtnRef.current = el; } : undefined}
+                      onClick={() => selectDay(d)}
+                      aria-pressed={isSelected}
+                      title={toLocalISO(year, month, d)}
+                      className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-all"
+                      style={
+                        isSelected
+                          ? { background: 'var(--accent)', color: 'var(--accent-foreground)', boxShadow: '0 0 0 2px var(--accent)' }
+                          : isToday
+                            ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.6 }
+                            : { color: 'var(--muted-foreground)' }
+                      }
+                    >
+                      {d}
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {activities.map((a) => (
-              <tr
-                key={a.id}
-                draggable
-                onDragStart={(e) => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverId(a.id); e.dataTransfer.dropEffect = 'move'; }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (!dragId || dragId === a.id) { setDragOverId(null); return; }
-                  const fromIdx = activities.findIndex(x => x.id === dragId);
-                  const toIdx = activities.findIndex(x => x.id === a.id);
-                  if (fromIdx < 0 || toIdx < 0) { setDragOverId(null); return; }
-                  const next = activities.slice();
-                  const [moved] = next.splice(fromIdx, 1);
-                  next.splice(toIdx, 0, moved);
-                  setActivities(next);
-                  setDragOverId(null);
-                  setDragId(null);
-                  try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
-                }}
-                onDragEnd={() => { setDragOverId(null); setDragId(null); }}
-                style={dragOverId === a.id ? { background: 'var(--surface-alt)' } : undefined}
-              >
-                <td className="sticky left-0 bg-(--surface) p-2 text-sm cursor-move" title="Drag to reorder">
-                  <div className="flex items-center gap-2">
-                    <span className={(a.status || 'to continue') === 'to stop' ? 'text-red-600 line-through italic dark:text-red-400' : ''}>
+            {activities.map((a, idx) => {
+              const isStopped = (a.status || 'to continue') === 'to stop';
+              return (
+                <tr
+                  key={a.id}
+                  draggable
+                  onDragStart={(e) => { setDragId(a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverId(a.id); e.dataTransfer.dropEffect = 'move'; }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (!dragId || dragId === a.id) { setDragOverId(null); return; }
+                    const fromIdx = activities.findIndex(x => x.id === dragId);
+                    const toIdx = activities.findIndex(x => x.id === a.id);
+                    if (fromIdx < 0 || toIdx < 0) { setDragOverId(null); return; }
+                    const next = activities.slice();
+                    const [moved] = next.splice(fromIdx, 1);
+                    next.splice(toIdx, 0, moved);
+                    setActivities(next);
+                    setDragOverId(null);
+                    setDragId(null);
+                    try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
+                  }}
+                  onDragEnd={() => { setDragOverId(null); setDragId(null); }}
+                  style={dragOverId === a.id ? { background: 'color-mix(in oklab, var(--accent) 8%, transparent)' } : undefined}
+                >
+                  {/* Activity name cell */}
+                  <td
+                    className="sticky left-0 z-10 cursor-move px-4 py-2"
+                    style={{
+                      background: dragOverId === a.id
+                        ? 'color-mix(in oklab, var(--accent) 8%, var(--surface))'
+                        : 'var(--surface)',
+                      borderTop: idx > 0 ? '1px solid var(--border)' : undefined,
+                    }}
+                    title="Drag to reorder"
+                  >
+                    <span
+                      className="text-sm"
+                      style={{
+                        color: isStopped ? 'var(--muted-foreground)' : 'var(--text)',
+                        textDecoration: isStopped ? 'line-through' : undefined,
+                        fontStyle: isStopped ? 'italic' : undefined,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {a.name}
                     </span>
-                  </div>
-                </td>
-                {days.map((d) => {
-                  const dateISO = toLocalISO(year, month, d);
-                  const checked = cellChecked(dateISO, a.id);
-                  const isSelected = selectedDay === d;
-                  const isToday = year === todayY && month === todayM && d === todayD;
-                  return (
-                    <td
-                      key={d}
-                      className="p-2 text-center"
-                      style={
-                        isSelected
-                          ? { background: 'var(--surface-alt)', boxShadow: 'inset 0 0 0 1px var(--border)' }
-                          : isToday
-                            ? { background: 'color-mix(in oklab, var(--accent) 10%, transparent)', boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent)' }
-                            : undefined
-                      }
-                    >
-                      <label className="inline-flex cursor-pointer select-none items-center gap-2">
-                        <input
-                          type="checkbox"
-                          className="h-5 w-5 accent-blue-600"
-                          checked={checked}
-                          onChange={(e) => toggle(dateISO, a.id, e.target.checked)}
-                          onFocus={() => selectDay(d)}
+                  </td>
+
+                  {/* Day cells */}
+                  {days.map((d) => {
+                    const dateISO = toLocalISO(year, month, d);
+                    const checked = cellChecked(dateISO, a.id);
+                    const isSelected = selectedDay === d;
+                    const isTodayCell = year === todayY && month === todayM && d === todayD;
+                    return (
+                      <td
+                        key={d}
+                        className="px-1 py-2 text-center"
+                        style={{
+                          borderTop: idx > 0 ? '1px solid var(--border)' : undefined,
+                          background: isSelected
+                            ? 'color-mix(in oklab, var(--accent) 6%, transparent)'
+                            : isTodayCell
+                              ? 'color-mix(in oklab, var(--accent) 4%, transparent)'
+                              : undefined,
+                        }}
+                      >
+                        <button
+                          onClick={() => { toggle(dateISO, a.id, !checked); selectDay(d); }}
                           aria-label={`Toggle ${a.name} on ${dateISO}`}
-                        />
-                      </label>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                          aria-pressed={checked}
+                          className="mx-auto flex h-5 w-5 items-center justify-center rounded-full transition-all"
+                          style={
+                            checked
+                              ? { background: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }
+                              : { border: '1.5px solid var(--border)', background: 'transparent' }
+                          }
+                        >
+                          {checked && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 4l3 3 5-6" stroke="var(--accent-foreground)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
