@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createCatalogItem, listCatalog } from '@/lib/googleSheets';
+import { apiError, MAX_LEN } from '@/lib/apiHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,8 @@ export async function GET() {
     const data = await listCatalog();
     return NextResponse.json(data);
   } catch (e: any) {
-    return NextResponse.json([], { status: 200 });
+    console.error('[GET /api/catalog]', e);
+    return apiError('Failed to fetch catalog', 503);
   }
 }
 
@@ -18,18 +20,19 @@ export async function POST(req: Request) {
     const name = String(body?.name || '').trim();
     const category = String(body?.category || '').trim();
     const tags = String(body?.tags || '').trim();
-    if (!name || !category) return NextResponse.json({ error: 'name and category required' }, { status: 400 });
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_SPREADSHEET_ID) {
-      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
-    }
+    if (!name || !category) return apiError('name and category required', 400);
+    if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
+    if (category.length > MAX_LEN.category) return apiError(`category must be ≤${MAX_LEN.category} characters`, 400);
+    if (tags.length > MAX_LEN.tags) return apiError(`tags must be ≤${MAX_LEN.tags} characters`, 400);
     const created = await createCatalogItem(name, category, tags);
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
-    const msg = String(e?.message || 'Unknown error');
+    console.error('[POST /api/catalog]', e);
+    const msg = String(e?.message || '');
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
-      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
+      return apiError('Google Sheets not configured', 503);
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg || 'Unknown error', 500);
   }
 }
 

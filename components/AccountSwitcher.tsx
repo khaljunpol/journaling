@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { parseCookies } from "@/lib/apiHelpers";
 
 const ACCOUNTS = ["Alex", "Sam"] as const;
 
@@ -9,10 +10,7 @@ export default function AccountSwitcher() {
 
   useEffect(() => {
     const cookieAccount = (() => {
-      try {
-        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : null;
-      } catch { return null; }
+      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
     })();
     const initial = cookieAccount || (typeof window !== "undefined" ? localStorage.getItem("account") : null);
     setAccount(initial || "Alex");

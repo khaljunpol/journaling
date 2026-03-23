@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getConsistencyMetrics } from '@/lib/googleSheets';
+import { apiError, getAccountParam } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const data = await getConsistencyMetrics(account);
     return NextResponse.json(data);
   } catch (e: any) {
-    // Fallback to empty metrics for setup phase
-    return NextResponse.json({ weeks: [], byActivity: [], summary: { avgRate: 0, bestWeek: null, currentStreakDays: 0, totalCompletions: 0 } }, { status: 200 });
+    console.error('[GET /api/metrics]', e);
+    return apiError('Failed to fetch metrics', 503);
   }
 }

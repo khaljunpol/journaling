@@ -1,34 +1,53 @@
 import { NextResponse } from 'next/server';
 import { issueSession } from '@/lib/auth';
 
+// Server-side rate limiting: keyed by IP address
+const rateLimitMap = new Map<string, { attempts: number; ts: number }>();
+const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_ATTEMPTS = 5;
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.headers.get('x-real-ip') || 'unknown';
+}
+
+function checkRateLimit(ip: string): { allowed: boolean } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.ts > WINDOW_MS) {
+    rateLimitMap.set(ip, { attempts: 1, ts: now });
+    return { allowed: true };
+  }
+  if (entry.attempts >= MAX_ATTEMPTS) {
+    return { allowed: false };
+  }
+  entry.attempts += 1;
+  return { allowed: true };
+}
+
+function resetRateLimit(ip: string) {
+  rateLimitMap.delete(ip);
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const password = String(body?.password || '');
     const adminPass = process.env.ADMIN_PASSWORD || '';
     if (!adminPass) return NextResponse.json({ error: 'ADMIN_PASSWORD not set' }, { status: 503 });
-    // Basic rate limiting using a cookie tracking attempts within 10 minutes
-    const url = new URL(req.url);
-    const cookieHeader = req.headers.get('cookie') || '';
-    const attemptsMatch = cookieHeader.match(/lr=(\d+)-(\d+)/); // lr=attempts-timestamp
-    let attempts = 0;
-    let ts = 0;
-    if (attemptsMatch) {
-      attempts = Number(attemptsMatch[1] || 0);
-      ts = Number(attemptsMatch[2] || 0);
-    }
-    const now = Date.now();
-    const windowMs = 10 * 60 * 1000;
-    if (!ts || now - ts > windowMs) {
-      attempts = 0; ts = now;
-    }
-    if (attempts >= 5) {
-      const res = NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
-      res.cookies.set('lr', `${attempts}-${ts}`, { path: '/', maxAge: 600 });
-      return res;
-    }
-    if (!password || password !== adminPass) return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
 
+    const ip = getClientIp(req);
+    const { allowed } = checkRateLimit(ip);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+    }
+
+    const body = await req.json();
+    const password = String(body?.password || '');
+    if (!password || password !== adminPass) {
+      return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
+    }
+
+    resetRateLimit(ip);
     const token = await issueSession();
     const res = NextResponse.json({ ok: true });
     res.cookies.set('session', token, {
@@ -38,10 +57,9 @@ export async function POST(req: Request) {
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
     });
-    // Reset rate limiting cookie on success
-    res.cookies.set('lr', `0-${Date.now()}`, { path: '/', maxAge: 600 });
     return res;
   } catch (e: any) {
+    console.error('[login]', e);
     return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
   }
 }

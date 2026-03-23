@@ -25,6 +25,9 @@ dist/
 .vscode/
 .idea/
 
+### Claude
+.claude/
+
 ### OS junk
 .DS_Store
 Thumbs.db

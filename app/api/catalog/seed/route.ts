@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SUGGESTED_ACTIVITIES } from '@/lib/activityCatalog';
 import { createCatalogItem, listCatalog } from '@/lib/googleSheets';
+import { verifySession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +19,11 @@ function deriveCategory(name: string, tags: string[]): string {
 
 export async function POST(req: NextRequest) {
   try {
-    // Optional simple guard: require ADMIN_PASSWORD header match
-    const admin = process.env.ADMIN_PASSWORD;
-    if (admin) {
-      const hdr = req.headers.get('x-admin');
-      if (hdr !== admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Require a valid session cookie (middleware already enforces this, but belt-and-suspenders)
+    const token = req.cookies.get('session')?.value;
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    try { await verifySession(token); } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const exist = await listCatalog();

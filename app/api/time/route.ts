@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSheets';
+import { apiError, getAccountParam } from '@/lib/apiHelpers';
 
 // Simple in-memory cache with short TTL for GETs to reduce Sheets reads
 const cache = new Map<string, { ts: number; data: any }>();
@@ -21,7 +22,8 @@ const invalidateAll = () => { cache.clear(); };
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const date = url.searchParams.get('date');
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
@@ -42,17 +44,19 @@ export async function GET(req: Request) {
     setCached(key, items);
     return NextResponse.json(items);
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+    console.error('[GET /api/time]', e);
+    return apiError(String(e?.message || 'Unknown error'), 500);
   }
 }
 
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const body = await req.json();
-    const date = String(body?.date || '').slice(0,10);
-    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
+    const date = String(body?.date || '').slice(0, 10);
+    if (!date) return apiError('date required', 400);
 
     // Batch mode: entries array provided
     if (Array.isArray(body?.entries)) {
@@ -61,8 +65,8 @@ export async function POST(req: Request) {
         category: parseInt(String(e?.category ?? '-1'), 10),
       }));
       for (const e of entries) {
-        if (!Number.isFinite(e.hour) || e.hour < 0 || e.hour > 23) return NextResponse.json({ error: 'hour must be 0..23' }, { status: 400 });
-        if (!Number.isFinite(e.category) || e.category < 0 || e.category > 11) return NextResponse.json({ error: 'category must be 0..11' }, { status: 400 });
+        if (!Number.isFinite(e.hour) || e.hour < 0 || e.hour > 23) return apiError('hour must be 0..23', 400);
+        if (!Number.isFinite(e.category) || e.category < 0 || e.category > 11) return apiError('category must be 0..11', 400);
       }
       const saved = await upsertHourLogsBatch(account, { date, entries });
       invalidateAll();
@@ -70,14 +74,15 @@ export async function POST(req: Request) {
     }
 
     // Single entry fallback
-    let hour = parseInt(String(body?.hour ?? '-1'), 10);
-    let category = parseInt(String(body?.category ?? '-1'), 10);
-    if (!Number.isFinite(hour) || hour < 0 || hour > 23) return NextResponse.json({ error: 'hour must be 0..23' }, { status: 400 });
-    if (!Number.isFinite(category) || category < 0 || category > 11) return NextResponse.json({ error: 'category must be 0..11' }, { status: 400 });
+    const hour = parseInt(String(body?.hour ?? '-1'), 10);
+    const category = parseInt(String(body?.category ?? '-1'), 10);
+    if (!Number.isFinite(hour) || hour < 0 || hour > 23) return apiError('hour must be 0..23', 400);
+    if (!Number.isFinite(category) || category < 0 || category > 11) return apiError('category must be 0..11', 400);
     const saved = await upsertHourLog(account, { date, hour, category });
     invalidateAll();
     return NextResponse.json(saved, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+    console.error('[POST /api/time]', e);
+    return apiError(String(e?.message || 'Unknown error'), 500);
   }
 }

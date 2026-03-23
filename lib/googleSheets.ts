@@ -571,11 +571,13 @@ export async function getConsistencyMetrics(account: string) {
     if (completed === '1') bucket.done += 1;
   }
 
-  const byActivity = Object.entries(byActivityWeek).map(([activityId, weeksMap]) => {
+  // Build a Map for O(1) week lookups instead of O(n) find() per activity-week pair
+  const weeksMap = new Map(weeks.map((w) => [w.week, w]));
+
+  const byActivity = Object.entries(byActivityWeek).map(([activityId, actWeeksMap]) => {
     const label = activityMap[activityId]?.name || activityId;
-    const activityWeeks = Object.entries(weeksMap).map(([weekKey, agg]) => {
-      // Find corresponding overall week start to compute expectedDays
-      const overall = weeks.find((w) => w.week === weekKey);
+    const activityWeeks = Object.entries(actWeeksMap).map(([weekKey, agg]) => {
+      const overall = weeksMap.get(weekKey);
       const expectedDays = overall ? Math.max(1, Math.min(7, Math.round((overall.total || 0) / Math.max(1, activityCount)))) : 7;
       const rate = expectedDays ? agg.done / expectedDays : 0;
       return { week: weekKey, done: agg.done, total: expectedDays, rate };

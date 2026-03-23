@@ -9,12 +9,15 @@ async function verify(token: string) {
     return jwtVerify(token, key, { algorithms: ['HS256'] });
 }
 
+// Public routes that don't require authentication
+const PUBLIC_PATHS = ['/login', '/api/login', '/api/logout'];
+
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
+
+    // Allow static assets and public auth endpoints without a session
     if (
-        pathname.startsWith('/login') ||
-        pathname.startsWith('/api/login') ||
-        pathname.startsWith('/api') ||
+        PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
         pathname.startsWith('/_next') ||
         pathname.startsWith('/favicon.ico') ||
         pathname.startsWith('/public')
@@ -24,8 +27,11 @@ export async function middleware(req: NextRequest) {
 
     const token = req.cookies.get('session')?.value;
     if (!token) {
-        const url = new URL('/login', req.url);
-        return NextResponse.redirect(url);
+        // For API routes return 401 JSON; for pages redirect to login
+        if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return NextResponse.redirect(new URL('/login', req.url));
     }
 
     try {
@@ -54,11 +60,14 @@ export async function middleware(req: NextRequest) {
         }
         return NextResponse.next();
     } catch {
-        const url = new URL('/login', req.url);
-        return NextResponse.redirect(url);
+        if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return NextResponse.redirect(new URL('/login', req.url));
     }
 }
 
 export const config = {
-    matcher: ['/((?!api|_next|favicon.ico|public).*)'],
+    // Apply middleware to all routes except static Next.js internals
+    matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

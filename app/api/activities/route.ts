@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createActivity, listActivities } from '@/lib/googleSheets';
+import { apiError, getAccountParam, MAX_LEN } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const data = await listActivities(account);
     return NextResponse.json(data);
   } catch (e: any) {
-    // Fallback to empty list if Sheets config is missing or fails
-    return NextResponse.json([], { status: 200 });
+    console.error('[GET /api/activities]', e);
+    return apiError('Failed to fetch activities', 503);
   }
 }
 
@@ -19,19 +21,19 @@ export async function POST(req: Request) {
     const name = String(body?.name || '').trim();
     const status = String(body?.status || 'active').trim() as 'active' | 'stopped';
     const catalogId = String(body?.catalogId || '').trim();
-    if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY || !process.env.GOOGLE_SPREADSHEET_ID) {
-      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
-    }
+    if (!name) return apiError('name required', 400);
+    if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const created = await createActivity(account, name, { status: status === 'stopped' ? 'stopped' : 'active', catalogId: catalogId || undefined });
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
-    const msg = String(e?.message || 'Unknown error');
+    console.error('[POST /api/activities]', e);
+    const msg = String(e?.message || '');
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
-      return NextResponse.json({ error: 'Google Sheets not configured. Set env vars and share the sheet to the service account.' }, { status: 503 });
+      return apiError('Google Sheets not configured', 503);
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg || 'Unknown error', 500);
   }
 }

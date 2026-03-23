@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { parseCookies } from '@/lib/apiHelpers';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -32,13 +33,13 @@ export default function ClimbingLogPage() {
   const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: 'V4', target: 100 });
 
   useEffect(() => {
-    const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
+    const cookieAccount = (() => { try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; } })();
     const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
     setAccount(init || 'Alex');
     const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
     const onAccountChange = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
+      const cookieAcc = (() => { try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; } })();
       setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
     };
     window.addEventListener('storage', onStorage);

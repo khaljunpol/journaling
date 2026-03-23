@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listClimbLogs, addClimbLog, deleteClimbLog } from '@/lib/googleSheets';
+import { apiError, getAccountParam, MAX_LEN } from '@/lib/apiHelpers';
 
 // Simple in-memory cache with short TTL for GETs to reduce Sheets reads
 const cache = new Map<string, { ts: number; data: any }>();
@@ -22,7 +23,8 @@ const invalidateAll = () => { cache.clear(); };
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const date = url.searchParams.get('date');
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
@@ -49,7 +51,7 @@ export async function GET(req: Request) {
       const sorted = items.slice().sort((a, b) => {
         const ad = new Date(a.date).getTime();
         const bd = new Date(b.date).getTime();
-        if (bd !== ad) return bd - ad; // newest first
+        if (bd !== ad) return bd - ad;
         if (b.session !== a.session) return (b.session || 0) - (a.session || 0);
         return String(b.id).localeCompare(String(a.id));
       });
@@ -63,41 +65,49 @@ export async function GET(req: Request) {
     setCached(key, items);
     return NextResponse.json(items);
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+    console.error('[GET /api/climbing/logs]', e);
+    return apiError(String(e?.message || 'Unknown error'), 500);
   }
 }
 
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const body = await req.json();
-    const date = String(body?.date || '').slice(0,10);
+    const date = String(body?.date || '').slice(0, 10);
     const session = parseInt(String(body?.session ?? '0'), 10) || 0;
     const type = (String(body?.type || 'boulder').toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope';
     const grade = String(body?.grade || '').trim();
     const attempts = parseInt(String(body?.attempts ?? '0'), 10) || 0;
     const location = String(body?.location || '').trim();
     const notes = String(body?.notes || '').trim();
-    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
+    if (!date) return apiError('date required', 400);
+    if (grade.length > MAX_LEN.grade) return apiError(`grade must be ≤${MAX_LEN.grade} characters`, 400);
+    if (location.length > MAX_LEN.location) return apiError(`location must be ≤${MAX_LEN.location} characters`, 400);
+    if (notes.length > MAX_LEN.notes) return apiError(`notes must be ≤${MAX_LEN.notes} characters`, 400);
     const saved = await addClimbLog(account, { date, session, type, grade, attempts, location, notes });
     invalidateAll();
     return NextResponse.json(saved, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+    console.error('[POST /api/climbing/logs]', e);
+    return apiError(String(e?.message || 'Unknown error'), 500);
   }
 }
 
 export async function DELETE(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
     const id = url.searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!id) return apiError('id required', 400);
     const out = await deleteClimbLog(account, id);
     invalidateAll();
     return NextResponse.json(out);
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+    console.error('[DELETE /api/climbing/logs]', e);
+    return apiError(String(e?.message || 'Unknown error'), 500);
   }
 }

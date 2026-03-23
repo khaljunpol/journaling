@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server';
+import { apiError, getAccountParam } from '@/lib/apiHelpers';
+import {
+  listActivities,
+  listCatalog,
+  getLogsBetween,
+  getWeightsBetween,
+  getHighlightsBetween,
+  getMoodsBetween,
+  getConsistencyMetrics,
+  listTimeCategories,
+  listHourLogs,
+  listClimbLogs,
+  listClimbGoals,
+} from '@/lib/googleSheets';
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const account = url.searchParams.get('account') || 'Alex';
+    const account = getAccountParam(url);
+    if (!account) return apiError('Invalid account', 400);
+
     const pad = (n: number) => String(n).padStart(2, '0');
     const today = new Date();
     const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -29,30 +45,27 @@ export async function GET(req: Request) {
     const twelveWeeksAgo = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7 * 12);
     const twelveWeeksAgoISO = toISO(twelveWeeksAgo);
 
-    const fetchJson = async (path: string) => {
-      const u = new URL(path, url.origin).toString();
-      const res = await fetch(u, { cache: 'no-store' });
-      if (!res.ok) return null;
-      return await res.json();
-    };
+    // Call library functions directly — no HTTP round trips, no auth issues
+    const safe = <T>(p: Promise<T>, fallback: T): Promise<T> =>
+      p.catch((e) => { console.error('[dashboard]', e?.message); return fallback; });
 
-    // Run in parallel batches to balance speed vs. Sheets API rate limits
     const [activities, catalog, logs30, weights8w, highlights30] = await Promise.all([
-      fetchJson(`/api/activities?account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/catalog`),
-      fetchJson(`/api/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/weights?from=${eightWeeksAgoISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/highlights?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
+      safe(listActivities(account), []),
+      safe(listCatalog(), []),
+      safe(getLogsBetween(account, from30ISO, todayISO), []),
+      safe(getWeightsBetween(account, eightWeeksAgoISO, todayISO), []),
+      safe(getHighlightsBetween(account, from30ISO, todayISO), []),
     ]);
+
     const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY] = await Promise.all([
-      fetchJson(`/api/moods?from=${from7ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/moods?from=${prevWeekFromISO}&to=${prevWeekToISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/metrics?account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/time/categories?account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/time?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/climbing/logs?from=${from30ISO}&to=${todayISO}&account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/climbing/goals?account=${encodeURIComponent(account)}`),
-      fetchJson(`/api/climbing/logs?from=${yStartISO}&to=${yEndISO}&account=${encodeURIComponent(account)}`),
+      safe(getMoodsBetween(account, from7ISO, todayISO), []),
+      safe(getMoodsBetween(account, prevWeekFromISO, prevWeekToISO), []),
+      safe(getConsistencyMetrics(account), null),
+      safe(listTimeCategories(account), []),
+      safe(listHourLogs(account, yStartISO, yEndISO), []),
+      safe(listClimbLogs(account, from30ISO, todayISO), []),
+      safe(listClimbGoals(account), []),
+      safe(listClimbLogs(account, yStartISO, yEndISO), []),
     ]);
 
     return NextResponse.json({
@@ -73,6 +86,7 @@ export async function GET(req: Request) {
       moodsPrev7: Array.isArray(moodsPrev7) ? moodsPrev7 : [],
     });
   } catch (e) {
+    console.error('[GET /api/dashboard]', e);
     return NextResponse.json({ error: 'Failed to aggregate dashboard data' }, { status: 500 });
   }
 }
