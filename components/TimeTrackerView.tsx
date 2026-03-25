@@ -442,7 +442,7 @@ export default function TimeTrackerView() {
         </div>
 
         {/* Grid */}
-        <DaysRows
+<DaysRows
           viewYear={viewYear}
           viewMode={viewMode}
           viewMonth={viewMonth}
@@ -553,14 +553,19 @@ function DaysRows({
               return (
                 <div
                   key={h}
-                  className="h-4 sm:h-5 rounded-[2px] select-none cursor-crosshair"
+                  className="h-6 sm:h-7 rounded-[2px] select-none cursor-crosshair flex items-center justify-center"
                   style={{
                     background: filled ? cellBg : 'var(--border)',
+                    fontSize: 10,
+                    color: filled ? 'rgba(0,0,0,0.5)' : 'var(--muted-foreground)',
+                    lineHeight: 1,
                   }}
                   onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
                   onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
                   title={`${iso} ${pad(h)}:00–${pad(h + 1)}:00`}
-                />
+                >
+                  {pad(h)}
+                </div>
               );
             })}
           </div>
