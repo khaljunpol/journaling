@@ -27,6 +27,7 @@ dist/
 
 ### Claude
 .claude/
+CLAUDE.md
 
 ### OS junk
 .DS_Store

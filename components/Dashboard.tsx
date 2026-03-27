@@ -1,11 +1,12 @@
 "use client";
 
 import type { Activity, CatalogItem, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
 import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
+import { computeWeeklySummary, computeAttentionSignals, computeMoodActivityCorrelation, type Signal } from '@/lib/insights';
 import Link from 'next/link';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ export default function Dashboard() {
 
     // ── Activity state
     const [activities, setActivities] = useState<Activity[]>([]);
+    const [logs30Raw, setLogs30Raw] = useState<Array<{ date: string; activityId: string; completed: boolean }>>([]);
     const [doneToday, setDoneToday] = useState(0);
     const [last7Done, setLast7Done] = useState(0);
     const [last30Done, setLast30Done] = useState(0);
@@ -139,6 +141,7 @@ export default function Dashboard() {
     const [moodToday, setMoodToday] = useState<number | null>(null);
     const [moodAvg7, setMoodAvg7] = useState<number | null>(null);
     const [mood7, setMood7] = useState<Array<{ date: string; score: number }>>([]);
+    const [moodAll, setMoodAll] = useState<MoodItem[]>([]);
     const [moodPrevAvg, setMoodPrevAvg] = useState<number | null>(null);
 
     // ── Weight state
@@ -172,6 +175,7 @@ export default function Dashboard() {
 
         // Activity logs
         const logs30: Array<{ date: string; activityId: string; completed: boolean }> = Array.isArray(data?.logs30) ? data.logs30 : [];
+        setLogs30Raw(logs30);
         setDoneToday(logs30.filter(l => l.completed && l.date === sTodayISO).length);
         setLast7Done(logs30.filter(l => l.completed && inRange(l.date, sFrom7ISO, sTodayISO)).length);
         setLast30Done(logs30.filter(l => l.completed).length);
@@ -194,6 +198,7 @@ export default function Dashboard() {
         const moods7: MoodItem[] = Array.isArray(data?.moods7) ? data.moods7 : [];
         setMood7(moods7);
         const moodsPrev: MoodItem[] = Array.isArray(data?.moodsPrev7) ? data.moodsPrev7 : [];
+        setMoodAll([...moodsPrev, ...moods7]);
         if (moods7.length) {
             const avg = Math.round((moods7.reduce((a, x) => a + (Number(x.score) || 0), 0) / moods7.length) * 10) / 10;
             setMoodAvg7(avg);
@@ -340,6 +345,37 @@ export default function Dashboard() {
         return { date: p.date, weight: p.weight, ma: Math.round((slice.reduce((a, x) => a + x.weight, 0) / slice.length) * 10) / 10 };
     });
 
+    // ── Insights ─────────────────────────────────────────────────────────────
+    const weeklySummary = useMemo(() => {
+        if (!hasData) return '';
+        return computeWeeklySummary({
+            moodAvg7,
+            moodPrevAvg,
+            thisWeekRate,
+            lastWeekRate,
+            climbSessionsThisWeek: climbStats.sessionsThisWeek,
+            balance: timeStats.balance,
+        });
+    }, [hasData, moodAvg7, moodPrevAvg, thisWeekRate, lastWeekRate, climbStats.sessionsThisWeek, timeStats.balance]);
+
+    const signals = useMemo(() => {
+        if (!hasData) return [];
+        return computeAttentionSignals({
+            moods7: mood7,
+            streakDays,
+            climbSessionsThisWeek: climbStats.sessionsThisWeek,
+            climbSessionsLastWeek: climbStats.sessionsLastWeek,
+            goalStats,
+            moodAvg7,
+            moodPrevAvg,
+        });
+    }, [hasData, mood7, streakDays, climbStats, goalStats, moodAvg7, moodPrevAvg]);
+
+    const correlation = useMemo(() => {
+        if (!hasData) return null;
+        return computeMoodActivityCorrelation(moodAll, logs30Raw, activities);
+    }, [hasData, moodAll, logs30Raw, activities]);
+
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <main className="space-y-6 pb-8">
@@ -349,52 +385,70 @@ export default function Dashboard() {
                 {lastUpdated && <span className="subtle text-xs">Updated {lastUpdated}</span>}
             </div>
 
-            {/* ── TODAY ─────────────────────────────────────────────────────── */}
-            <SectionHeader title="Today" />
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                {/* Mood today */}
-                <Link href="/mood" className="block">
-                <div className="card p-4 col-span-1 cursor-pointer hover:ring-2 hover:ring-(--ring) transition-shadow">
-                    <div className="subtle text-xs uppercase tracking-wide">Mood</div>
-                    {!hasData ? <Sk w="w-16" h="h-8" /> : typeof moodToday === 'number' ? (
-                        <div className="mt-1">
-                            <div className="text-3xl leading-none">{moodEmoji(moodToday)}</div>
-                            <div className="text-sm font-semibold mt-1" style={{ color: moodColor(moodToday) }}>
-                                {moodToday}/10 · {moodLabel(moodToday)}
-                            </div>
+            {/* ═══ TIER 1: GLANCE ═══════════════════════════════════════════ */}
+            <div className="card p-4 space-y-3">
+                {!hasData ? (
+                    <div className="space-y-2"><Sk w="w-3/4" h="h-5" /><Sk w="w-48" h="h-4" /></div>
+                ) : (
+                    <>
+                        <div className="text-sm leading-relaxed font-medium">{weeklySummary}</div>
+                        <div className="flex items-center gap-4 flex-wrap">
+                            {/* Mood inline */}
+                            {typeof moodToday === 'number' && (
+                                <Link href="/mood" className="flex items-center gap-1.5 text-sm" style={{ color: moodColor(moodToday) }}>
+                                    <span className="text-xl">{moodEmoji(moodToday)}</span>
+                                    <span className="font-semibold">{moodToday}/10</span>
+                                </Link>
+                            )}
+                            {/* Mood sparkline */}
+                            {mood7.length >= 3 && (
+                                <div className="h-6 w-24 flex-shrink-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={mood7} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                                            <Line type="monotone" dataKey="score" strokeWidth={1.5} dot={false} stroke={moodAvg7 !== null ? moodColor(Math.round(moodAvg7)) : '#60a5fa'} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                            {/* Activity rate chip */}
+                            {thisWeekRate > 0 && (
+                                <Link href="/metrics" className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                    {Math.round(thisWeekRate * 100)}% activities
+                                </Link>
+                            )}
+                            {/* Climbing chip */}
+                            {climbStats.sessionsThisWeek > 0 && (
+                                <Link href="/climbing" className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                    {climbStats.sessionsThisWeek}x climbing
+                                </Link>
+                            )}
                         </div>
-                    ) : <div className="text-sm subtle mt-1">Not logged</div>}
-                </div>
-                </Link>
-
-                {/* Activities today */}
-                <StatCard
-                    label="Activities"
-                    value={hasData ? `${doneToday} / ${activities.length}` : '—'}
-                    sub={streakDays > 0 ? `${streakDays}-day streak` : undefined}
-                    loading={!hasData}
-                    href="/journal"
-                />
-
-                {/* Time today */}
-                <StatCard
-                    label="Hours tracked"
-                    value={hasData ? timeStats.todayHours : '—'}
-                    sub={timeStats.weekTop[0] ? `Top: ${timeStats.weekTop[0].name}` : undefined}
-                    loading={!hasData}
-                    href="/time"
-                />
-
-                {/* Weight */}
-                <StatCard
-                    label="Weight (4w avg)"
-                    value={hasData && weightTrend.ma4 ? `${weightTrend.ma4} kg` : '—'}
-                    sub={weightTrend.change ? `${weightTrend.change >= 0 ? '+' : ''}${weightTrend.change} kg vs prev 4w` : undefined}
-                    trend={weightDelta}
-                    loading={!hasData}
-                    href="/journal"
-                />
+                    </>
+                )}
             </div>
+
+            {/* ═══ TIER 2: SIGNALS ══════════════════════════════════════════ */}
+            {hasData && signals.length > 0 && (
+                <div className="space-y-2">
+                    {signals.map((s, i) => (
+                        <div
+                            key={i}
+                            className="rounded-lg px-4 py-2.5 text-sm"
+                            style={{
+                                borderLeft: `3px solid ${s.type === 'warning' ? '#f59e0b' : '#22c55e'}`,
+                                background: 'var(--surface)',
+                            }}
+                        >
+                            {s.message}
+                        </div>
+                    ))}
+                </div>
+            )}
+            {hasData && signals.length === 0 && (
+                <div className="subtle text-xs text-center py-1">All on track.</div>
+            )}
+
+            {/* ═══ TIER 3: DEEP DIVE ═══════════════════════════════════════ */}
 
             {/* ── MOOD & WEIGHT ─────────────────────────────────────────────── */}
             <SectionHeader title="Mood & Weight" />
@@ -436,6 +490,12 @@ export default function Dashboard() {
                     ) : (
                         <div className="h-24 flex items-center justify-center subtle text-sm">No mood data yet</div>
                     )}
+                    {/* Cross-domain insight */}
+                    {correlation && correlation.sufficient && (
+                        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--surface-alt)' }}>
+                            On days you complete &ge;75% of activities, avg mood is <strong>{correlation.highDayAvg}</strong> vs <strong>{correlation.lowDayAvg}</strong> on other days.
+                        </div>
+                    )}
                     {moodPrevAvg !== null && moodAvg7 !== null && (
                         <div className="subtle text-xs">
                             Previous week avg: {moodPrevAvg}/10
@@ -445,7 +505,7 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                {/* Weight card */}
+                {/* Weight card — subtle trend line */}
                 <div className="card p-4 space-y-3">
                     <div className="flex items-center justify-between">
                         <div className="font-semibold">Weight — 8 weeks</div>
@@ -484,12 +544,38 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* ── ACTIVITIES ────────────────────────────────────────────────── */}
+            {/* ── ACTIVITIES — collapsed to single card ────────────────────── */}
             <SectionHeader title="Activities" />
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-                <StatCard label="7-day rate" value={hasData ? `${last7Pct}%` : '—'} sub={`${last7Done}/${last7Expected} done`} trend={actWeekDelta} loading={!hasData} href="/metrics" />
-                <StatCard label="This week" value={hasData ? `${Math.round(thisWeekRate * 100)}%` : '—'} sub={`Last week: ${Math.round(lastWeekRate * 100)}%`} trend={actWeekDelta} loading={!hasData} href="/metrics" />
-                <StatCard label="30-day total" value={hasData ? last30Done : '—'} sub={`Best week: ${bestWeekLabel ? `${Math.round(bestWeekRate * 100)}% (${bestWeekLabel})` : '—'}`} loading={!hasData} href="/metrics" />
+            <div className="card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                    <Link href="/metrics" className="font-semibold hover:underline">Weekly Completion</Link>
+                    {hasData && (
+                        <span className={`text-sm font-medium ${actWeekDelta === 'up' ? 'text-emerald-500' : actWeekDelta === 'down' ? 'text-red-400' : 'subtle'}`}>
+                            {Math.round(thisWeekRate * 100)}% {actWeekDelta === 'up' ? '↑' : actWeekDelta === 'down' ? '↓' : ''}
+                        </span>
+                    )}
+                </div>
+                {!hasData ? (
+                    <Sk w="w-full" h="h-4" />
+                ) : (
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                        <div>
+                            <span className="subtle">7-day:</span>{' '}
+                            <span className="font-medium">{last7Pct}%</span>
+                            <span className="subtle ml-1">({last7Done}/{last7Expected})</span>
+                        </div>
+                        <div>
+                            <span className="subtle">Last week:</span>{' '}
+                            <span className="font-medium">{Math.round(lastWeekRate * 100)}%</span>
+                        </div>
+                        {streakDays > 0 && (
+                            <div>
+                                <span className="subtle">Streak:</span>{' '}
+                                <span className="font-medium">{streakDays}d</span>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ── TIME ─────────────────────────────────────────────────────── */}
@@ -535,7 +621,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* ── CLIMBING ─────────────────────────────────────────────────── */}
+            {/* ── CLIMBING (with consistency merged in) ─────────────────────── */}
             <SectionHeader title="Climbing" />
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="card p-4 space-y-4">
@@ -548,7 +634,7 @@ export default function Dashboard() {
                         <div>
                             <div className="subtle text-xs uppercase tracking-wide">Last week</div>
                             {!hasData ? <Sk w="w-10" h="h-7" /> : (
-                                <div className={`text-2xl font-bold flex items-baseline gap-1`}>
+                                <div className="text-2xl font-bold flex items-baseline gap-1">
                                     {climbStats.sessionsLastWeek}
                                     {hasData && climbStats.sessionsThisWeek !== climbStats.sessionsLastWeek && (
                                         <span className={`text-sm ${climbStats.sessionsThisWeek > climbStats.sessionsLastWeek ? 'text-emerald-500' : 'text-red-400'}`}>
@@ -567,15 +653,10 @@ export default function Dashboard() {
                             {!hasData ? <Sk w="w-10" h="h-7" /> : <div className="text-2xl font-bold">{climbStats.avgAttempts30d}</div>}
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                        <div>
-                            <div className="subtle text-xs uppercase tracking-wide">Weeks climbing YTD</div>
-                            {!hasData ? <Sk w="w-10" h="h-6" /> : <div className="text-xl font-bold">{consistency.climbingWeeksYTD}</div>}
-                        </div>
-                        <div>
-                            <div className="subtle text-xs uppercase tracking-wide">Streak</div>
-                            {!hasData ? <Sk w="w-10" h="h-6" /> : <div className="text-xl font-bold">{consistency.climbingStreakDays}d</div>}
-                        </div>
+                    {/* Merged consistency */}
+                    <div className="flex gap-4 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-sm">
+                        <div><span className="subtle">Weeks YTD:</span> <span className="font-medium">{consistency.climbingWeeksYTD}</span></div>
+                        <div><span className="subtle">Streak:</span> <span className="font-medium">{consistency.climbingStreakDays}d</span></div>
                     </div>
                 </div>
 
@@ -600,15 +681,6 @@ export default function Dashboard() {
                         <div className="subtle text-sm">No goals set for {y}</div>
                     )}
                 </div>
-            </div>
-
-            {/* ── CONSISTENCY ──────────────────────────────────────────────── */}
-            <SectionHeader title="Consistency" />
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                <StatCard label="Mood streak" value={hasData ? `${consistency.moodStreakDays}d` : '—'} loading={!hasData} href="/mood" />
-                <StatCard label="Climbing streak" value={hasData ? `${consistency.climbingStreakDays}d` : '—'} loading={!hasData} href="/climbing" />
-                <StatCard label="Weeks climbing YTD" value={hasData ? consistency.climbingWeeksYTD : '—'} loading={!hasData} href="/climbing" />
-                <StatCard label="Weeks w/ time logged YTD" value={hasData ? consistency.timeWeeksYTD : '—'} loading={!hasData} href="/time" />
             </div>
         </main>
     );

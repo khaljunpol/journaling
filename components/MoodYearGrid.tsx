@@ -6,6 +6,7 @@ import { MOODS, moodBackground, moodColor, moodEmoji } from '@/lib/mood';
 import { parseCookies } from '@/lib/apiHelpers';
 import type { MoodItem } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Modal from '@/components/Modal';
 
 // ─── Day summary types ────────────────────────────────────────────────────────
 
@@ -80,42 +81,12 @@ function DayModal({
   avgScore: number;
   onClose: () => void;
 }) {
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   const dateLabel = summary === 'loading'
     ? '…'
     : new Date(summary.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="relative w-full sm:max-w-md mx-auto rounded-t-2xl sm:rounded-2xl overflow-hidden"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          maxHeight: '90dvh',
-          overflowY: 'auto',
-        }}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 z-10 flex items-center justify-center w-7 h-7 rounded-full text-sm"
-          style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}
-          aria-label="Close"
-        >
-          ✕
-        </button>
-
+    <Modal open onClose={onClose} size="md" mobileSheet className="!p-0 overflow-hidden">
         {summary === 'loading' ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 px-6">
             <div className="text-3xl animate-pulse">🌀</div>
@@ -124,8 +95,7 @@ function DayModal({
         ) : (
           <DayModalContent summary={summary} avgScore={avgScore} dateLabel={dateLabel} />
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

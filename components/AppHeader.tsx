@@ -10,6 +10,9 @@ export default function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement | null>(null);
+  const closeSettings = () => setSettingsOpen(false);
 
   useEffect(() => {
     try {
@@ -37,6 +40,26 @@ export default function AppHeader() {
     return () => window.removeEventListener('keydown', onKey);
   }, [router]);
 
+  // Close settings on outside click
+  useEffect(() => {
+    if (!settingsOpen) return;
+    function onMouseDown(e: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) closeSettings();
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeSettings();
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [settingsOpen]);
+
+  // Close settings on route change
+  useEffect(() => { closeSettings(); }, [pathname]);
+
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
@@ -51,7 +74,7 @@ export default function AppHeader() {
     return (
       <Link
         href={href}
-        className="rounded-md px-2 py-1.5 whitespace-nowrap transition text-sm"
+        className="rounded-md px-3 py-2 whitespace-nowrap transition text-sm"
         style={active
           ? { color: 'var(--accent)', background: 'var(--surface-alt)', fontWeight: 500 }
           : { color: 'var(--text)' }
@@ -62,8 +85,18 @@ export default function AppHeader() {
     );
   };
 
-  const settingsRef = useRef<HTMLDetailsElement | null>(null);
-  const closeSettings = () => { if (settingsRef.current) settingsRef.current.open = false; };
+  const menuLink = (href: string, label: string) => (
+    <Link
+      href={href}
+      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition"
+      style={{ color: 'var(--text)' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')}
+      onMouseLeave={e => (e.currentTarget.style.background = '')}
+      onClick={closeSettings}
+    >
+      {label}
+    </Link>
+  );
 
   return (
     <header
@@ -96,37 +129,43 @@ export default function AppHeader() {
                 )}
               </button>
 
-              {/* Settings gear */}
-              <details className="relative" ref={settingsRef}>
-                <summary
-                  className="btn-outline px-2.5 py-1 text-xs cursor-pointer list-none select-none flex items-center gap-1"
+              {/* Settings dropdown */}
+              <div className="relative" ref={settingsRef}>
+                <button
+                  onClick={() => setSettingsOpen((v) => !v)}
+                  className="btn-outline px-2.5 py-1 text-xs cursor-pointer select-none flex items-center gap-1"
                   title="Settings"
+                  aria-expanded={settingsOpen}
+                  aria-haspopup="true"
                 >
                   <span>⚙</span><span className="hidden sm:inline">More</span>
-                </summary>
-                <div
-                  className="absolute right-0 mt-2 w-52 card p-1.5 space-y-0.5 z-30 shadow-lg"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Manage</div>
-                  <Link href="/activities" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Activities</Link>
-                  <Link href="/catalog" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Catalog</Link>
-                  <Link href="/time-categories" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Time Categories</Link>
-                  <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
-                  <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>
-                  <Link href="/climbing-log" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Climbing Log</Link>
-                  <Link href="/metrics" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition" style={{ color: 'var(--text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={closeSettings}>Metrics</Link>
-                  <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
-                  <div className="px-2 py-1.5" onClick={closeSettings}>
-                    <LogoutButton />
+                </button>
+                {settingsOpen && (
+                  <div
+                    className="absolute right-0 mt-2 w-52 card p-1.5 space-y-0.5 z-30 shadow-lg"
+                    style={{ borderColor: 'var(--border)' }}
+                    role="menu"
+                  >
+                    <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Manage</div>
+                    {menuLink('/activities', 'Activities')}
+                    {menuLink('/catalog', 'Catalog')}
+                    {menuLink('/time-categories', 'Time Categories')}
+                    <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+                    <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>
+                    {menuLink('/climbing-log', 'Climbing Log')}
+                    {menuLink('/metrics', 'Metrics')}
+                    <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+                    <div className="px-2 py-1.5" onClick={closeSettings}>
+                      <LogoutButton />
+                    </div>
                   </div>
-                </div>
-              </details>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Nav — 5 primary pages */}
-          <nav className="flex max-w-full items-center gap-0.5 overflow-x-auto">
+          <nav className="nav-scroll flex max-w-full items-center gap-0.5 overflow-x-auto">
             {link('/', 'Dashboard')}
             {link('/journal', 'Journal')}
             {link('/time', 'Time')}

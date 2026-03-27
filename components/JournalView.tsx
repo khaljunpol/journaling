@@ -91,31 +91,34 @@ export default function JournalView() {
   const selectedMood = MOODS.find((m) => m.score === moodScore);
 
   return (
-    <div className="space-y-8 overflow-x-hidden">
+    <div className="space-y-6 overflow-x-hidden">
 
       {/* ── Date navigation ────────────────────────────────── */}
-      <div className="flex flex-col items-center gap-2 pt-2">
+      <div className="flex flex-col items-center gap-2 pt-1">
         <div className="flex items-center gap-4">
           <button
             aria-label="Previous day"
             disabled={isPending}
             onClick={() => startTransition(() => setSelectedDate(stepDate(selectedDate, -1)))}
-            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:scale-95"
             style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
           >
             ←
           </button>
 
-          <div className="text-center">
+          <div className="text-center min-w-[160px]">
             <div className="text-2xl font-semibold tracking-tight">{displayDate.weekday}</div>
-            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{displayDate.full}</div>
+            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              {displayDate.full}
+              {isToday && <span className="ml-1.5 text-xs font-medium" style={{ color: 'var(--accent)' }}>Today</span>}
+            </div>
           </div>
 
           <button
             aria-label="Next day"
             disabled={isPending}
             onClick={() => startTransition(() => setSelectedDate(stepDate(selectedDate, 1)))}
-            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:scale-95"
             style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
           >
             →
@@ -126,7 +129,7 @@ export default function JournalView() {
           {!isToday && (
             <button
               onClick={() => startTransition(() => setSelectedDate(today))}
-              className="text-xs px-3 py-1 rounded-full border transition-colors"
+              className="text-xs px-3 py-1 rounded-full border transition-colors active:scale-95"
               style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'transparent' }}
             >
               Jump to today
@@ -142,6 +145,44 @@ export default function JournalView() {
         </div>
       </div>
 
+      {/* ── Mood + Weight row — grouped as "How's today?" ── */}
+      <div className="card p-4 space-y-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-base font-semibold">How are you feeling?</h2>
+          {selectedMood && (
+            <span className="text-sm font-medium transition-all" style={{ color: selectedMood.color }}>
+              {selectedMood.emoji} {selectedMood.label}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1.5">
+          {MOODS.map((m) => {
+            const isSelected = moodScore === m.score;
+            return (
+              <button
+                key={m.score}
+                title={`${m.label} (${m.score}/10)`}
+                onClick={() => saveMood(m.score)}
+                className="relative flex items-center justify-center rounded-xl transition-all aspect-square"
+                style={{
+                  fontSize: 22,
+                  background: isSelected ? `${m.color}33` : `${m.color}11`,
+                  boxShadow: isSelected ? `0 0 0 2px ${m.color}` : undefined,
+                  transform: isSelected ? 'scale(1.08)' : undefined,
+                }}
+              >
+                {m.emoji}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Weight inline */}
+        <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+          <DailyWeight dateISO={selectedDate} />
+        </div>
+      </div>
+
       {/* ── Activity calendar ───────────────────────────────── */}
       <div>
         <ActivityCalendar
@@ -151,52 +192,8 @@ export default function JournalView() {
         {isPending && <div className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>Updating…</div>}
       </div>
 
-      {/* ── Mood ────────────────────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-baseline gap-2">
-          <h2 className="text-base font-semibold">How are you feeling?</h2>
-          {selectedMood && (
-            <span className="text-sm font-medium transition-all" style={{ color: selectedMood.color }}>
-              {selectedMood.label}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {MOODS.map((m) => {
-            const isSelected = moodScore === m.score;
-            return (
-              <button
-                key={m.score}
-                title={`${m.label} (${m.score}/10)`}
-                onClick={() => saveMood(m.score)}
-                className="relative flex flex-col items-center justify-center rounded-xl transition-all"
-                style={{
-                  width: 52,
-                  height: 52,
-                  fontSize: 26,
-                  background: `${m.color}22`,
-                  boxShadow: isSelected ? `0 0 0 2px ${m.color}` : undefined,
-                  transform: isSelected ? 'scale(1.12)' : undefined,
-                }}
-              >
-                {m.emoji}
-                {isSelected && (
-                  <span
-                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full"
-                    style={{ background: m.color }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* ── Highlight ───────────────────────────────────────── */}
       <DailyHighlight dateISO={selectedDate} />
-
-      {/* ── Weight ──────────────────────────────────────────── */}
-      <DailyWeight dateISO={selectedDate} />
 
     </div>
   );

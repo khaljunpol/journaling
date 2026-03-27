@@ -77,9 +77,9 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   }
 
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-base font-semibold">Today's highlight</h2>
+    <div className="card overflow-hidden">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <h2 className="text-base font-semibold">Highlight</h2>
         <span
           className="text-xs transition-opacity"
           style={{
@@ -91,18 +91,11 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
         </span>
       </div>
 
-      <div
-        className="relative rounded-2xl px-4 py-4 transition-shadow"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}
-      >
+      <div className="relative px-4 pb-4">
         {/* Decorative left stripe */}
         <div
-          className="absolute left-0 top-4 bottom-4 w-0.5 rounded-full"
-          style={{ background: 'var(--accent)', opacity: 0.35 }}
+          className="absolute left-4 top-0 bottom-4 w-0.5 rounded-full"
+          style={{ background: 'var(--accent)', opacity: 0.25 }}
         />
 
         <textarea
@@ -110,7 +103,7 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
           className="w-full resize-none bg-transparent outline-none text-base leading-relaxed placeholder-shown:italic"
           style={{
             color: 'var(--text)',
-            minHeight: 120,
+            minHeight: 100,
             paddingLeft: 12,
             fontFamily: 'inherit',
           }}
@@ -119,15 +112,15 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
           onBlur={handleBlur}
           placeholder={loading ? 'Loading…' : 'What made today worth remembering?'}
           disabled={loading}
-          rows={4}
+          rows={3}
         />
-      </div>
 
-      {text.length > 0 && (
-        <div className="mt-1.5 text-right text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          {text.length} chars
-        </div>
-      )}
+        {text.length > 0 && (
+          <div className="text-right text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+            {text.length} chars
+          </div>
+        )}
+      </div>
     </div>
   );
 }

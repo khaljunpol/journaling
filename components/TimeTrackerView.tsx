@@ -257,9 +257,9 @@ export default function TimeTrackerView() {
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         {/* Header + period nav */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold">Distribution</h2>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Distribution</h2>
             {/* Month / Year pill toggle */}
             <div
               className="flex rounded-full p-0.5 text-xs"
@@ -269,7 +269,7 @@ export default function TimeTrackerView() {
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className="rounded-full px-3 py-1 font-medium transition-all capitalize"
+                  className="rounded-full px-3 py-1.5 font-medium transition-all capitalize"
                   style={viewMode === mode
                     ? { background: 'var(--accent)', color: 'var(--accent-foreground)' }
                     : { color: 'var(--muted-foreground)' }
@@ -279,19 +279,21 @@ export default function TimeTrackerView() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex items-center justify-center gap-3">
             <button
               aria-label="Previous period"
               onClick={prevPeriod}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
               style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
             >←</button>
-            <span className="text-sm min-w-[110px] text-center" style={{ color: 'var(--muted-foreground)' }}>
+            <span className="text-sm min-w-[110px] text-center font-medium" style={{ color: 'var(--muted-foreground)' }}>
               {periodLabel}
             </span>
             <button
               aria-label="Next period"
               onClick={nextPeriod}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
               style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
             >→</button>
           </div>
@@ -385,7 +387,7 @@ export default function TimeTrackerView() {
 
       {/* ── TIME TRACKER GRID ────────────────────────────────── */}
       <div
-        className="rounded-2xl p-5 space-y-4"
+        className="rounded-2xl p-3 sm:p-5 space-y-4"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         {/* Header */}
@@ -400,13 +402,13 @@ export default function TimeTrackerView() {
             <button
               aria-label="Previous period"
               onClick={prevPeriod}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
               style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
             >←</button>
             <button
               aria-label="Next period"
               onClick={nextPeriod}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
               style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
             >→</button>
           </div>
@@ -424,7 +426,7 @@ export default function TimeTrackerView() {
                   key={c.id}
                   onClick={() => setSelectedCategory(i)}
                   title={c.name}
-                  className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-all active:scale-95"
                   style={isSelected
                     ? { background: `${c.color}22`, color: c.color, boxShadow: `0 0 0 1.5px ${c.color}` }
                     : { background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }
@@ -442,7 +444,7 @@ export default function TimeTrackerView() {
         </div>
 
         {/* Grid */}
-<DaysRows
+        <DaysRows
           viewYear={viewYear}
           viewMode={viewMode}
           viewMonth={viewMonth}
@@ -483,6 +485,25 @@ export default function TimeTrackerView() {
   );
 }
 
+function HourHeader() {
+  return (
+    <div className="flex items-center gap-1 mb-1">
+      <div className="w-7 shrink-0" />
+      <div className="flex-1 grid grid-cols-24">
+        {Array.from({ length: 24 }, (_, h) => (
+          <div
+            key={h}
+            className="text-center select-none overflow-hidden"
+            style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
+          >
+            {h % 6 === 0 ? h : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DaysRows({
   viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint,
 }: {
@@ -508,8 +529,8 @@ function DaysRows({
   for (const m of months) {
     if (viewMode === 'year') {
       rows.push(
-        <div key={`divider-${viewYear}-${m}`} className="flex items-center gap-2 mt-4 mb-1">
-          <span className="text-xs font-medium w-12 shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+        <div key={`divider-${viewYear}-${m}`} className="flex items-center gap-1 mt-4 mb-1">
+          <span className="text-[10px] font-medium w-7 shrink-0" style={{ color: 'var(--muted-foreground)' }}>
             {MONTH_SHORT[m]}
           </span>
           <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
@@ -521,27 +542,23 @@ function DaysRows({
     for (let di = 1; di <= days; di++) {
       const iso = `${viewYear}-${pad(m + 1)}-${pad(di)}`;
       const isToday = iso === todayISO;
-      const weekday = new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' });
 
       rows.push(
         <div
           key={iso}
-          className="flex items-center gap-2"
-          style={isToday ? { borderRadius: 8, outline: `1.5px solid var(--accent)`, outlineOffset: 2 } : undefined}
+          className="flex items-center gap-1"
+          style={isToday ? { borderRadius: 6, outline: `1.5px solid var(--accent)`, outlineOffset: 1 } : undefined}
         >
-          {/* Date label */}
+          {/* Date label — compact */}
           <div
-            className="w-8 shrink-0"
+            className="w-7 shrink-0 text-center"
             style={{ color: isToday ? 'var(--accent)' : 'var(--muted-foreground)' }}
           >
-            <span className="text-[11px] font-medium">{pad(di)}</span>
-            {viewMode === 'month' && (
-              <span className="block text-[9px] leading-none opacity-60">{weekday}</span>
-            )}
+            <span className="text-[10px] font-medium leading-none">{di}</span>
           </div>
 
-          {/* 24 hour cells */}
-          <div className="flex-1 grid grid-cols-24 gap-px">
+          {/* 24 hour cells with hour numbers */}
+          <div className="flex-1 grid grid-cols-24">
             {Array.from({ length: 24 }, (_, h) => {
               const logs = byDate.get(iso) || [];
               const hit = logs.find((x) => x.hour === h);
@@ -553,18 +570,19 @@ function DaysRows({
               return (
                 <div
                   key={h}
-                  className="h-6 sm:h-7 rounded-[2px] select-none cursor-crosshair flex items-center justify-center"
+                  className="h-6 sm:h-7 select-none cursor-crosshair flex items-center justify-center overflow-hidden"
                   style={{
                     background: filled ? cellBg : 'var(--border)',
-                    fontSize: 10,
-                    color: filled ? 'rgba(0,0,0,0.5)' : 'var(--muted-foreground)',
+                    fontSize: 7,
+                    color: filled ? 'rgba(0,0,0,0.45)' : 'var(--muted-foreground)',
                     lineHeight: 1,
+                    borderRight: h < 23 ? '0.5px solid var(--surface)' : undefined,
                   }}
                   onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
                   onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
                   title={`${iso} ${pad(h)}:00–${pad(h + 1)}:00`}
                 >
-                  {pad(h)}
+                  {h}
                 </div>
               );
             })}
@@ -574,5 +592,10 @@ function DaysRows({
     }
   }
 
-  return <div className="space-y-0.5">{rows}</div>;
+  return (
+    <div className="space-y-px">
+      <HourHeader />
+      {rows}
+    </div>
+  );
 }

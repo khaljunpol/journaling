@@ -314,193 +314,174 @@ export default function ClimbingView() {
     return { total, flashes, flashRate, avgAttempts, days, weeks, weeklyAvg, bestWeek, bestBoulder, bestRope, series };
   }, [yearLogsByYear, goalsYear]);
 
-  // Generate a transparent PNG overlay for the selected year's summary
-  function generateYearSummaryOverlay() {
-    const W = 1080, H = 1920; // portrait
+  // ── Shared canvas helpers ──
+  function createOverlayCanvas() {
+    const W = 1080, H = 1920;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    // Transparent background only
-    ctx.clearRect(0, 0, W, H);
-    const title = `Climbing Year ${goalsYear}`;
-    const accent = '#fc4c02'; // Strava-like orange
-    ctx.textAlign = 'center';
-    // Text helpers
-    const write = (text: string, size: number, px: number, py: number, bold = false, color = '#ffffff') => {
-      ctx.font = `${bold ? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      ctx.fillStyle = color;
-      ctx.shadowColor = 'rgba(0,0,0,0.55)';
-      ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
-      ctx.fillText(text, px, py);
-      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    const c = canvas.getContext('2d')!;
+    c.clearRect(0, 0, W, H);
+    const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
+    const accent = '#fc4c02';
+    const green = '#22c55e';
+    const muted = 'rgba(255,255,255,0.6)';
+    const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 12; c.shadowOffsetY = 4; };
+    const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0; };
+    const write = (text: string, size: number, x: number, y: number, opts: { bold?: boolean; color?: string; align?: CanvasTextAlign } = {}) => {
+      c.font = `${opts.bold ? '700' : '400'} ${size}px ${font}`;
+      c.fillStyle = opts.color || '#ffffff';
+      c.textAlign = opts.align || 'center';
+      shadow(); c.fillText(text, x, y); noShadow();
     };
-    const cx = W / 2; const padY = 160;
-    // Header
-    write(title, 88, cx, padY, true);
-    // Primary stat block (big numbers like Strava)
-    write(String(yearSummary.total), 140, cx, padY + 160, true, accent);
-    write('Total Sends', 44, cx, padY + 210);
-    // Secondary stats with label/value styling
-    const writePair = (label: string, value: string, size: number, y: number) => {
-      const space = 14;
-      // Measure widths to center the combined label + value
-      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      const labelW = ctx.measureText(label + ': ').width;
-      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      const valueW = ctx.measureText(value).width;
-      const totalW = labelW + space + valueW;
-      const startX = cx - totalW / 2;
-      // Draw label
-      ctx.textAlign = 'left';
-      ctx.font = `400 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
-      ctx.fillText(label + ':', startX, y);
-      // Draw value in accent
-      ctx.font = `700 ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      ctx.fillStyle = accent;
-      ctx.fillText(value, startX + labelW + space, y);
-      // Reset shadow
-      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-      ctx.textAlign = 'center';
+    const download = (name: string) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
     };
-    writePair('Flash rate', `${yearSummary.flashRate}%`, 44, padY + 290);
-    writePair('Avg attempts', `${yearSummary.avgAttempts}`, 44, padY + 330);
-    writePair('Active weeks', `${yearSummary.weeks}`, 44, padY + 370);
-    writePair('Weekly avg', `${yearSummary.weeklyAvg}`, 44, padY + 410);
-    writePair('Best week', `${yearSummary.bestWeek}`, 44, padY + 450);
-    writePair('Days climbed', `${yearSummary.days}`, 44, padY + 490);
-    writePair('Best boulder', `${yearSummary.bestBoulder || '—'}`, 44, padY + 530);
-    writePair('Best rope', `${yearSummary.bestRope || '—'}`, 44, padY + 570);
+    return { canvas, c, W, H, write, accent, green, muted, shadow, noShadow, download };
+  }
 
-    // Inline sparkline of weekly sessions (yearSummary.series)
-    if (Array.isArray(yearSummary.series) && yearSummary.series.length) {
+  function drawProgressRing(c: CanvasRenderingContext2D, cx: number, cy: number, r: number, pct: number, accent: string, green: string) {
+    // Background ring
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2);
+    c.strokeStyle = 'rgba(255,255,255,0.12)'; c.lineWidth = 16; c.stroke();
+    // Progress arc
+    const start = -Math.PI / 2;
+    c.beginPath(); c.arc(cx, cy, r, start, start + Math.PI * 2 * Math.min(1, pct / 100));
+    c.strokeStyle = pct >= 100 ? green : accent;
+    c.lineWidth = 16; c.lineCap = 'round'; c.stroke(); c.lineCap = 'butt';
+  }
+
+  // Generate a transparent PNG overlay for the selected year's summary
+  function generateYearSummaryOverlay() {
+    const { canvas, c, W, H, write, accent, green, muted, shadow, noShadow, download } = createOverlayCanvas();
+    if (!c) return;
+    const cx = W / 2;
+
+    // ── Bottom-half layout (leaves top for photo) ──
+    const baseY = H * 0.42;
+
+    // Year title
+    write(`${goalsYear}`, 48, cx, baseY, { color: muted });
+    write('CLIMBING YEAR', 72, cx, baseY + 70, { bold: true });
+
+    // Big number
+    write(String(yearSummary.total), 160, cx, baseY + 230, { bold: true, color: accent });
+    write('TOTAL SENDS', 32, cx, baseY + 270, { color: muted });
+
+    // Stats grid (2 cols x 4 rows)
+    const stats = [
+      { label: 'FLASH RATE', value: `${yearSummary.flashRate}%` },
+      { label: 'AVG ATTEMPTS', value: `${yearSummary.avgAttempts}` },
+      { label: 'DAYS CLIMBED', value: `${yearSummary.days}` },
+      { label: 'ACTIVE WEEKS', value: `${yearSummary.weeks}` },
+      { label: 'WEEKLY AVG', value: `${yearSummary.weeklyAvg}` },
+      { label: 'BEST WEEK', value: `${yearSummary.bestWeek}` },
+      { label: 'BEST BOULDER', value: yearSummary.bestBoulder || '—' },
+      { label: 'BEST ROPE', value: yearSummary.bestRope || '—' },
+    ];
+    const gridY = baseY + 340;
+    const colW = W / 2;
+    const rowH = 100;
+    stats.forEach((s, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const sx = colW * col + colW / 2;
+      const sy = gridY + row * rowH;
+      write(s.value, 52, sx, sy, { bold: true });
+      write(s.label, 22, sx, sy + 34, { color: muted });
+    });
+
+    // Sparkline at bottom
+    if (yearSummary.series.length > 1) {
       const series = yearSummary.series;
-      const sidePad = 96;
-      const chartW = W - sidePad * 2; const chartH = 320; const chartX = sidePad; const chartY = padY + 660;
-      const max = Math.max(...series.map((s) => s.count));
-      const min = Math.min(...series.map((s) => s.count));
+      const padX = 96;
+      const chartX = padX; const chartW = W - padX * 2;
+      const chartY = gridY + rowH * 4 + 40; const chartH = 180;
+      const max = Math.max(...series.map(s => s.count), 1);
       const n = series.length;
-      const stepX = n > 1 ? chartW / (n - 1) : chartW;
-      const scaleY = (v: number) => chartY + chartH - (max > 0 ? (v / max) * chartH : 0);
-      // Draw baseline avg
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
-      const avgY = scaleY(yearSummary.weeklyAvg);
-      ctx.beginPath(); ctx.moveTo(chartX, avgY); ctx.lineTo(chartX + chartW, avgY); ctx.stroke();
-      // Spark line
-      ctx.strokeStyle = accent; ctx.lineWidth = 5;
-      ctx.beginPath();
+      const stepX = chartW / (n - 1);
+
+      // Filled area
+      c.beginPath();
       for (let i = 0; i < n; i++) {
         const px = chartX + stepX * i;
-        const py = scaleY(series[i].count);
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        const py = chartY + chartH - (series[i].count / max) * chartH;
+        if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
       }
-      ctx.stroke();
-      // Title for chart
-      write('Weekly Sessions', 40, cx, chartY - 16, true);
-      // Month labels along X (uniform spacing)
-      const startD = parseLocalDate(series[0].date);
-      const endD = parseLocalDate(series[n - 1].date);
-      const startIdx = startD.getFullYear() * 12 + startD.getMonth();
-      const endIdx = endD.getFullYear() * 12 + endD.getMonth();
-      const count = Math.max(2, endIdx - startIdx + 1);
-      ctx.textAlign = 'center';
-      for (let i = 0; i < count; i++) {
-        const idx = startIdx + i;
-        const y = Math.floor(idx / 12);
-        const m = idx % 12;
-        const label = new Date(y, m, 1).toLocaleString(undefined, { month: 'short' });
-        const x = chartX + (i / (count - 1)) * chartW;
-        // tick mark
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, chartY + chartH + 14); ctx.lineTo(x, chartY + chartH + 28); ctx.stroke();
-        write(label, 32, x, chartY + chartH + 48);
+      c.lineTo(chartX + chartW, chartY + chartH);
+      c.lineTo(chartX, chartY + chartH);
+      c.closePath();
+      c.fillStyle = `${accent}30`;
+      c.fill();
+
+      // Line on top
+      c.beginPath();
+      for (let i = 0; i < n; i++) {
+        const px = chartX + stepX * i;
+        const py = chartY + chartH - (series[i].count / max) * chartH;
+        if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
       }
+      c.strokeStyle = accent; c.lineWidth = 4; shadow(); c.stroke(); noShadow();
+
+      write('WEEKLY ACTIVITY', 24, cx, chartY - 12, { color: muted });
     }
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `climbing-year-${goalsYear}.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, 'image/png');
+    download(`climbing-year-${goalsYear}.png`);
   }
 
   // Generate a transparent PNG overlay showing all goals for the selected year
   function generateGoalsYearOverlay() {
-    const W = 1080, H = 1920; const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
-    const accent = '#fc4c02';
-    ctx.textAlign = 'center';
-    const write = (text: string, size: number, px: number, py: number, bold = false, color = '#ffffff') => {
-      ctx.font = `${bold ? '700' : '400'} ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto`;
-      ctx.fillStyle = color; ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
-      ctx.fillText(text, px, py);
-      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-    };
-    const cx = W / 2, padY = 160;
-    write(`Year Goals ${goalsYear}`, 88, cx, padY, true);
-    const meters = goalsForSelectedYear.slice(0, Math.min(8, goalsForSelectedYear.length));
-    if (!meters.length) {
-      write('No goals', 60, cx, padY + 120, true, accent);
-    } else {
-      // summary counts
-      const succeeded = meters.filter((g) => g.done >= g.target).length;
-      write(`${succeeded}/${meters.length} succeeded`, 48, cx, padY + 140, true, accent);
-      // Vertical meters in grid layout (centered, non-overlapping)
-      const sidePad = 96;
-      const topArea = padY + 220;
-      const bottomPad = 160;
-      const areaW = W - sidePad * 2;
-      const areaH = H - topArea - bottomPad;
-      const cols = Math.min(4, Math.max(2, meters.length >= 5 ? 3 : meters.length));
-      const rows = Math.max(1, Math.ceil(meters.length / cols));
-      const cellW = areaW / cols;
-      const cellH = areaH / rows;
-      const barW = Math.min(88, Math.max(64, Math.floor(cellW * 0.16)));
-      for (let i = 0; i < meters.length; i++) {
-        const g = meters[i];
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        const cellX = sidePad + col * cellW;
-        const cellY = topArea + row * cellH;
-        const centerX = Math.round(cellX + cellW / 2);
-        // label above bar
-        const titleY = cellY + 28;
-        write(`${g.type} • ${g.grade}`, 40, centerX, titleY, true);
-        // place meter closer to title (higher in cell)
-        const meterTop = titleY + 14;
-        const meterBottomLimit = cellY + cellH - 50; // leave space for value
-        const maxBarH = Math.max(220, Math.min(420, meterBottomLimit - meterTop));
-        const barX = centerX - Math.floor(barW / 2);
-        const barTop = meterTop; // align to top to keep meter higher
-        const barBottom = Math.min(barTop + maxBarH, meterBottomLimit);
-        // background
-        ctx.fillStyle = 'rgba(255,255,255,0.16)';
-        ctx.fillRect(barX, barTop, barW, maxBarH);
-        // fill from bottom up
-        const fillH = Math.max(0, Math.min(maxBarH, Math.round((g.pct || 0) / 100 * maxBarH)));
-        const fillY = barBottom - fillH;
-        ctx.fillStyle = accent;
-        ctx.fillRect(barX, fillY, barW, fillH);
-        // percentage label overlaying the meter (center of bar)
-        const pctY = Math.round(barTop + (barBottom - barTop) / 2);
-        write(`${g.pct}%`, 34, centerX, pctY, true, accent);
-        // horizontal done/target below the meter (clamped into cell)
-        const valueY = Math.min(cellY + cellH - 18, barBottom + 40);
-        write(`${g.done}/${g.target}`, 36, centerX, valueY, true, '#ffffff');
-      }
+    const { c, W, H, write, accent, green, muted, shadow, noShadow, download } = createOverlayCanvas();
+    if (!c) return;
+    const cx = W / 2;
+    const goals = goalsForSelectedYear.slice(0, 6);
+
+    // Title area
+    const baseY = H * 0.38;
+    write(`${goalsYear}`, 48, cx, baseY, { color: muted });
+    write('CLIMBING GOALS', 72, cx, baseY + 70, { bold: true });
+
+    const succeeded = goals.filter(g => g.done >= g.target).length;
+    write(`${succeeded}/${goals.length} completed`, 36, cx, baseY + 120, { color: succeeded === goals.length ? green : accent });
+
+    if (!goals.length) {
+      write('No goals set', 48, cx, baseY + 200, { color: muted });
+      download(`goals-${goalsYear}.png`);
+      return;
     }
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `goals-year-${goalsYear}.png`; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, 'image/png');
+
+    // Goal rings in a row
+    const ringY = baseY + 280;
+    const maxPerRow = Math.min(goals.length, 3);
+    const rows = Math.ceil(goals.length / maxPerRow);
+    const ringR = goals.length <= 3 ? 90 : 70;
+    const ringSpacing = W / (maxPerRow + 1);
+    const rowSpacing = ringR * 2 + 120;
+
+    goals.forEach((g, i) => {
+      const row = Math.floor(i / maxPerRow);
+      const col = i % maxPerRow;
+      const colsInRow = row < rows - 1 ? maxPerRow : goals.length - row * maxPerRow;
+      const rowOffset = (W - ringSpacing * (colsInRow - 1)) / 2;
+      const gx = colsInRow === 1 ? cx : rowOffset + col * ringSpacing;
+      const gy = ringY + row * rowSpacing;
+
+      drawProgressRing(c, gx, gy, ringR, g.pct, accent, green);
+
+      // Percentage in center
+      write(`${g.pct}%`, ringR > 80 ? 48 : 36, gx, gy + (ringR > 80 ? 8 : 6), { bold: true, color: g.pct >= 100 ? green : accent });
+      write(`${g.done}/${g.target}`, ringR > 80 ? 24 : 20, gx, gy + (ringR > 80 ? 40 : 30), { color: muted });
+
+      // Label below ring
+      write(g.grade.toUpperCase(), 36, gx, gy + ringR + 40, { bold: true });
+      write(g.type.toUpperCase(), 20, gx, gy + ringR + 68, { color: muted });
+    });
+
+    download(`goals-${goalsYear}.png`);
   }
 
   const goalLogs = useMemo(() => {
@@ -601,171 +582,276 @@ export default function ClimbingView() {
     return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
   }, [selectedGoal, goalLogs]);
 
-  return (
-    <section className="space-y-6">
-      {updatedMs ? (<div className="subtle text-xs">Updated at {new Date(updatedMs).toLocaleTimeString()}</div>) : null}
+  const todayBestGrade = useMemo(() => {
+    const vNums = logs.filter(l => l.type === 'boulder').map(l => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+    if (vNums.length) return `V${Math.max(...vNums)}`;
+    const rIdxs = logs.filter(l => l.type === 'rope').map(l => frenchToIndex(l.grade)).filter((n): n is number => n != null);
+    if (rIdxs.length) return frenchGrades[Math.max(...rIdxs)];
+    return '—';
+  }, [logs]);
 
-      {/* ── TODAY'S SESSION SUMMARY ────────────────────────────────── */}
+  const todayFlashes = useMemo(() => logs.filter(l => l.attempts === 0).length, [logs]);
+
+  return (
+    <section className="space-y-5">
+
+      {/* ── TODAY'S SESSION ────────────────────────────────────── */}
       {logs.length > 0 && (
-        <div className="card p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold">{new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-            <a href="/climbing-log" className="btn-outline text-xs">Full log →</a>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="card overflow-hidden">
+          {/* Hero header with accent background */}
+          <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}>
             <div>
-              <div className="subtle text-xs uppercase tracking-wider">Sends</div>
-              <div className="text-2xl font-bold">{logs.length}</div>
-            </div>
-            <div>
-              <div className="subtle text-xs uppercase tracking-wider">Sessions</div>
-              <div className="text-2xl font-bold">{sessionsToday}</div>
-            </div>
-            <div>
-              <div className="subtle text-xs uppercase tracking-wider">Flashes</div>
-              <div className="text-2xl font-bold">{logs.filter(l => l.attempts === 0).length}</div>
-            </div>
-            <div>
-              <div className="subtle text-xs uppercase tracking-wider">Best Grade</div>
-              <div className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>
-                {(() => {
-                  const vNums = logs.filter(l => l.type === 'boulder').map(l => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
-                  if (vNums.length) return `V${Math.max(...vNums)}`;
-                  const rIdxs = logs.filter(l => l.type === 'rope').map(l => frenchToIndex(l.grade)).filter((n): n is number => n != null);
-                  if (rIdxs.length) return frenchGrades[Math.max(...rIdxs)];
-                  return '—';
-                })()}
+              <div className="text-sm font-medium opacity-80">Today&apos;s Session</div>
+              <div className="text-lg font-bold">
+                {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
               </div>
             </div>
+            <a href="/climbing-log" className="text-xs font-medium px-3 py-1.5 rounded-full active:scale-95" style={{ background: 'rgba(255,255,255,0.2)', color: 'inherit' }}>
+              Full log →
+            </a>
           </div>
-          <ul className="space-y-1">
+
+          {/* Quick stats strip */}
+          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+            {[
+              { label: 'Sends', value: logs.length },
+              { label: 'Sessions', value: sessionsToday },
+              { label: 'Flashes', value: todayFlashes },
+              { label: 'Best', value: todayBestGrade, accent: true },
+            ].map(({ label, value, accent }) => (
+              <div key={label} className="py-3 text-center" style={{ borderColor: 'var(--border)' }}>
+                <div className="text-xl font-bold" style={accent ? { color: 'var(--accent)' } : undefined}>{value}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Log entries */}
+          <div className="px-4 py-3 space-y-1.5">
             {logs.map(l => (
-              <li key={l.id} className="flex items-center justify-between text-sm rounded px-2 py-1.5" style={{ background: 'var(--surface-alt)' }}>
-                <span>
-                  <span className="font-medium" style={{ color: 'var(--accent)' }}>{l.grade}</span>
-                  {' '}· {l.type} · S{l.session} · {l.attempts === 0 ? 'flash' : `${l.attempts} att`}
+              <div key={l.id} className="flex items-center gap-3 text-sm py-1.5">
+                <span className="font-bold text-base" style={{ color: 'var(--accent)', minWidth: 32 }}>{l.grade}</span>
+                <span style={{ color: 'var(--muted-foreground)' }}>
+                  {l.type} · S{l.session} · {l.attempts === 0 ? 'flash ⚡' : `${l.attempts} att`}
                   {l.location ? ` · ${l.location}` : ''}
                 </span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
-      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
-        <div className="card p-4">
-          <div className="flex items-center justify-between">
-            <div className="card-title">Goals ({goalsYear || thisYear})</div>
+      {/* ── GOALS ─────────────────────────────────────────────── */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Goals</h2>
+          <div className="flex items-center gap-1">
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+              disabled={!goalsYears.length || goalsYear === goalsYears[0] || isYearSwitchPending}
+              onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx > 0) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx - 1])); }}
+            >←</button>
+            <span className="text-sm font-medium min-w-[48px] text-center">{goalsYear}</span>
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
+              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
+              disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length - 1] || isYearSwitchPending}
+              onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx >= 0 && idx < goalsYears.length - 1) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx + 1])); }}
+            >→</button>
+          </div>
+        </div>
+
+        {goalsForSelectedYear.length ? (
+          <div className="space-y-2">
+            {goalsForSelectedYear.map((g) => (
+              <button
+                key={g.id}
+                className="w-full text-left rounded-xl p-3 transition-colors active:scale-[0.99]"
+                style={{ background: 'var(--surface-alt)' }}
+                onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: `var(--accent)22`, color: 'var(--accent)' }}>
+                      {g.type}
+                    </span>
+                    <span className="font-semibold">{g.grade}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{g.done}<span className="font-normal" style={{ color: 'var(--muted-foreground)' }}>/{g.target}</span></span>
+                    <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
+                  </div>
+                </div>
+                <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                  <div className="h-2 rounded-full transition-all" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? '#16a34a' : 'var(--accent)' }} />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{g.pct}% complete</span>
+                  <GoalPaceLine year={g.year} done={g.done} target={g.target} />
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No goals for {goalsYear}</p>}
+      </div>
+
+      {/* ── YEAR ACTIVITY ─────────────────────────────────────── */}
+      <div className="card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">{goalsYear} Activity</h2>
+          {yearSummary.total ? (
             <div className="flex items-center gap-2">
-              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[0] || isYearSwitchPending} onClick={() => {
-                const idx = goalsYears.indexOf(goalsYear);
-                if (idx > 0) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx - 1]));
-              }}>{isYearSwitchPending ? '…' : 'Prev'}</button>
-              <button className="btn-outline text-xs" disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length - 1] || isYearSwitchPending} onClick={() => {
-                const idx = goalsYears.indexOf(goalsYear);
-                if (idx >= 0 && idx < goalsYears.length - 1) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx + 1]));
-              }}>{isYearSwitchPending ? '…' : 'Next'}</button>
+              <button className="btn-outline px-3 py-1.5 text-xs active:scale-95" onClick={generateYearSummaryOverlay}>Share</button>
+              {goalsForSelectedYear.length ? (
+                <button className="btn-outline px-3 py-1.5 text-xs active:scale-95" onClick={generateGoalsYearOverlay}>Goals</button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {yearSummary.total ? (
+          <>
+            {/* Weekly sends chart — green = above avg, gray = below */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Weekly sends</span>
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: '#16a34a' }} />above avg
+                  <span className="inline-block w-2 h-2 rounded-full ml-2 mr-1" style={{ background: 'var(--border)' }} />below
+                </span>
+              </div>
+              <YearSummaryChart series={yearSummary.series} weeklyAvg={yearSummary.weeklyAvg} goalsYear={goalsYear} />
+            </div>
+
+            {/* Stat chips */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: 'Total sends', value: String(yearSummary.total) },
+                { label: 'Flash rate', value: `${yearSummary.flashRate}%` },
+                { label: 'Days climbed', value: String(yearSummary.days) },
+                { label: 'Active weeks', value: String(yearSummary.weeks) },
+                { label: 'Weekly avg', value: String(yearSummary.weeklyAvg) },
+                { label: 'Best week', value: String(yearSummary.bestWeek) },
+                { label: 'Best boulder', value: yearSummary.bestBoulder || '—', accent: true },
+                { label: 'Best rope', value: yearSummary.bestRope || '—', accent: true },
+              ].map(({ label, value, accent }) => (
+                <div key={label} className="rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-alt)' }}>
+                  <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>{label}</div>
+                  <div className="text-lg font-bold mt-0.5" style={accent ? { color: 'var(--accent)' } : undefined}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No climbing data for {goalsYear}.</p>
+        )}
+      </div>
+
+      {/* ── 30-DAY TRENDS ─────────────────────────────────────── */}
+      <div className="card p-4 space-y-4">
+        <h2 className="text-base font-semibold">Last 30 Days</h2>
+
+        {/* Headline stats */}
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="text-3xl font-bold">{stats.total}</span>
+          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>sends</span>
+          {stats.flashRate > 0 && (
+            <span className="text-sm font-medium px-2 py-0.5 rounded-full" style={{ background: '#16a34a22', color: '#16a34a' }}>
+              {stats.flashRate}% flash
+            </span>
+          )}
+          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>avg {stats.avgAttempts} attempts</span>
+        </div>
+
+        {/* Trend indicators */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Boulder', value: stats.vTrend, suffix: ' grades' },
+            { label: 'Rope', value: stats.ropeTrend, suffix: ' grades' },
+            { label: 'Attempts', value: -stats.attemptsTrend, suffix: '' },
+          ].map(({ label, value, suffix }) => {
+            const positive = value > 0;
+            const neutral = value === 0;
+            return (
+              <span
+                key={label}
+                className="text-xs font-medium px-2.5 py-1 rounded-full"
+                style={{
+                  background: neutral ? 'var(--surface-alt)' : positive ? '#16a34a18' : '#ef444418',
+                  color: neutral ? 'var(--muted-foreground)' : positive ? '#16a34a' : '#ef4444',
+                }}
+              >
+                {label}: {value > 0 ? '+' : ''}{value}{suffix} {positive ? '↑' : neutral ? '—' : '↓'}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Weekly sessions mini chart */}
+        <div className="pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Weekly Sessions (12w)</span>
+            <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              <span>Avg <strong style={{ color: 'var(--accent)' }}>{weekly.avg}</strong>/wk</span>
+              <span>Active <strong style={{ color: 'var(--accent)' }}>{weekly.activeWeeks}</strong>/{weekly.series.length}w</span>
             </div>
           </div>
-          <ul className="mt-2 space-y-2 text-sm">
-            {goalsForSelectedYear.length ? goalsForSelectedYear.map((g) => (
-              <li key={g.id} className="rounded border p-2 cursor-pointer" style={{ borderColor: 'var(--border)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')} onMouseLeave={e => (e.currentTarget.style.background = '')} onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}>
-                <div className="flex items-center justify-between">
-                  <span>{g.type} • {g.grade}</span>
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium" style={{ color: 'var(--accent)' }}>{g.done}/{g.target}</span>
-                    <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
-                  </span>
-                </div>
-                <div className="mt-1 h-2 w-full rounded" style={{ background: 'var(--surface-alt)' }}>
-                  <div className="h-2 rounded bg-(--accent)" style={{ width: `${g.pct}%` }} />
-                </div>
-                <GoalPaceLine year={g.year} done={g.done} target={g.target} />
-              </li>
-            )) : <li className="subtle">No goals for {goalsYear || thisYear}</li>}
-          </ul>
-          <div className="mt-3">
-            <div className="font-medium text-center">Year Summary</div>
-            {yearSummary.total ? (
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <button className="btn-outline px-2 py-1 text-xs" onClick={generateYearSummaryOverlay}>Stats overlay</button>
-                {goalsForSelectedYear.length ? (
-                  <button className="btn-outline px-2 py-1 text-xs" onClick={generateGoalsYearOverlay}>Goals overlay</button>
-                ) : null}
-              </div>
-            ) : null}
-            {yearSummary.total ? (
-              <>
-                <YearSummaryChart series={yearSummary.series} weeklyAvg={yearSummary.weeklyAvg} goalsYear={goalsYear} />
-                <ul className="mt-2 space-y-1 text-sm">
-                  <li className="flex justify-between"><span>Total sends</span><span className="subtle">{yearSummary.total}</span></li>
-                  <li className="flex justify-between"><span>Flash rate</span><span className="subtle">{yearSummary.flashRate}%</span></li>
-                  <li className="flex justify-between"><span>Avg attempts</span><span className="subtle">{yearSummary.avgAttempts}</span></li>
-                  <li className="flex justify-between"><span>Active weeks</span><span className="subtle">{yearSummary.weeks}</span></li>
-                  <li className="flex justify-between"><span>Weekly avg</span><span className="subtle">{yearSummary.weeklyAvg}</span></li>
-                  <li className="flex justify-between"><span>Best week</span><span className="subtle">{yearSummary.bestWeek}</span></li>
-                  <li className="flex justify-between"><span>Days climbed</span><span className="subtle">{yearSummary.days}</span></li>
-                  <li className="flex justify-between"><span>Best boulder</span><span className="subtle">{yearSummary.bestBoulder || '—'}</span></li>
-                  <li className="flex justify-between"><span>Best rope</span><span className="subtle">{yearSummary.bestRope || '—'}</span></li>
-                </ul>
-              </>
-            ) : (
-              <div className="subtle mt-2">No logs for this year.</div>
-            )}
-          </div>
-        </div>
-        <div className="card p-4">
-          <div className="card-title">Last 30 Days</div>
-          <div className="text-2xl font-semibold">{stats.total} sends</div>
-          <div className="subtle">{stats.flashRate}% flash • avg {stats.avgAttempts} attempts</div>
-          <div className="subtle">Boulder trend: {stats.vTrend >= 0 ? '+' : ''}{stats.vTrend} • Rope trend: {stats.ropeTrend >= 0 ? '+' : ''}{stats.ropeTrend}</div>
-          <div className="subtle">Attempts trend (30d): {stats.attemptsTrend <= 0 ? 'improving' : 'worse'} ({stats.attemptsTrend})</div>
-        </div>
-        <div className="card p-4">
-          <div className="card-title">Weekly Sessions (12w)</div>
-          <div className="mt-2 h-20 w-full">
+          <div className="h-20 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weekly.series} margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+              <LineChart data={weekly.series} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
                 <XAxis dataKey="date" tick={false} axisLine={false} />
-                <YAxis tick={false} axisLine={false} domain={[0, 'auto']} />
-                <Tooltip formatter={(v: any) => [String(v), 'Sessions']} labelFormatter={(l: any) => l} />
+                <YAxis hide domain={[0, 'auto']} />
+                <Tooltip
+                  cursor={{ stroke: 'var(--border)' }}
+                  content={({ payload, label }) => {
+                    if (!payload?.length) return null;
+                    return (
+                      <div className="rounded-xl px-3 py-1.5 text-xs shadow-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                        <span className="font-medium">Week of {label}</span> · {payload[0]?.value} sends
+                      </div>
+                    );
+                  }}
+                />
                 <ReferenceLine y={weekly.avg} stroke="var(--border)" strokeDasharray="3 3" />
                 <Line type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-1">
-            <span className="subtle">Avg: </span>
-            <span className="font-medium" style={{ color: 'var(--accent)' }}>{weekly.avg}</span>
-            <span className="subtle"> • Active weeks: </span>
-            <span className="font-medium" style={{ color: 'var(--accent)' }}>{weekly.activeWeeks}/{weekly.series.length}</span>
-          </div>
         </div>
-        <div className="card p-4">
-          <div className="card-title">Consistency</div>
-          <div className="text-2xl font-semibold" style={{ color: 'var(--accent)' }}>{consistency.weeksActiveRate}%</div>
-          <div>
-            <span className="subtle">Weeks active (12w): </span>
-            <span className="font-medium" style={{ color: 'var(--accent)' }}>{consistency.weeksActive}/{consistency.weeksTotal}</span>
-          </div>
-          <div>
-            <span className="subtle">Days climbed (7d): </span>
-            <span className="font-medium" style={{ color: 'var(--accent)' }}>{consistency.daysLast7}/7</span>
-          </div>
-        </div>
-        <div className="card p-4">
-          <div className="card-title">By Grade (30d)</div>
-          <ul className="mt-2 space-y-1 text-sm">
-            {byGrade30.length ? byGrade30.map((r) => (
-              <li key={`${r.type}|${r.grade}`} className="flex justify-between">
-                <span>{r.type} • {r.grade}</span>
-                <span className="subtle">{r.count} • {r.flashRate}% flash • {r.avgAttempts} att</span>
-              </li>
-            )) : <li className="subtle">No recent data</li>}
-          </ul>
-        </div>
-        {/* Goal input removed; use /climbing-goals */}
       </div>
+
+      {/* ── BY GRADE ──────────────────────────────────────────── */}
+      {byGrade30.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <h2 className="text-base font-semibold">Grade Breakdown (30d)</h2>
+          <div className="space-y-2">
+            {byGrade30.map((r) => {
+              const maxCount = byGrade30[0]?.count || 1;
+              const barPct = Math.round((r.count / maxCount) * 100);
+              return (
+                <div key={`${r.type}|${r.grade}`} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold" style={{ color: 'var(--accent)' }}>{r.grade}</span>
+                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{r.type}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      <span><strong style={{ color: 'var(--text)' }}>{r.count}</strong> sends</span>
+                      <span>{r.flashRate}% flash</span>
+                      <span>{r.avgAttempts} avg att</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'var(--surface-alt)' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, background: 'var(--accent)' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {selectedGoal && (
         <GoalOverlay
           goal={selectedGoal}
@@ -798,7 +884,8 @@ function GoalPaceLine({ year, done, target }: { year: number; done: number; targ
   const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
   const remaining = Math.max(0, target - done);
   const perWeek = Math.round((remaining / weeksLeft) * 10) / 10;
-  return <div className="mt-1 subtle">Pace needed: {perWeek}/week</div>;
+  if (done >= target) return <span className="text-xs" style={{ color: '#16a34a' }}>Complete!</span>;
+  return <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{perWeek}/wk needed</span>;
 }
 
 // All Logs component moved to Climbing Log page

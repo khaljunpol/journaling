@@ -69,23 +69,23 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
   }
 
   return (
-    <div className="flex items-center justify-between pb-6">
-      <div>
-        <h2 className="text-base font-semibold">Weight</h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>Log today's weight in kg</p>
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">Weight</span>
+        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>kg</span>
       </div>
 
       <div className="flex items-center gap-2">
-        {saved && <span className="text-xs" style={{ color: '#22c55e' }}>Saved ✓</span>}
+        {saved && <span className="text-xs" style={{ color: '#22c55e' }}>✓</span>}
         <div
-          className="flex items-center gap-1 rounded-xl border px-3 py-2"
+          className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
           <input
             type="number"
             step="0.1"
             inputMode="decimal"
-            className="w-16 bg-transparent text-sm outline-none text-right"
+            className="w-14 bg-transparent text-sm outline-none text-right"
             style={{ color: 'var(--text)' }}
             placeholder={loading ? '…' : '0.0'}
             value={weight}
@@ -93,10 +93,10 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
             onKeyDown={handleKeyDown}
             disabled={loading}
           />
-          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>kg</span>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>kg</span>
         </div>
         <button
-          className="rounded-xl px-4 py-2 text-sm font-medium transition-all disabled:opacity-40"
+          className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40"
           style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
           onClick={save}
           disabled={saving || loading || !weight}
