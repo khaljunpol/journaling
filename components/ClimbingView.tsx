@@ -595,6 +595,12 @@ export default function ClimbingView() {
   return (
     <section className="space-y-5">
 
+      {/* Page header with log button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Climbing</h2>
+        <a href="/climbing-log" className="btn text-sm px-4 py-2">+ Log Climb</a>
+      </div>
+
       {/* ── TODAY'S SESSION ────────────────────────────────────── */}
       {logs.length > 0 && (
         <div className="card overflow-hidden">

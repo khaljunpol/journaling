@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { apiError, getAccountParam } from '@/lib/apiHelpers';
 import {
   listActivities,
-  listCatalog,
   getLogsBetween,
   getWeightsBetween,
   getHighlightsBetween,
@@ -49,9 +48,8 @@ export async function GET(req: Request) {
     const safe = <T>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((e) => { console.error('[dashboard]', e?.message); return fallback; });
 
-    const [activities, catalog, logs30, weights8w, highlights30] = await Promise.all([
+    const [activities, logs30, weights8w, highlights30] = await Promise.all([
       safe(listActivities(account), []),
-      safe(listCatalog(), []),
       safe(getLogsBetween(account, from30ISO, todayISO), []),
       safe(getWeightsBetween(account, eightWeeksAgoISO, todayISO), []),
       safe(getHighlightsBetween(account, from30ISO, todayISO), []),
@@ -72,7 +70,6 @@ export async function GET(req: Request) {
       account,
       dates: { todayISO, from7ISO, from30ISO, weekFromISO, weekToISO, prevWeekFromISO, prevWeekToISO, yStartISO, yEndISO, eightWeeksAgoISO, twelveWeeksAgoISO },
       activities: Array.isArray(activities) ? activities : [],
-      catalog: Array.isArray(catalog) ? catalog : [],
       logs30: Array.isArray(logs30) ? logs30 : [],
       weights8w: Array.isArray(weights8w) ? weights8w : [],
       highlights30: Array.isArray(highlights30) ? highlights30 : [],

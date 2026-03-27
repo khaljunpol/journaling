@@ -8,14 +8,13 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const body = await req.json();
     const name = body?.name !== undefined ? String(body?.name || '').trim() : undefined;
     const status = body?.status !== undefined ? (String(body?.status || '').trim() as 'active' | 'stopped') : undefined;
-    const catalogId = body?.catalogId !== undefined ? String(body?.catalogId || '').trim() : undefined;
-    if (name === undefined && status === undefined && catalogId === undefined) {
+    if (name === undefined && status === undefined) {
       return apiError('no fields to update', 400);
     }
     if (name !== undefined && name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
     const account = getAccountParam(req.nextUrl);
     if (!account) return apiError('Invalid account', 400);
-    const updated = await updateActivity(account, id, { name, status, catalogId });
+    const updated = await updateActivity(account, id, { name, status });
     return NextResponse.json(updated);
   } catch (e: any) {
     console.error('[PATCH /api/activities/[id]]', e);

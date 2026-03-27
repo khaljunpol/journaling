@@ -9,7 +9,7 @@ export default function TimeCategoriesEditor() {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#888888');
   const [isSaving, setIsSaving] = useState(false);
-  const ctrlRef = useRef<AbortController|null>(null);
+  const ctrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
@@ -36,10 +36,7 @@ export default function TimeCategoriesEditor() {
       const list: Category[] = await res.json();
       setItems(list || []);
     } catch (e: any) {
-      if (e?.name === 'AbortError') {
-        // ignore aborted refresh
-        return;
-      }
+      if (e?.name === 'AbortError') return;
       setItems([]);
     }
   }
@@ -88,61 +85,81 @@ export default function TimeCategoriesEditor() {
   }
 
   function move(it: Category, dir: -1 | 1) {
-    const sorted = [...items].sort((a,b)=>a.order-b.order);
-    const idx = sorted.findIndex((x)=>x.id===it.id);
+    const sorted = [...items].sort((a, b) => a.order - b.order);
+    const idx = sorted.findIndex((x) => x.id === it.id);
     const targetIdx = idx + dir;
     if (targetIdx < 0 || targetIdx >= sorted.length) return;
     const other = sorted[targetIdx];
-    // swap orders
     saveEdit(it, { order: other.order });
     saveEdit(other, { order: it.order });
   }
 
+  const sorted = [...items].sort((a, b) => a.order - b.order);
+
   return (
     <section className="space-y-6">
-      <h2 className="text-xl font-semibold">Time Categories</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Time Categories</h2>
+        <a href="/time" className="text-xs underline underline-offset-2" style={{ color: 'var(--muted-foreground)' }}>Back to Time</a>
+      </div>
 
-      <div className="card p-4 space-y-3">
-        <div className="subtle text-xs uppercase tracking-wider">Add Category</div>
-        <div className="mt-2 overflow-x-auto">
-          <div className="flex flex-wrap gap-2 items-center">
-            <input className="input text-sm flex-1 min-w-40" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
-            <input className="input text-sm w-16" type="color" value={color} onChange={(e)=>setColor(e.target.value)} />
-            <button className="btn text-sm" onClick={saveNew} disabled={isSaving || !name.trim()}>Add</button>
+      {/* Add */}
+      <div className="card p-4 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
+          <span className="font-medium text-sm">Add Category</span>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1">
+            <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Name</label>
+            <input className="input w-full" placeholder="Category name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveNew()} />
           </div>
+          <div className="space-y-1">
+            <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Color</label>
+            <input className="input h-10 w-12 p-1 cursor-pointer" type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+          </div>
+          <button className="btn h-10" onClick={saveNew} disabled={isSaving || !name.trim()}>Add</button>
         </div>
       </div>
 
-      <div className="card p-4 space-y-3">
-        <div className="subtle text-xs uppercase tracking-wider">Categories ({items.length})</div>
-        <div className="overflow-x-auto">
-          <ul className="space-y-2">
-            {items.sort((a,b)=>a.order-b.order).map((it) => (
-              <li key={it.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 min-w-180">
-                <span className="inline-block h-4 w-4 rounded" style={{ background: it.color }} />
-                <input className="input px-2 py-1 text-sm w-full" value={it.name} onChange={(e)=> updateItem(it.id, { name: e.target.value })} onBlur={()=> {
-                  const curr = items.find((x)=>x.id===it.id);
+      {/* List */}
+      <div className="card p-4 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
+          <span className="font-medium text-sm">Categories</span>
+          <span className="text-xs rounded-full px-2 py-0.5" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>{sorted.length}</span>
+        </div>
+        {sorted.length === 0 && <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No categories yet.</div>}
+        <div className="space-y-2">
+          {sorted.map((it, i) => (
+            <div key={it.id} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'var(--surface-alt)' }}>
+              <input
+                className="h-8 w-8 rounded-lg p-0.5 cursor-pointer shrink-0"
+                type="color"
+                value={it.color}
+                style={{ border: '2px solid var(--border)' }}
+                onInput={(e) => updateItem(it.id, { color: (e.target as HTMLInputElement).value })}
+                onBlur={() => {
+                  const curr = items.find((x) => x.id === it.id);
+                  if (curr) saveEdit(curr, { color: curr.color });
+                }}
+              />
+              <input
+                className="input flex-1 min-w-0 text-sm font-medium"
+                value={it.name}
+                onChange={(e) => updateItem(it.id, { name: e.target.value })}
+                onBlur={() => {
+                  const curr = items.find((x) => x.id === it.id);
                   if (curr) saveEdit(curr, { name: curr.name });
-                }} />
-                <input
-                  className="input px-2 py-1 text-sm w-24"
-                  type="color"
-                  value={it.color}
-                  onInput={(e)=> updateItem(it.id, { color: (e.target as HTMLInputElement).value })}
-                  onBlur={()=> {
-                    const curr = items.find((x)=>x.id===it.id);
-                    if (curr) saveEdit(curr, { color: curr.color });
-                  }}
-                />
-                <span className="subtle text-xs justify-self-center">#{it.order}</span>
-                <div className="flex items-center gap-1 justify-self-end">
-                  <button className="btn-outline px-2 py-1 text-xs" onClick={()=>move(it, -1)} title="Move up">↑</button>
-                  <button className="btn-outline px-2 py-1 text-xs" onClick={()=>move(it, 1)} title="Move down">↓</button>
-                  <button className="btn-outline px-2 py-1 text-xs" onClick={()=>remove(it)} title="Delete">Delete</button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                }}
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => move(it, -1)} disabled={i === 0}>↑</button>
+                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => move(it, 1)} disabled={i === sorted.length - 1}>↓</button>
+                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => remove(it)}>Delete</button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

@@ -20,13 +20,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const name = String(body?.name || '').trim();
     const status = String(body?.status || 'active').trim() as 'active' | 'stopped';
-    const catalogId = String(body?.catalogId || '').trim();
     if (!name) return apiError('name required', 400);
     if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
     const url = new URL(req.url);
     const account = getAccountParam(url);
     if (!account) return apiError('Invalid account', 400);
-    const created = await createActivity(account, name, { status: status === 'stopped' ? 'stopped' : 'active', catalogId: catalogId || undefined });
+    const created = await createActivity(account, name, { status: status === 'stopped' ? 'stopped' : 'active' });
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
     console.error('[POST /api/activities]', e);

@@ -148,7 +148,6 @@ export default function AppHeader() {
                   >
                     <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Manage</div>
                     {menuLink('/activities', 'Activities')}
-                    {menuLink('/catalog', 'Catalog')}
                     {menuLink('/time-categories', 'Time Categories')}
                     <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
                     <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>

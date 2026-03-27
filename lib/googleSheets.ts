@@ -25,113 +25,120 @@ function getSpreadsheetId() {
   return id;
 }
 
-// Sheets confirmed to exist in this process — avoids redundant metadata fetches
-const knownSheets = new Set<string>();
+// Sheets confirmed to exist — persists across hot reloads via globalThis
+const globalKey = '__knownSheets';
+function getKnownSheets(): Set<string> {
+  const g = globalThis as any;
+  if (!g[globalKey]) g[globalKey] = new Set<string>();
+  return g[globalKey];
+}
 
 async function ensureSheetExists(title: string, headers?: string[]) {
-  if (knownSheets.has(title)) return;
+  const known = getKnownSheets();
+  if (known.has(title)) return;
 
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  const existing = (meta.data.sheets || []).some((s) => s.properties?.title === title);
-  if (!existing) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [{ addSheet: { properties: { title } } }],
-      },
-    });
-    if (headers && headers.length) {
-      await sheets.spreadsheets.values.update({
+  try {
+    const sheets = getSheets();
+    const spreadsheetId = getSpreadsheetId();
+    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
+    const existing = (meta.data.sheets || []).some((s) => s.properties?.title === title);
+    if (!existing) {
+      await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
-        range: `${title}!A1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [headers] },
+        requestBody: {
+          requests: [{ addSheet: { properties: { title } } }],
+        },
       });
+      if (headers && headers.length) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${title}!A1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [headers] },
+        });
+      }
     }
+    known.add(title);
+  } catch (e: any) {
+    // On quota errors (429), assume sheet exists and proceed — reads will fail naturally if it doesn't
+    if (e?.status === 429 || e?.code === 429) {
+      known.add(title);
+      return;
+    }
+    throw e;
   }
-
-  knownSheets.add(title);
 }
 
 // Data model (separate tabs per account):
-// - Sheet "Activities_<account>": columns [id, name, status, catalogId]
+// - Sheet "Activities_<account>": columns [id, name, status]
 // - Sheet "Logs_<account>": columns [date ISO, activityId, completed]
 // - Sheet "Highlights_<account>": columns [date ISO, text]
-// Shared Catalog tab:
-// - Sheet "Catalog": columns [id, name, category, tags]
 
 export async function listActivities(account: string) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status', 'catalogId']);
+  await ensureSheetExists(title, ['id', 'name', 'status']);
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${title}!A2:D`,
+    range: `${title}!A2:C`,
   });
   const values = res.data.values || [];
   return values
     .filter((row) => row && row[0] && String(row[0]).trim() !== '')
-    .map(([id, name, status, catalogId]) => ({
+    .map(([id, name, status]) => ({
       id: String(id).trim(),
       name: String(name || '').trim(),
       status: String(status || 'active').trim() || 'active',
-      catalogId: String(catalogId || '').trim() || undefined,
     }));
 }
 
-export async function createActivity(account: string, name: string, options?: { status?: 'active' | 'stopped'; catalogId?: string }) {
+export async function createActivity(account: string, name: string, options?: { status?: 'active' | 'stopped' }) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status', 'catalogId']);
+  await ensureSheetExists(title, ['id', 'name', 'status']);
   const id = String(Date.now());
   const status = options?.status ?? 'active';
-  const catalogId = options?.catalogId ?? '';
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${title}!A1:D`,
+    range: `${title}!A1:C`,
     valueInputOption: 'RAW',
-    requestBody: { values: [[id, name, status, catalogId]] },
+    requestBody: { values: [[id, name, status]] },
   });
-  return { id, name, status, catalogId: catalogId || undefined };
+  return { id, name, status };
 }
 
-export async function updateActivity(account: string, id: string, updates: { name?: string; status?: 'active' | 'stopped'; catalogId?: string }) {
+export async function updateActivity(account: string, id: string, updates: { name?: string; status?: 'active' | 'stopped' }) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status', 'catalogId']);
-  // Fetch all to find row
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
+  await ensureSheetExists(title, ['id', 'name', 'status']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
     if (values[i][0] === id) { rowIndex = i + 2; break; }
   }
   if (rowIndex === -1) throw new Error('Activity not found');
-  // Read existing row to compute new values
   const existing = values[rowIndex - 2] || [];
   const name = updates.name ?? existing[1] ?? '';
   const status = updates.status ?? (existing[2] || 'active');
-  const catalogId = updates.catalogId ?? (existing[3] || '');
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${title}!B${rowIndex}:D${rowIndex}`,
+    range: `${title}!B${rowIndex}:C${rowIndex}`,
     valueInputOption: 'RAW',
-    requestBody: { values: [[name, status, catalogId]] },
+    requestBody: { values: [[name, status]] },
   });
-  return { id, name: String(name), status: String(status), catalogId: String(catalogId || '') || undefined };
+  return { id, name: String(name), status: String(status) };
 }
 
 export async function deleteActivity(account: string, id: string) {
   const sheets = getSheets();
   const spreadsheetId = getSpreadsheetId();
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status', 'catalogId']);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
+  await ensureSheetExists(title, ['id', 'name', 'status']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
@@ -155,97 +162,7 @@ export async function deleteActivity(account: string, id: string) {
     });
   } else {
     // Fallback: clear values if sheetId not found
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:D${rowIndex}` });
-  }
-  return { id };
-}
-
-// Shared activity catalog (global across accounts)
-export async function listCatalog() {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Catalog`;
-  await ensureSheetExists(title, ['id', 'name', 'category', 'tags']);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
-  const values = res.data.values || [];
-  return values
-    .filter((row) => row && row[0] && String(row[0]).trim() !== '')
-    .map(([id, name, category, tags]) => ({
-      id: String(id).trim(),
-      name: String(name || '').trim(),
-      category: String(category || '').trim(),
-      tags: String(tags || '').trim(),
-    }));
-}
-
-export async function createCatalogItem(name: string, category: string, tags?: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Catalog`;
-  await ensureSheetExists(title, ['id', 'name', 'category', 'tags']);
-  const id = String(Date.now());
-  await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `${title}!A1:D`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [[id, name, category, tags || '']] },
-  });
-  return { id, name, category, tags: tags || '' };
-}
-
-export async function updateCatalogItem(id: string, updates: { name?: string; category?: string; tags?: string }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Catalog`;
-  await ensureSheetExists(title, ['id', 'name', 'category', 'tags']);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
-  const values = res.data.values || [];
-  let rowIndex = -1;
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][0] === id) { rowIndex = i + 2; break; }
-  }
-  if (rowIndex === -1) throw new Error('Catalog item not found');
-  const existing = values[rowIndex - 2] || [];
-  const name = updates.name ?? existing[1] ?? '';
-  const category = updates.category ?? existing[2] ?? '';
-  const tags = updates.tags ?? existing[3] ?? '';
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `${title}!B${rowIndex}:D${rowIndex}`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [[name, category, tags]] },
-  });
-  return { id, name: String(name), category: String(category), tags: String(tags) };
-}
-
-export async function deleteCatalogItem(id: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Catalog`;
-  await ensureSheetExists(title, ['id', 'name', 'category', 'tags']);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
-  const values = res.data.values || [];
-  let rowIndex = -1;
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][0] === id) { rowIndex = i + 2; break; }
-  }
-  if (rowIndex === -1) throw new Error('Catalog item not found');
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
-  const sheetId = sheet?.properties?.sheetId;
-  if (typeof sheetId === 'number') {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex },
-          },
-        }],
-      },
-    });
-  } else {
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:D${rowIndex}` });
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:C${rowIndex}` });
   }
   return { id };
 }

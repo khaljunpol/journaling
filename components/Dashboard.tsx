@@ -1,6 +1,6 @@
 "use client";
 
-import type { Activity, CatalogItem, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
+import type { Activity, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
