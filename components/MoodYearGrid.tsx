@@ -20,52 +20,6 @@ type DaySummary = {
   climbLogs: Array<{ grade: string; type: string; attempts: number }>;
 };
 
-// ─── Insight generator ────────────────────────────────────────────────────────
-
-function generateInsight(s: DaySummary, avgScore: number): string {
-  const { score, logs, highlight, weight, climbLogs } = s;
-  const done = logs.filter((l) => l.completed).length;
-  const total = logs.length;
-  const completion = total > 0 ? done / total : null;
-  const moodDelta = score - avgScore;
-  const label = moodLabel(score);
-  const climbed = climbLogs.length > 0;
-
-  const parts: string[] = [];
-
-  // Mood vs average
-  if (moodDelta >= 2) parts.push(`Mood was noticeably above your average — ${label.toLowerCase()} day.`);
-  else if (moodDelta <= -2) parts.push(`Mood dipped below your average. ${score <= 3 ? 'Rough day.' : 'Off day.'}`);
-  else parts.push(`Mood was close to your average — ${label.toLowerCase()}.`);
-
-  // Activity completion
-  if (completion === null) parts.push("No activities tracked.");
-  else if (completion === 1) parts.push(total === 1 ? "Completed your one tracked activity." : `All ${total} activities completed.`);
-  else if (completion >= 0.75) parts.push(`Strong day — ${done} of ${total} activities done.`);
-  else if (completion >= 0.5) parts.push(`Half-and-half — ${done} of ${total} activities done.`);
-  else if (completion > 0) parts.push(`Light day — only ${done} of ${total} activities completed.`);
-  else parts.push("No activities checked off.");
-
-  // Climbing
-  if (climbed) {
-    const grades = climbLogs.map((c) => c.grade.toUpperCase()).join(', ');
-    const flashes = climbLogs.filter((c) => c.attempts === 0).length;
-    if (flashes > 0) parts.push(`Climbed: ${grades}${flashes > 0 ? ` (${flashes} flash${flashes > 1 ? 'es' : ''})` : ''}.`);
-    else parts.push(`Climbed: ${grades}.`);
-  }
-
-  // Weight note
-  if (weight !== null) parts.push(`Logged weight: ${weight} kg.`);
-
-  // Highlight snippet
-  if (highlight && highlight.trim().length > 0) {
-    const snippet = highlight.trim().length > 80 ? highlight.trim().slice(0, 77) + '…' : highlight.trim();
-    parts.push(`"${snippet}"`);
-  }
-
-  return parts.join(' ');
-}
-
 function moodLabel(score: number): string {
   return MOODS.find((m) => m.score === score)?.label ?? String(score);
 }
@@ -75,10 +29,12 @@ function moodLabel(score: number): string {
 function DayModal({
   summary,
   avgScore,
+  moodItems,
   onClose,
 }: {
   summary: DaySummary | 'loading';
   avgScore: number;
+  moodItems: MoodItem[];
   onClose: () => void;
 }) {
   const dateLabel = summary === 'loading'
@@ -89,11 +45,11 @@ function DayModal({
     <Modal open onClose={onClose} size="md" mobileSheet className="!p-0 overflow-hidden">
         {summary === 'loading' ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 px-6">
-            <div className="text-3xl animate-pulse">🌀</div>
-            <div className="subtle text-sm">Loading day summary…</div>
+            <div className="text-3xl animate-pulse">...</div>
+            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Loading day summary</div>
           </div>
         ) : (
-          <DayModalContent summary={summary} avgScore={avgScore} dateLabel={dateLabel} />
+          <DayModalContent summary={summary} avgScore={avgScore} dateLabel={dateLabel} moodItems={moodItems} />
         )}
     </Modal>
   );
@@ -103,12 +59,14 @@ function DayModalContent({
   summary,
   avgScore,
   dateLabel,
+  moodItems,
 }: {
   summary: DaySummary;
   avgScore: number;
   dateLabel: string;
+  moodItems: MoodItem[];
 }) {
-  const { score, logs, activities, highlight, weight, climbLogs } = summary;
+  const { date, score, logs, activities, highlight, weight, climbLogs } = summary;
   const emoji = moodEmoji(score);
   const label = moodLabel(score);
   const color = moodColor(score);
@@ -116,50 +74,113 @@ function DayModalContent({
   const completedLogs = logs.filter((l) => l.completed);
   const uncompletedLogs = logs.filter((l) => !l.completed);
   const actMap = Object.fromEntries(activities.map((a) => [a.id, a.name]));
-  const insight = generateInsight(summary, avgScore);
+
+  // Mood vs average
+  const diff = score - avgScore;
+  const diffText = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
+  const diffColor = diff >= 1 ? '#22c55e' : diff <= -1 ? '#ef4444' : 'var(--muted-foreground)';
+
+  // 7-day context: 3 days before + this day + 3 days after
+  const contextDays = useMemo(() => {
+    const d = new Date(date + 'T12:00:00');
+    const out: Array<{ dateISO: string; score: number | null; isCurrent: boolean }> = [];
+    for (let i = -3; i <= 3; i++) {
+      const nd = new Date(d);
+      nd.setDate(nd.getDate() + i);
+      const iso = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+      const found = moodItems.find((m) => m.date === iso);
+      out.push({ dateISO: iso, score: found?.score ?? null, isCurrent: i === 0 });
+    }
+    return out;
+  }, [date, moodItems]);
+
+  const hasData = logs.length > 0 || climbLogs.length > 0 || weight !== null || (highlight && highlight.trim().length > 0);
 
   return (
     <div className="flex flex-col">
       {/* Header */}
       <div className="px-5 pt-5 pb-4" style={{ background: bg }}>
-        <div className="subtle text-xs font-medium uppercase tracking-widest mb-1">{dateLabel}</div>
-        <div className="flex items-center gap-3">
-          <span className="text-5xl leading-none">{emoji}</span>
-          <div>
-            <div className="text-2xl font-bold" style={{ color }}>{score}<span className="text-base font-normal" style={{ color: 'var(--muted-foreground)' }}>/10</span></div>
-            <div className="text-sm font-medium" style={{ color }}>{label}</div>
+        <div className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>{dateLabel}</div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-5xl leading-none">{emoji}</span>
+            <div>
+              <div className="text-2xl font-bold" style={{ color }}>{score}<span className="text-base font-normal" style={{ color: 'var(--muted-foreground)' }}>/10</span></div>
+              <div className="text-sm font-medium" style={{ color }}>{label}</div>
+            </div>
+          </div>
+          {/* vs average chip */}
+          <div className="text-right">
+            <div className="text-lg font-bold" style={{ color: diffColor }}>{diffText}</div>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>vs avg</div>
           </div>
         </div>
-        {/* Mood bar */}
-        <div className="mt-3 h-1.5 rounded-full" style={{ background: 'var(--border)' }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${(score / 10) * 100}%`, background: color }} />
+
+        {/* 7-day mood sparkline */}
+        <div className="mt-3 flex items-end gap-1 justify-center">
+          {contextDays.map((cd) => {
+            const h = cd.score !== null ? Math.max(6, (cd.score / 10) * 32) : 4;
+            const dayLabel = new Date(cd.dateISO + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'narrow' });
+            return (
+              <div key={cd.dateISO} className="flex flex-col items-center gap-0.5" style={{ width: 28 }}>
+                <div
+                  className="w-3 rounded-full transition-all"
+                  style={{
+                    height: h,
+                    background: cd.score !== null ? moodColor(cd.score) : 'var(--border)',
+                    opacity: cd.isCurrent ? 1 : 0.5,
+                    outline: cd.isCurrent ? `2px solid ${color}` : undefined,
+                    outlineOffset: 1,
+                  }}
+                />
+                <span className="text-[9px]" style={{ color: cd.isCurrent ? color : 'var(--muted-foreground)', fontWeight: cd.isCurrent ? 700 : 400 }}>{dayLabel}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Insight */}
-        <div className="rounded-xl px-4 py-3 text-sm leading-relaxed" style={{ background: 'var(--surface-alt)', borderLeft: `3px solid ${color}` }}>
-          {insight}
-        </div>
+        {/* Stats strip */}
+        {hasData && (
+          <div className="grid grid-cols-3 gap-2">
+            {logs.length > 0 && (
+              <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: 'var(--surface-alt)' }}>
+                <div className="text-lg font-bold">{completedLogs.length}/{logs.length}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Activities</div>
+              </div>
+            )}
+            {climbLogs.length > 0 && (
+              <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: 'var(--surface-alt)' }}>
+                <div className="text-lg font-bold">{climbLogs.length}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Climbs</div>
+              </div>
+            )}
+            {weight !== null && (
+              <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: 'var(--surface-alt)' }}>
+                <div className="text-lg font-bold">{weight}</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>kg</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Activities */}
         {logs.length > 0 && (
           <section>
             <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Activities</div>
-            <ul className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {completedLogs.map((l) => (
-                <li key={l.activityId} className="flex items-center gap-2 text-sm">
-                  <span className="text-base leading-none" style={{ color: '#22c55e' }}>✓</span>
-                  <span>{actMap[l.activityId] ?? l.activityId}</span>
-                </li>
+                <span key={l.activityId} className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
+                  {actMap[l.activityId] ?? l.activityId}
+                </span>
               ))}
               {uncompletedLogs.map((l) => (
-                <li key={l.activityId} className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  <span className="text-base leading-none opacity-40">○</span>
-                  <span>{actMap[l.activityId] ?? l.activityId}</span>
-                </li>
+                <span key={l.activityId} className="rounded-full px-2.5 py-1 text-xs font-medium line-through" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>
+                  {actMap[l.activityId] ?? l.activityId}
+                </span>
               ))}
-            </ul>
+            </div>
           </section>
         )}
 
@@ -167,27 +188,16 @@ function DayModalContent({
         {climbLogs.length > 0 && (
           <section>
             <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Climbing</div>
-            <ul className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {climbLogs.map((c, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm">
-                  <span className="text-base">🧗</span>
-                  <span className="font-medium">{c.grade.toUpperCase()}</span>
-                  <span style={{ color: 'var(--muted-foreground)' }}>· {c.type}</span>
-                  {c.attempts === 0
-                    ? <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}>Flash</span>
-                    : <span style={{ color: 'var(--muted-foreground)' }}>· {c.attempts} att</span>
-                  }
-                </li>
+                <span key={i} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium" style={{ background: 'var(--surface-alt)' }}>
+                  <span className="font-bold" style={{ color: 'var(--accent)' }}>{c.grade.toUpperCase()}</span>
+                  <span style={{ color: 'var(--muted-foreground)' }}>{c.type}</span>
+                  {c.attempts === 0 && <span style={{ color: '#16a34a' }}>Flash</span>}
+                  {c.attempts > 0 && <span style={{ color: 'var(--muted-foreground)' }}>{c.attempts}att</span>}
+                </span>
               ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Weight */}
-        {weight !== null && (
-          <section>
-            <div className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted-foreground)' }}>Weight</div>
-            <div className="text-sm">{weight} kg</div>
+            </div>
           </section>
         )}
 
@@ -195,15 +205,15 @@ function DayModalContent({
         {highlight && highlight.trim().length > 0 && (
           <section>
             <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Highlight</div>
-            <blockquote className="text-sm leading-relaxed italic" style={{ color: 'var(--foreground)', borderLeft: '2px solid var(--border)', paddingLeft: '0.75rem' }}>
+            <blockquote className="text-sm leading-relaxed" style={{ borderLeft: `3px solid ${color}`, paddingLeft: '0.75rem' }}>
               {highlight.trim()}
             </blockquote>
           </section>
         )}
 
         {/* Empty state */}
-        {logs.length === 0 && climbLogs.length === 0 && weight === null && !highlight && (
-          <div className="subtle text-sm text-center py-2">No activity data logged for this day.</div>
+        {!hasData && (
+          <div className="text-sm text-center py-4" style={{ color: 'var(--muted-foreground)' }}>No data logged for this day.</div>
         )}
       </div>
     </div>
@@ -404,6 +414,7 @@ export default function MoodYearGrid() {
         <DayModal
           summary={daySummary}
           avgScore={avgScore}
+          moodItems={items}
           onClose={() => { setSelectedDate(null); setDaySummary(null); }}
         />
       )}
