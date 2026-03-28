@@ -2,25 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { getCache, setCache } from '@/lib/cache';
-import { parseCookies } from '@/lib/apiHelpers';
+import { useAccount } from '@/lib/useAccount';
 
 export default function DailyWeight({ dateISO }: { dateISO: string }) {
   const [weight, setWeight] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [account, setAccount] = useState<string>('Alex');
-
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  const account = useAccount();
 
   useEffect(() => {
     let cancelled = false;

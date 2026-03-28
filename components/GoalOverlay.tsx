@@ -2,12 +2,7 @@
 
 import { Line, LineChart, Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Modal from '@/components/Modal';
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function parseLocalDate(s: string) {
-    const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
-    return new Date(y, (m || 1) - 1, d || 1);
-}
+import { pad, parseLocalDate } from '@/lib/date';
 
 function daysUntilYearEnd(year: number) {
     const now = new Date();

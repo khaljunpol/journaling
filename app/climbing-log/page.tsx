@@ -1,18 +1,15 @@
 "use client";
 
-import { parseCookies } from '@/lib/apiHelpers';
 import { useEffect, useRef, useState } from 'react';
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
-function parseLocalDate(s: string) { const [y, m, d] = s.split('-').map((x) => parseInt(x, 10)); return new Date(y, (m || 1) - 1, d || 1); }
+import { useAccount } from '@/lib/useAccount';
+import { pad, localTodayISO, parseLocalDate } from '@/lib/date';
 
 type LogEntry = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
 type GoalEntry = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
 
 export default function ClimbingLogPage() {
   const today = localTodayISO();
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const [date, setDate] = useState<string>(today);
   const [session, setSession] = useState<number>(1);
   const [type, setType] = useState<'boulder' | 'rope'>('boulder');
@@ -32,21 +29,6 @@ export default function ClimbingLogPage() {
   const [yearCache, setYearCache] = useState<Record<number, LogEntry[]>>({});
   const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: 'V4', target: 100 });
   const [adding, setAdding] = useState(false);
-
-  useEffect(() => {
-    const cookieAccount = (() => { try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; } })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => { try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; } })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); };
-  }, []);
 
   async function refresh() {
     try {

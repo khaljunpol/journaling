@@ -1,18 +1,12 @@
 "use client";
 
 import { getCache, setCache } from '@/lib/cache';
+import { localTodayISO, parseLocalDate, localISO as toLocalISO, weekStartLocal } from '@/lib/date';
 import type { ClimbGoal, ClimbLog } from '@/lib/types';
+import { useAccount } from '@/lib/useAccount';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function localTodayISO() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
-function parseLocalDate(s: string) {
-  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
-  return new Date(y, (m || 1) - 1, d || 1);
-}
-function toLocalISO(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
 function vScaleToNumber(grade: string): number | null {
   const m = /^v\s*(\d+)$/i.exec(grade.trim());
@@ -26,13 +20,6 @@ const frenchGrades = [
 function frenchToIndex(g: string): number | null {
   const idx = frenchGrades.findIndex((x) => x.toLowerCase() === g.trim().toLowerCase());
   return idx >= 0 ? idx : null;
-}
-
-function weekStartLocal(d: Date) {
-  const day = d.getDay() || 7; // Sun=0, Mon=1..Sun=7
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1)); // Monday start
-  return start;
 }
 
 // Normalize grade strings to a canonical form for reliable matching
@@ -50,7 +37,7 @@ function normalizeGrade(type: 'boulder' | 'rope', grade: string): string {
 
 export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const [date, setDate] = useState<string>(today);
   const [logs, setLogs] = useState<Array<ClimbLog>>([]);
   const [rangeLogs, setRangeLogs] = useState<Array<ClimbLog>>([]);
@@ -64,21 +51,6 @@ export default function ClimbingView() {
   const YearSummaryChart = useMemo(() => dynamic(() => import('./YearSummaryChart'), { ssr: false }), []);
   const [isYearSwitchPending, startYearSwitchTransition] = useTransition();
   const [updatedMs, setUpdatedMs] = useState<number | null>(null);
-
-  useEffect(() => {
-    const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); };
-  }, []);
 
   async function refresh() {
     try {

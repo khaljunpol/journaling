@@ -3,22 +3,10 @@
 import { getCache, setCache } from '@/lib/cache';
 import { localISO } from '@/lib/date';
 import { MOODS, moodBackground, moodColor, moodEmoji } from '@/lib/mood';
-import { parseCookies } from '@/lib/apiHelpers';
-import type { MoodItem } from '@/lib/types';
+import type { MoodItem, DaySummary } from '@/lib/types';
+import { useAccount } from '@/lib/useAccount';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/components/Modal';
-
-// ─── Day summary types ────────────────────────────────────────────────────────
-
-type DaySummary = {
-  date: string;
-  score: number;
-  logs: Array<{ activityId: string; completed: boolean }>;
-  activities: Array<{ id: string; name: string }>;
-  highlight: string;
-  weight: number | null;
-  climbLogs: Array<{ grade: string; type: string; attempts: number }>;
-};
 
 function moodLabel(score: number): string {
   return MOODS.find((m) => m.score === score)?.label ?? String(score);
@@ -225,7 +213,7 @@ function DayModalContent({
 export default function MoodYearGrid() {
   const now = new Date();
   const [year, setYear] = useState<number>(now.getFullYear());
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const [items, setItems] = useState<MoodItem[]>([]);
   const ctrlRef = useRef<AbortController | null>(null);
   const [lastUpdatedMs, setLastUpdatedMs] = useState<number | null>(null);
@@ -233,29 +221,6 @@ export default function MoodYearGrid() {
   // Selected day state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [daySummary, setDaySummary] = useState<DaySummary | 'loading' | null>(null);
-
-  // Resolve account from cookie/localStorage and listen to changes
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => {
-        try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-      })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('account-change', onAccountChange as EventListener);
-    };
-  }, []);
 
   // Fetch moods for the entire year
   useEffect(() => {

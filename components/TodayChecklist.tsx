@@ -1,24 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-
-type Activity = { id: string; name: string };
-
-type Log = { activityId: string; completed: boolean };
+import { useAccount } from '@/lib/useAccount';
+import { localTodayISO } from '@/lib/date';
+import type { Activity, Log } from '@/lib/types';
 
 export default function TodayChecklist() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [account, setAccount] = useState<string>('Alex');
-
-  useEffect(() => {
-    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  const today = useMemo(() => localTodayISO(), []);
+  const account = useAccount();
 
   async function fetchActivities() {
     try {

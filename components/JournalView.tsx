@@ -6,7 +6,7 @@ import DailyWeight from '@/components/DailyWeightClient';
 import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, pad } from '@/lib/date';
 import { MOODS } from '@/lib/mood';
-import { parseCookies } from '@/lib/apiHelpers';
+import { useAccount } from '@/lib/useAccount';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 function stepDate(iso: string, delta: number): string {
@@ -19,7 +19,7 @@ export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [isPending, startTransition] = useTransition();
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const [moodScore, setMoodScore] = useState<number | null>(null);
   const moodCtrlRef = useRef<AbortController | null>(null);
 
@@ -32,28 +32,6 @@ export default function JournalView() {
       full: d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
     };
   }, [selectedDate]);
-
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => {
-        try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-      })();
-      setAccount(detail || cookieAcc || localStorage.getItem('account') || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('account-change', onAccountChange as EventListener);
-    };
-  }, []);
 
   useEffect(() => {
     async function fetchMood() {

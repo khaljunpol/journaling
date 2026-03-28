@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ActivityStatus, Activity } from '@/lib/types';
 import { normalizeStatus, toBackendStatus } from '@/lib/status';
+import { useAccount } from '@/lib/useAccount';
 
 export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
   const [name, setName] = useState('');
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const fetchVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -20,31 +21,6 @@ export default function ActivityList() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 2500);
   }
-
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try {
-        const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : null;
-      } catch { return null; }
-    })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => {
-        try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
-      })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('account-change', onAccountChange as EventListener);
-    };
-  }, []);
 
   async function refresh() {
     const v = ++fetchVersionRef.current;

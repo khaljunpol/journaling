@@ -2,26 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, ComposedChart, LineChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { useAccount } from '@/lib/useAccount';
+import type { Week, MetricsSummary, ActivitySeries } from '@/lib/types';
 
-type Week = { week: string; rate: number; done: number; total: number; movingAvg4?: number };
-type Summary = { avgRate: number; bestWeek: { week: string; rate: number } | null; currentStreakDays: number; totalCompletions: number };
-type ActivitySeries = { id: string; name: string; weeks: Array<{ week: string; rate: number; done: number; total: number }> };
+type MetricsWeek = Week & { done: number; total: number; movingAvg4?: number };
 
 export default function MetricsChart() {
-  const [weeks, setWeeks] = useState<Week[]>([]);
-  const [summary, setSummary] = useState<Summary>({ avgRate: 0, bestWeek: null, currentStreakDays: 0, totalCompletions: 0 });
+  const [weeks, setWeeks] = useState<MetricsWeek[]>([]);
+  const [summary, setSummary] = useState<MetricsSummary>({ avgRate: 0, bestWeek: null, currentStreakDays: 0, totalCompletions: 0 });
   const [series, setSeries] = useState<ActivitySeries[]>([]);
   const [range, setRange] = useState<number>(12); // weeks
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [account, setAccount] = useState<string>('Alex');
-
-  useEffect(() => {
-    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  const account = useAccount();
 
   useEffect(() => {
     async function load() {
@@ -100,7 +92,7 @@ export default function MetricsChart() {
               <YAxis yAxisId="rate" domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
               <YAxis yAxisId="count" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
               <Tooltip content={({ payload, label }) => {
-                const p = payload?.[0]?.payload as Week | undefined;
+                const p = payload?.[0]?.payload as MetricsWeek | undefined;
                 if (!p) return null;
                 return (
                   <div className="card rounded-lg p-2 text-sm shadow-lg" style={{ borderColor: 'var(--border)' }}>

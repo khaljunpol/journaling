@@ -1,11 +1,7 @@
 "use client";
 
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-function parseLocalDate(s: string) {
-  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
-  return new Date(y, (m || 1) - 1, d || 1);
-}
+import { parseLocalDate } from '@/lib/date';
 
 export default function YearSummaryChart({ series, weeklyAvg, goalsYear }: { series: Array<{ date: string; count: number }>; weeklyAvg: number; goalsYear: number }) {
   // Build month tick positions

@@ -4,16 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
 import { normalizeStatus } from '@/lib/status';
 import { getCache, setCache } from '@/lib/cache';
-import { parseCookies } from '@/lib/apiHelpers';
-
-function daysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
-function toLocalISO(y: number, m: number, d: number) {
-  return `${y}-${pad(m + 1)}-${pad(d)}`;
-}
+import { useAccount } from '@/lib/useAccount';
+import { daysInMonth, pad, localISO } from '@/lib/date';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -27,7 +19,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const todayY = today.getFullYear();
   const todayM = today.getMonth();
   const todayD = today.getDate();
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const todayBtnRef = useRef<HTMLButtonElement | null>(null);
   const actsVersionRef = useRef(0);
   const logsVersionRef = useRef(0);
@@ -35,28 +27,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const logsCtrlRef = useRef<AbortController | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => {
-        try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-      })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('account-change', onAccountChange as EventListener);
-    };
-  }, []);
 
   const days = useMemo(() => Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1), [year, month]);
   const fromISO = useMemo(() => `${year}-${pad(month + 1)}-01`, [year, month]);
@@ -162,7 +132,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [selectedDateISO, year, month]);
 
   function selectDay(day: number) {
-    onSelectDate?.(toLocalISO(year, month, day));
+    onSelectDate?.(localISO(new Date(year, month, day)));
   }
 
   return (
@@ -218,7 +188,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                       ref={isToday ? (el) => { todayBtnRef.current = el; } : undefined}
                       onClick={() => selectDay(d)}
                       aria-pressed={isSelected}
-                      title={toLocalISO(year, month, d)}
+                      title={localISO(new Date(year, month, d))}
                       className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-all"
                       style={
                         isSelected
@@ -287,7 +257,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
 
                   {/* Day cells */}
                   {days.map((d) => {
-                    const dateISO = toLocalISO(year, month, d);
+                    const dateISO = localISO(new Date(year, month, d));
                     const checked = cellChecked(dateISO, a.id);
                     const isSelected = selectedDay === d;
                     const isTodayCell = year === todayY && month === todayM && d === todayD;

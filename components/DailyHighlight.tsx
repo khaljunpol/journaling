@@ -2,23 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getCache, setCache } from '@/lib/cache';
+import { useAccount } from '@/lib/useAccount';
 
 export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    const init = typeof window !== 'undefined' ? localStorage.getItem('account') : null;
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

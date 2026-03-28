@@ -7,6 +7,7 @@ import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
 import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
 import { computeWeeklySummary, computeAttentionSignals, computeMoodActivityCorrelation, type Signal } from '@/lib/insights';
+import { useAccount } from '@/lib/useAccount';
 import Link from 'next/link';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ export default function Dashboard() {
     const d30 = new Date(today); d30.setDate(d30.getDate() - 29);
     const from30ISO = localISO(d30);
 
-    const [account, setAccount] = useState<string>('Alex');
+    const account = useAccount();
     const [loading, setLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
     const [hasData, setHasData] = useState(false);
@@ -294,17 +295,6 @@ export default function Dashboard() {
         setLastUpdated(opts?.source === 'cache' && opts.cachedAt ? new Date(opts.cachedAt).toLocaleTimeString() : new Date().toLocaleTimeString());
         setHasData(true);
     };
-
-    // ── Account sync ──────────────────────────────────────────────────────────
-    useEffect(() => {
-        const fromCookie = () => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } };
-        setAccount(fromCookie() || localStorage.getItem('account') || 'Alex');
-        const onAcc = (e: Event) => setAccount((e as CustomEvent<string>).detail || fromCookie() || localStorage.getItem('account') || 'Alex');
-        const onStorage = () => setAccount(fromCookie() || localStorage.getItem('account') || 'Alex');
-        window.addEventListener('account-change', onAcc as EventListener);
-        window.addEventListener('storage', onStorage);
-        return () => { window.removeEventListener('account-change', onAcc as EventListener); window.removeEventListener('storage', onStorage); };
-    }, []);
 
     // ── Data load ─────────────────────────────────────────────────────────────
     useEffect(() => {

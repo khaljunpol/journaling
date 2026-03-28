@@ -2,29 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TimeCategory as Category } from '@/lib/types';
+import { useAccount } from '@/lib/useAccount';
 
 export default function TimeCategoriesEditor() {
-  const [account, setAccount] = useState<string>('Alex');
+  const account = useAccount();
   const [items, setItems] = useState<Category[]>([]);
   const [name, setName] = useState('');
   const [color, setColor] = useState('#888888');
   const [isSaving, setIsSaving] = useState(false);
   const ctrlRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const cookieAccount = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
-    const init = cookieAccount || (typeof window !== 'undefined' ? localStorage.getItem('account') : null);
-    setAccount(init || 'Alex');
-    const onStorage = () => setAccount(localStorage.getItem('account') || 'Alex');
-    const onAccountChange = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      const cookieAcc = (() => { try { const m = document.cookie.match(/(?:^|;\s*)account=([^;]+)/); return m ? decodeURIComponent(m[1]) : null; } catch { return null; } })();
-      setAccount(detail || cookieAcc || (typeof window !== 'undefined' ? localStorage.getItem('account') : null) || 'Alex');
-    };
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('account-change', onAccountChange as EventListener);
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('account-change', onAccountChange as EventListener); };
-  }, []);
 
   async function refresh() {
     try {
