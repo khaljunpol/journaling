@@ -2,20 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { parseCookies } from "@/lib/apiHelpers";
+import { DEFAULT_ACCOUNT } from "@/lib/constants";
 
 const ACCOUNTS = ["Alex", "Sam"] as const;
 
 export default function AccountSwitcher() {
-  const [account, setAccount] = useState<string>("Alex");
+  const [account, setAccount] = useState<string>(DEFAULT_ACCOUNT);
 
   useEffect(() => {
     const cookieAccount = (() => {
       try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
     })();
     const initial = cookieAccount || (typeof window !== "undefined" ? localStorage.getItem("account") : null);
-    setAccount(initial || "Alex");
+    setAccount(initial || DEFAULT_ACCOUNT);
     const onStorage = () => {
-      const a = localStorage.getItem("account") || "Alex";
+      const a = localStorage.getItem("account") || DEFAULT_ACCOUNT;
       setAccount(a);
     };
     window.addEventListener("storage", onStorage);

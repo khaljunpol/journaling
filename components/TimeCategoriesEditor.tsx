@@ -21,8 +21,8 @@ export default function TimeCategoriesEditor() {
       if (!res.ok) { setItems([]); return; }
       const list: Category[] = await res.json();
       setItems(list || []);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setItems([]);
     }
   }

@@ -13,7 +13,7 @@ export function getCache<T = any>(key: string): CacheEntry<T> | null {
       return parsed as CacheEntry<T>;
     }
     return null;
-  } catch {
+  } catch { /* localStorage unavailable in SSR or corrupt data */
     return null;
   }
 }
@@ -23,7 +23,7 @@ export function setCache<T = any>(key: string, data: T): void {
   try {
     const entry: CacheEntry<T> = { cachedAt: new Date().toISOString(), data };
     localStorage.setItem(key, JSON.stringify(entry));
-  } catch {}
+  } catch { /* localStorage unavailable in SSR or quota exceeded */ }
 }
 
 // Cache-first pattern helper: apply cached immediately, then fetch fresh and update cache
@@ -35,12 +35,12 @@ export async function cacheFirst<T>(opts: {
   const { key, fetcher, apply } = opts;
   const cached = getCache<T>(key);
   if (cached) {
-    try { apply(cached.data, 'cache', cached.cachedAt); } catch {}
+    try { apply(cached.data, 'cache', cached.cachedAt); } catch { /* apply callback may throw if component unmounted */ }
   }
   try {
     const fresh = await fetcher();
-    try { setCache<T>(key, fresh); } catch {}
-    try { apply(fresh, 'fresh'); } catch {}
+    try { setCache<T>(key, fresh); } catch { /* localStorage unavailable or quota exceeded */ }
+    try { apply(fresh, 'fresh'); } catch { /* apply callback may throw if component unmounted */ }
   } catch {
     // swallow; caller can decide how to handle loading state
   }

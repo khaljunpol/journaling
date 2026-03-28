@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { setHighlight, getHighlight, getHighlightsBetween } from '@/lib/googleSheets';
-import { apiError, getAccountParam, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
@@ -17,8 +17,8 @@ export async function GET(req: Request) {
     if (!date) return apiError('date required', 400);
     const text = await getHighlight(account, date);
     return NextResponse.json({ text });
-  } catch (e: any) {
-    console.error('[GET /api/highlights]', e);
+  } catch (error: unknown) {
+    console.error('[GET /api/highlights]', getErrorMessage(error));
     return apiError('Failed to fetch highlights', 503);
   }
 }
@@ -35,9 +35,9 @@ export async function POST(req: Request) {
     if (text.length > MAX_LEN.text) return apiError(`text must be ≤${MAX_LEN.text} characters`, 400);
     await setHighlight(account, date, text);
     return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (e: any) {
-    console.error('[POST /api/highlights]', e);
-    const msg = String(e?.message || '');
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error);
+    console.error('[POST /api/highlights]', msg);
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
       return apiError('Google Sheets not configured', 503);
     }

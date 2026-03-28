@@ -5,6 +5,7 @@ import { localISO } from '@/lib/date';
 import { MOODS, moodBackground, moodColor, moodEmoji } from '@/lib/mood';
 import type { MoodItem, DaySummary } from '@/lib/types';
 import { useAccount } from '@/lib/useAccount';
+import { COLORS } from '@/lib/colors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/components/Modal';
 
@@ -66,7 +67,7 @@ function DayModalContent({
   // Mood vs average
   const diff = score - avgScore;
   const diffText = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
-  const diffColor = diff >= 1 ? '#22c55e' : diff <= -1 ? '#ef4444' : 'var(--muted-foreground)';
+  const diffColor = diff >= 1 ? COLORS.success : diff <= -1 ? COLORS.danger : 'var(--muted-foreground)';
 
   // 7-day context: 3 days before + this day + 3 days after
   const contextDays = useMemo(() => {
@@ -159,7 +160,7 @@ function DayModalContent({
             <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Activities</div>
             <div className="flex flex-wrap gap-1.5">
               {completedLogs.map((l) => (
-                <span key={l.activityId} className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
+                <span key={l.activityId} className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: 'rgba(34,197,94,0.12)', color: COLORS.success }}>
                   {actMap[l.activityId] ?? l.activityId}
                 </span>
               ))}
@@ -181,7 +182,7 @@ function DayModalContent({
                 <span key={i} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium" style={{ background: 'var(--surface-alt)' }}>
                   <span className="font-bold" style={{ color: 'var(--accent)' }}>{c.grade.toUpperCase()}</span>
                   <span style={{ color: 'var(--muted-foreground)' }}>{c.type}</span>
-                  {c.attempts === 0 && <span style={{ color: '#16a34a' }}>Flash</span>}
+                  {c.attempts === 0 && <span style={{ color: COLORS.success }}>Flash</span>}
                   {c.attempts > 0 && <span style={{ color: 'var(--muted-foreground)' }}>{c.attempts}att</span>}
                 </span>
               ))}

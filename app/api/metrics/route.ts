@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getConsistencyMetrics } from '@/lib/googleSheets';
-import { apiError, getAccountParam } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
@@ -9,8 +9,8 @@ export async function GET(req: Request) {
     if (!account) return apiError('Invalid account', 400);
     const data = await getConsistencyMetrics(account);
     return NextResponse.json(data);
-  } catch (e: any) {
-    console.error('[GET /api/metrics]', e);
+  } catch (error: unknown) {
+    console.error('[GET /api/metrics]', getErrorMessage(error));
     return apiError('Failed to fetch metrics', 503);
   }
 }

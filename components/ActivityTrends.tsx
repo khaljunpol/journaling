@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, Tooltip } from 'recharts';
 import { useAccount } from '@/lib/useAccount';
 import type { ActivitySeries } from '@/lib/types';
-
-const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+import { CHART_COLORS } from '@/lib/colors';
 
 export default function ActivityTrends() {
   const [series, setSeries] = useState<ActivitySeries[]>([]);
@@ -37,7 +36,7 @@ export default function ActivityTrends() {
         {series.map((s, i) => {
           const recent = s.weeks.slice(-12);
           const avg = recent.length ? recent.reduce((a, w) => a + w.rate, 0) / recent.length : 0;
-          const color = colors[i % colors.length];
+          const color = CHART_COLORS[i % CHART_COLORS.length];
           return (
             <div key={s.id} className="card p-3 space-y-2">
               <div className="text-xs font-medium truncate" title={s.name}>{s.name}</div>

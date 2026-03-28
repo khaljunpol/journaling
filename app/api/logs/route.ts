@@ -1,6 +1,6 @@
 import { appendLog, getLogsBetween, getLogsForDate } from '@/lib/googleSheets';
 import { NextResponse } from 'next/server';
-import { apiError, getAccountParam } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,8 +31,8 @@ export async function GET(req: Request) {
             return NextResponse.json(logs, { status: 200 });
         }
         return apiError('date or from+to required', 400);
-    } catch (e: any) {
-        console.error('[GET /api/logs]', e);
+    } catch (error: unknown) {
+        console.error('[GET /api/logs]', getErrorMessage(error));
         return apiError('Failed to fetch logs', 503);
     }
 }
@@ -51,9 +51,9 @@ export async function POST(req: Request) {
         }
         await appendLog(account, date, activityId, completed);
         return NextResponse.json({ ok: true }, { status: 201 });
-    } catch (e: any) {
-        console.error('[POST /api/logs]', e);
-        const msg = String(e?.message || '');
+    } catch (error: unknown) {
+        const msg = getErrorMessage(error);
+        console.error('[POST /api/logs]', msg);
         if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
             return apiError('Google Sheets not configured', 503);
         }

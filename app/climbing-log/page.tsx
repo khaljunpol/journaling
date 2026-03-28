@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAccount } from '@/lib/useAccount';
 import { pad, localTodayISO, parseLocalDate } from '@/lib/date';
+import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE, BOULDER_GRADES, FRENCH_GRADES } from '@/lib/climbing';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
 
 type LogEntry = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
 type GoalEntry = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
@@ -13,7 +15,7 @@ export default function ClimbingLogPage() {
   const [date, setDate] = useState<string>(today);
   const [session, setSession] = useState<number>(1);
   const [type, setType] = useState<'boulder' | 'rope'>('boulder');
-  const [grade, setGrade] = useState<string>('V4');
+  const [grade, setGrade] = useState<string>(DEFAULT_BOULDER_GRADE);
   const [location, setLocation] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [attempts, setAttempts] = useState<number>(1);
@@ -27,7 +29,7 @@ export default function ClimbingLogPage() {
   const [allLoading, setAllLoading] = useState<boolean>(false);
   const [goals, setGoals] = useState<GoalEntry[]>([]);
   const [yearCache, setYearCache] = useState<Record<number, LogEntry[]>>({});
-  const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: 'V4', target: 100 });
+  const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: DEFAULT_BOULDER_GRADE, target: 100 });
   const [adding, setAdding] = useState(false);
 
   async function refresh() {
@@ -70,7 +72,7 @@ export default function ClimbingLogPage() {
     try {
       const body = { date, session, type, grade: grade.trim(), attempts: flash ? 0 : attempts, location: location.trim(), notes: notes.trim() };
       const res = await fetch(`/api/climbing/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (res.ok) { setGrade(type === 'boulder' ? 'V4' : '6a'); setAttempts(1); setFlash(false); setLocation(''); setNotes(''); refresh(); refreshAll(allPage); }
+      if (res.ok) { setGrade(type === 'boulder' ? DEFAULT_BOULDER_GRADE : DEFAULT_ROPE_GRADE); setAttempts(1); setFlash(false); setLocation(''); setNotes(''); refresh(); refreshAll(allPage); }
     } finally { setAdding(false); }
   }
 
@@ -131,7 +133,7 @@ export default function ClimbingLogPage() {
 
   // Shared canvas setup
   function createOverlayCanvas() {
-    const W = 1080, H = 1920;
+    const W = CANVAS_WIDTH, H = CANVAS_HEIGHT;
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const c = canvas.getContext('2d')!;
     c.clearRect(0, 0, W, H);
@@ -308,8 +310,8 @@ export default function ClimbingLogPage() {
     } catch { /* no-op */ }
   }
 
-  const boulderGrades = Array.from({ length: 13 }, (_, i) => `V${i}`);
-  const frenchGrades = ['5a', '5a+', '5b', '5b+', '5c', '5c+', '6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a', '8a+', '8b', '8b+', '8c'];
+  const boulderGrades = BOULDER_GRADES;
+  const frenchGrades = FRENCH_GRADES;
 
   async function saveGoal() {
     const res = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(goalForm) });
@@ -339,7 +341,7 @@ export default function ClimbingLogPage() {
           </div>
           <div className="space-y-1">
             <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Type</label>
-            <select className="input w-full" value={type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setType(t); setGrade(t === 'boulder' ? 'V4' : '6a'); }}>
+            <select className="input w-full" value={type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setType(t); setGrade(t === 'boulder' ? DEFAULT_BOULDER_GRADE : DEFAULT_ROPE_GRADE); }}>
               <option value="boulder">Boulder</option>
               <option value="rope">Rope</option>
             </select>
@@ -444,7 +446,7 @@ export default function ClimbingLogPage() {
           </div>
           <div className="space-y-1">
             <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Type</label>
-            <select className="input w-full" value={goalForm.type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setGoalForm({ ...goalForm, type: t, grade: t === 'boulder' ? 'V4' : '6a' }); }}>
+            <select className="input w-full" value={goalForm.type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setGoalForm({ ...goalForm, type: t, grade: t === 'boulder' ? DEFAULT_BOULDER_GRADE : DEFAULT_ROPE_GRADE }); }}>
               <option value="boulder">Boulder</option>
               <option value="rope">Rope</option>
             </select>

@@ -7,33 +7,8 @@ import { useAccount } from '@/lib/useAccount';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-function vScaleToNumber(grade: string): number | null {
-  const m = /^v\s*(\d+)$/i.exec(grade.trim());
-  if (!m) return null; return parseInt(m[1], 10);
-}
-
-const boulderGrades = Array.from({ length: 13 }, (_, i) => `V${i}`); // V0..V12
-const frenchGrades = [
-  '5a', '5a+', '5b', '5b+', '5c', '5c+', '6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a', '8a+', '8b', '8b+', '8c'
-];
-function frenchToIndex(g: string): number | null {
-  const idx = frenchGrades.findIndex((x) => x.toLowerCase() === g.trim().toLowerCase());
-  return idx >= 0 ? idx : null;
-}
-
-// Normalize grade strings to a canonical form for reliable matching
-function normalizeGrade(type: 'boulder' | 'rope', grade: string): string {
-  const g = grade.trim().toLowerCase();
-  if (type === 'boulder') {
-    const n = vScaleToNumber(g);
-    // Canonical: 'v<number>' if parseable, else compact string without spaces
-    return n != null ? `v${n}` : g.replace(/\s+/g, '');
-  }
-  // Rope: map to canonical French grade from list if possible
-  const idx = frenchToIndex(g);
-  return idx != null ? frenchGrades[idx] : g.replace(/\s+/g, '');
-}
+import { vScaleToNumber, BOULDER_GRADES, FRENCH_GRADES, frenchToIndex, normalizeGrade } from '@/lib/climbing';
+import { COLORS } from '@/lib/colors';
 
 export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
@@ -282,7 +257,7 @@ export default function ClimbingView() {
     const boulderNums = ylogs.filter((l) => l.type === 'boulder').map((l) => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
     const bestBoulder = boulderNums.length ? `V${Math.max(...boulderNums)}` : null;
     const ropeIdxs = ylogs.filter((l) => l.type === 'rope').map((l) => frenchToIndex(l.grade)).filter((n): n is number => n != null);
-    const bestRope = ropeIdxs.length ? frenchGrades[Math.max(...ropeIdxs)] : null;
+    const bestRope = ropeIdxs.length ? FRENCH_GRADES[Math.max(...ropeIdxs)] : null;
     return { total, flashes, flashRate, avgAttempts, days, weeks, weeklyAvg, bestWeek, bestBoulder, bestRope, series };
   }, [yearLogsByYear, goalsYear]);
 
@@ -294,8 +269,8 @@ export default function ClimbingView() {
     const c = canvas.getContext('2d')!;
     c.clearRect(0, 0, W, H);
     const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
-    const accent = '#fc4c02';
-    const green = '#22c55e';
+    const accent = COLORS.accent;
+    const green = COLORS.success;
     const muted = 'rgba(255,255,255,0.6)';
     const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 12; c.shadowOffsetY = 4; };
     const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0; };
@@ -558,7 +533,7 @@ export default function ClimbingView() {
     const vNums = logs.filter(l => l.type === 'boulder').map(l => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
     if (vNums.length) return `V${Math.max(...vNums)}`;
     const rIdxs = logs.filter(l => l.type === 'rope').map(l => frenchToIndex(l.grade)).filter((n): n is number => n != null);
-    if (rIdxs.length) return frenchGrades[Math.max(...rIdxs)];
+    if (rIdxs.length) return FRENCH_GRADES[Math.max(...rIdxs)];
     return '—';
   }, [logs]);
 
@@ -662,7 +637,7 @@ export default function ClimbingView() {
                   </div>
                 </div>
                 <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                  <div className="h-2 rounded-full transition-all" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? '#16a34a' : 'var(--accent)' }} />
+                  <div className="h-2 rounded-full transition-all" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? COLORS.success : 'var(--accent)' }} />
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
                   <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{g.pct}% complete</span>
@@ -695,7 +670,7 @@ export default function ClimbingView() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Weekly sends</span>
                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: '#16a34a' }} />above avg
+                  <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: COLORS.success }} />above avg
                   <span className="inline-block w-2 h-2 rounded-full ml-2 mr-1" style={{ background: 'var(--border)' }} />below
                 </span>
               </div>
@@ -735,7 +710,7 @@ export default function ClimbingView() {
           <span className="text-3xl font-bold">{stats.total}</span>
           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>sends</span>
           {stats.flashRate > 0 && (
-            <span className="text-sm font-medium px-2 py-0.5 rounded-full" style={{ background: '#16a34a22', color: '#16a34a' }}>
+            <span className="text-sm font-medium px-2 py-0.5 rounded-full" style={{ background: `${COLORS.success}22`, color: COLORS.success }}>
               {stats.flashRate}% flash
             </span>
           )}
@@ -756,8 +731,8 @@ export default function ClimbingView() {
                 key={label}
                 className="text-xs font-medium px-2.5 py-1 rounded-full"
                 style={{
-                  background: neutral ? 'var(--surface-alt)' : positive ? '#16a34a18' : '#ef444418',
-                  color: neutral ? 'var(--muted-foreground)' : positive ? '#16a34a' : '#ef4444',
+                  background: neutral ? 'var(--surface-alt)' : positive ? `${COLORS.success}18` : `${COLORS.danger}18`,
+                  color: neutral ? 'var(--muted-foreground)' : positive ? COLORS.success : COLORS.danger,
                 }}
               >
                 {label}: {value > 0 ? '+' : ''}{value}{suffix} {positive ? '↑' : neutral ? '—' : '↓'}
@@ -792,7 +767,7 @@ export default function ClimbingView() {
                   }}
                 />
                 <ReferenceLine y={weekly.avg} stroke="var(--border)" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="count" stroke={COLORS.success} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -862,7 +837,7 @@ function GoalPaceLine({ year, done, target }: { year: number; done: number; targ
   const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
   const remaining = Math.max(0, target - done);
   const perWeek = Math.round((remaining / weeksLeft) * 10) / 10;
-  if (done >= target) return <span className="text-xs" style={{ color: '#16a34a' }}>Complete!</span>;
+  if (done >= target) return <span className="text-xs" style={{ color: COLORS.success }}>Complete!</span>;
   return <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{perWeek}/wk needed</span>;
 }
 

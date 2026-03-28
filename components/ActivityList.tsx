@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ActivityStatus, Activity } from '@/lib/types';
 import { normalizeStatus, toBackendStatus } from '@/lib/status';
 import { useAccount } from '@/lib/useAccount';
+import { COLORS } from '@/lib/colors';
 
 export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
@@ -117,7 +118,7 @@ export default function ActivityList() {
       {/* To Continue */}
       <div className="card p-4 sm:p-5 space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-5 w-1 rounded-full" style={{ background: '#22c55e' }} />
+          <div className="h-5 w-1 rounded-full" style={{ background: COLORS.success }} />
           <span className="font-medium text-sm">To Continue</span>
           <span className="text-xs rounded-full px-2 py-0.5 font-medium" style={{ background: 'var(--surface-alt)' }}>{toContinue.length}</span>
         </div>
@@ -142,7 +143,7 @@ export default function ActivityList() {
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition"
-                  style={{ background: 'transparent', color: '#ef4444', border: '1px solid var(--border)' }}
+                  style={{ background: 'transparent', color: COLORS.danger, border: '1px solid var(--border)' }}
                   onClick={() => updateStatus(a.id, 'to stop')}
                 >
                   Stop
@@ -158,7 +159,7 @@ export default function ActivityList() {
       {toStop.length > 0 && (
         <div className="card p-4 sm:p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <div className="h-5 w-1 rounded-full" style={{ background: '#ef4444' }} />
+            <div className="h-5 w-1 rounded-full" style={{ background: COLORS.danger }} />
             <span className="font-medium text-sm">To Stop</span>
             <span className="text-xs rounded-full px-2 py-0.5 font-medium" style={{ background: 'var(--surface-alt)' }}>{toStop.length}</span>
           </div>
@@ -169,7 +170,7 @@ export default function ActivityList() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition"
-                    style={{ background: 'transparent', color: '#22c55e', border: '1px solid var(--border)' }}
+                    style={{ background: 'transparent', color: COLORS.success, border: '1px solid var(--border)' }}
                     onClick={() => updateStatus(a.id, 'to continue')}
                   >
                     Resume

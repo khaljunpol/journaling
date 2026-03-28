@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWeight, setWeight, getWeightsBetween } from '@/lib/googleSheets';
-import { apiError, getAccountParam } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
@@ -17,8 +17,8 @@ export async function GET(req: Request) {
     if (!date) return apiError('date required', 400);
     const weight = await getWeight(account, date);
     return NextResponse.json({ weight });
-  } catch (e: any) {
-    console.error('[GET /api/weights]', e);
+  } catch (error: unknown) {
+    console.error('[GET /api/weights]', getErrorMessage(error));
     return apiError('Failed to fetch weights', 503);
   }
 }
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
     if (!Number.isFinite(weight)) return apiError('weight must be a number', 400);
     await setWeight(account, date, weight);
     return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (e: any) {
-    console.error('[POST /api/weights]', e);
-    const msg = String(e?.message || '');
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error);
+    console.error('[POST /api/weights]', msg);
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
       return apiError('Google Sheets not configured', 503);
     }

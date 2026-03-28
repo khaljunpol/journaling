@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { SESSION_EXPIRY } from '@/lib/constants';
 
 function getSecretKey() {
   const secret = process.env.SESSION_SECRET;
@@ -11,7 +12,7 @@ export async function issueSession() {
   const token = await new SignJWT({ sub: 'admin' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(SESSION_EXPIRY)
     .sign(key);
   return token;
 }

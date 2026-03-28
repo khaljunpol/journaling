@@ -59,13 +59,15 @@ async function ensureSheetExists(title: string, headers?: string[]) {
       }
     }
     known.add(title);
-  } catch (e: any) {
+  } catch (error: unknown) {
     // On quota errors (429), assume sheet exists and proceed — reads will fail naturally if it doesn't
-    if (e?.status === 429 || e?.code === 429) {
+    const status = (error as Record<string, unknown>)?.status;
+    const code = (error as Record<string, unknown>)?.code;
+    if (status === 429 || code === 429) {
       known.add(title);
       return;
     }
-    throw e;
+    throw error;
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { parseCookies } from '@/lib/apiHelpers';
+import { DEFAULT_ACCOUNT } from '@/lib/constants';
 
 function readAccount(): string {
   try {
@@ -12,7 +13,7 @@ function readAccount(): string {
     const fromStorage = localStorage.getItem('account');
     if (fromStorage) return fromStorage;
   }
-  return 'Alex';
+  return DEFAULT_ACCOUNT;
 }
 
 /**
@@ -20,7 +21,7 @@ function readAccount(): string {
  * and listens for storage + account-change events.
  */
 export function useAccount(): string {
-  const [account, setAccount] = useState<string>('Alex');
+  const [account, setAccount] = useState<string>(DEFAULT_ACCOUNT);
 
   useEffect(() => {
     setAccount(readAccount());

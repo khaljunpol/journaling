@@ -1,6 +1,7 @@
 import { jwtVerify, SignJWT } from 'jose';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { SESSION_REFRESH_THRESHOLD_MS, SESSION_MAX_AGE_S, SESSION_EXPIRY } from '@/lib/constants';
 
 async function verify(token: string) {
     const secret = process.env.SESSION_SECRET;
@@ -37,16 +38,16 @@ export async function middleware(req: NextRequest) {
     try {
         const { payload } = await verify(token);
         // Sliding refresh: if less than 2 days remaining, issue a new token
-        const exp = (payload as any).exp ? Number((payload as any).exp) * 1000 : 0;
+        const exp = payload.exp ? Number(payload.exp) * 1000 : 0;
         const now = Date.now();
         const remainingMs = exp ? exp - now : 0;
-        if (remainingMs > 0 && remainingMs < 2 * 24 * 60 * 60 * 1000) {
+        if (remainingMs > 0 && remainingMs < SESSION_REFRESH_THRESHOLD_MS) {
             const secret = process.env.SESSION_SECRET as string;
             const key = new TextEncoder().encode(secret);
             const fresh = await new SignJWT({ sub: 'admin' })
                 .setProtectedHeader({ alg: 'HS256' })
                 .setIssuedAt()
-                .setExpirationTime('7d')
+                .setExpirationTime(SESSION_EXPIRY)
                 .sign(key);
             const res = NextResponse.next();
             res.cookies.set('session', fresh, {
@@ -54,12 +55,12 @@ export async function middleware(req: NextRequest) {
                 secure: !!process.env.VERCEL,
                 sameSite: 'lax',
                 path: '/',
-                maxAge: 60 * 60 * 24 * 7,
+                maxAge: SESSION_MAX_AGE_S,
             });
             return res;
         }
         return NextResponse.next();
-    } catch {
+    } catch { /* invalid/expired token — redirect to login */
         if (pathname.startsWith('/api/')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }

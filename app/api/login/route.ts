@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { issueSession } from '@/lib/auth';
+import { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_ATTEMPTS, SESSION_MAX_AGE_S } from '@/lib/constants';
+import { getErrorMessage } from '@/lib/apiHelpers';
 
 // Server-side rate limiting: keyed by IP address
 const rateLimitMap = new Map<string, { attempts: number; ts: number }>();
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_ATTEMPTS = 5;
+const WINDOW_MS = RATE_LIMIT_WINDOW_MS;
+const MAX_ATTEMPTS = RATE_LIMIT_MAX_ATTEMPTS;
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -55,11 +57,11 @@ export async function POST(req: Request) {
       secure: !!process.env.VERCEL,
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: SESSION_MAX_AGE_S,
     });
     return res;
-  } catch (e: any) {
-    console.error('[login]', e);
-    return NextResponse.json({ error: String(e?.message || 'Unknown error') }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('[login]', error);
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

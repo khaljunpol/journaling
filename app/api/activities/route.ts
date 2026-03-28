@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createActivity, listActivities } from '@/lib/googleSheets';
-import { apiError, getAccountParam, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
@@ -9,8 +9,8 @@ export async function GET(req: Request) {
     if (!account) return apiError('Invalid account', 400);
     const data = await listActivities(account);
     return NextResponse.json(data);
-  } catch (e: any) {
-    console.error('[GET /api/activities]', e);
+  } catch (error: unknown) {
+    console.error('[GET /api/activities]', getErrorMessage(error));
     return apiError('Failed to fetch activities', 503);
   }
 }
@@ -27,9 +27,9 @@ export async function POST(req: Request) {
     if (!account) return apiError('Invalid account', 400);
     const created = await createActivity(account, name, { status: status === 'stopped' ? 'stopped' : 'active' });
     return NextResponse.json(created, { status: 201 });
-  } catch (e: any) {
-    console.error('[POST /api/activities]', e);
-    const msg = String(e?.message || '');
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error);
+    console.error('[POST /api/activities]', msg);
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
       return apiError('Google Sheets not configured', 503);
     }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_ACCOUNT } from '@/lib/constants';
 
 // Allowlist of valid account identifiers. Must match AccountSwitcher ACCOUNTS.
 export const VALID_ACCOUNTS = ['Alex', 'Sam'] as const;
@@ -9,7 +10,7 @@ export type ValidAccount = typeof VALID_ACCOUNTS[number];
  * Returns the account string, or null if invalid.
  */
 export function getAccountParam(url: URL): string | null {
-  const raw = url.searchParams.get('account') || 'Alex';
+  const raw = url.searchParams.get('account') || DEFAULT_ACCOUNT;
   if (!(VALID_ACCOUNTS as readonly string[]).includes(raw)) return null;
   return raw;
 }
@@ -47,3 +48,10 @@ export const MAX_LEN = {
   notes: 1000,
   color: 50,
 } as const;
+
+/**
+ * Extracts a human-readable message from an unknown catch error.
+ */
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

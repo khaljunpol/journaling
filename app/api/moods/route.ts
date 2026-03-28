@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMood, setMood, getMoodsBetween } from '@/lib/googleSheets';
-import { apiError, getAccountParam } from '@/lib/apiHelpers';
+import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
 
 export async function GET(req: Request) {
   try {
@@ -17,8 +17,8 @@ export async function GET(req: Request) {
     if (!date) return apiError('date required', 400);
     const score = await getMood(account, date);
     return NextResponse.json({ score });
-  } catch (e: any) {
-    console.error('[GET /api/moods]', e);
+  } catch (error: unknown) {
+    console.error('[GET /api/moods]', getErrorMessage(error));
     return apiError('Failed to fetch moods', 503);
   }
 }
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
     if (!Number.isFinite(score) || score < 0 || score > 10) return apiError('score must be 0..10', 400);
     await setMood(account, date, score);
     return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (e: any) {
-    console.error('[POST /api/moods]', e);
-    const msg = String(e?.message || '');
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error);
+    console.error('[POST /api/moods]', msg);
     if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
       return apiError('Google Sheets not configured', 503);
     }

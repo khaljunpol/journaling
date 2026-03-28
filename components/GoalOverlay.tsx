@@ -3,6 +3,8 @@
 import { Line, LineChart, Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Modal from '@/components/Modal';
 import { pad, parseLocalDate } from '@/lib/date';
+import { COLORS } from '@/lib/colors';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
 
 function daysUntilYearEnd(year: number) {
     const now = new Date();
@@ -38,15 +40,15 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
     const activeWeeks = weeklySeries.filter((w) => w.count > 0).length;
 
     function exportGoalOverlay() {
-        const W = 1080, H = 1920;
+        const W = CANVAS_WIDTH, H = CANVAS_HEIGHT;
         const canvas = document.createElement('canvas');
         canvas.width = W; canvas.height = H;
         const c = canvas.getContext('2d');
         if (!c) return;
         c.clearRect(0, 0, W, H);
 
-        const accent = '#fc4c02';
-        const green = '#22c55e';
+        const accent = COLORS.accent;
+        const green = COLORS.success;
         const white = '#ffffff';
         const muted = 'rgba(255,255,255,0.6)';
         const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
@@ -146,14 +148,14 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                         <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border)" strokeWidth="10" />
                         <circle
                             cx="70" cy="70" r="60" fill="none"
-                            stroke={pct >= 100 ? '#16a34a' : 'var(--accent)'}
+                            stroke={pct >= 100 ? COLORS.success : 'var(--accent)'}
                             strokeWidth="10"
                             strokeLinecap="round"
                             strokeDasharray={`${Math.min(1, pct / 100) * 377} 377`}
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold" style={{ color: pct >= 100 ? '#16a34a' : 'var(--accent)' }}>{pct}%</span>
+                        <span className="text-2xl font-bold" style={{ color: pct >= 100 ? COLORS.success : 'var(--accent)' }}>{pct}%</span>
                         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{done}/{goal.target}</span>
                     </div>
                 </div>
@@ -161,8 +163,8 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                 {/* Status chips */}
                 <div className="flex flex-wrap justify-center gap-2">
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{
-                        background: onTrack ? '#16a34a18' : '#ef444418',
-                        color: onTrack ? '#16a34a' : '#ef4444',
+                        background: onTrack ? `${COLORS.success}18` : `${COLORS.danger}18`,
+                        color: onTrack ? COLORS.success : COLORS.danger,
                     }}>
                         {onTrack ? `On track · ~${projection} projected` : `Behind pace · ~${projection} projected`}
                     </span>
@@ -192,7 +194,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Progress vs Pace</h3>
                     <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                        <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: '#16a34a' }} />Actual</span>
+                        <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: COLORS.success }} />Actual</span>
                         <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: '#9CA3AF' }} />Ideal</span>
                         <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: '#f59e0b' }} />Recent</span>
                     </div>
@@ -217,7 +219,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                             />
                             <Line type="monotone" dataKey="ideal" name="Ideal" stroke="#9CA3AF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
                             <Line type="monotone" dataKey="recentPace" name="Recent Pace" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
-                            <Line type="monotone" dataKey="actual" name="Actual" stroke="#16a34a" strokeWidth={2.5} dot={false} />
+                            <Line type="monotone" dataKey="actual" name="Actual" stroke={COLORS.success} strokeWidth={2.5} dot={false} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -266,7 +268,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                             <div key={b.bucket} className="flex-1 flex flex-col items-center gap-1">
                                 <div className="w-full rounded-t-md" style={{
                                     height: heightPct * 0.6,
-                                    background: isFlash ? '#16a34a' : 'var(--accent)',
+                                    background: isFlash ? COLORS.success : 'var(--accent)',
                                     opacity: isFlash ? 1 : 0.6,
                                 }} />
                                 <span className="text-sm font-bold">{b.count}</span>
@@ -290,7 +292,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                                 <div key={s.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg" style={{ background: 'var(--surface-alt)' }}>
                                     <span>{s.date.slice(0, 10)}</span>
                                     <span style={{ color: 'var(--muted-foreground)' }}>
-                                        S{s.session} · {s.attempts === 0 ? <span style={{ color: '#16a34a' }}>flash</span> : `${s.attempts} att`}
+                                        S{s.session} · {s.attempts === 0 ? <span style={{ color: COLORS.success }}>flash</span> : `${s.attempts} att`}
                                         {s.location ? ` · ${s.location}` : ''}
                                     </span>
                                 </div>
