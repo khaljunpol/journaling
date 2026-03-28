@@ -402,7 +402,7 @@ export default function Dashboard() {
                             )}
                             {/* Activity rate chip */}
                             {thisWeekRate > 0 && (
-                                <Link href="/metrics" className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                <Link href="/activities" className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
                                     {Math.round(thisWeekRate * 100)}% activities
                                 </Link>
                             )}
@@ -538,7 +538,7 @@ export default function Dashboard() {
             <SectionHeader title="Activities" />
             <div className="card p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                    <Link href="/metrics" className="font-semibold hover:underline">Weekly Completion</Link>
+                    <Link href="/activities" className="font-semibold hover:underline">Weekly Completion</Link>
                     {hasData && (
                         <span className={`text-sm font-medium ${actWeekDelta === 'up' ? 'text-emerald-500' : actWeekDelta === 'down' ? 'text-red-400' : 'subtle'}`}>
                             {Math.round(thisWeekRate * 100)}% {actWeekDelta === 'up' ? '↑' : actWeekDelta === 'down' ? '↓' : ''}

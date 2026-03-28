@@ -152,7 +152,6 @@ export default function AppHeader() {
                     <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
                     <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>
                     {menuLink('/climbing-log', 'Climbing Log')}
-                    {menuLink('/metrics', 'Metrics')}
                     <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
                     <div className="px-2 py-1.5" onClick={closeSettings}>
                       <LogoutButton />
