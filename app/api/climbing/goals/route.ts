@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server';
 import { listClimbGoals, upsertClimbGoal, deleteClimbGoal } from '@/lib/googleSheets';
-import { apiError, getAccountParam, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { requireSheetContext } from '@/lib/sheetAuth';
 import { createApiCache } from '@/lib/apiCache';
 
 const cache = createApiCache(60_000);
-const getKey = (account: string) => `goals:${account}`;
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
-    const key = getKey(account);
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
+    const key = `goals:${ctx.account}`;
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
-    const items = await listClimbGoals(account);
+    const items = await listClimbGoals(ctx.sheetAuth, ctx.account);
     cache.set(key, items);
     return NextResponse.json(items);
   } catch (error: unknown) {
@@ -25,9 +24,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
     const body = await req.json();
     const year = parseInt(String(body?.year ?? new Date().getFullYear()), 10);
     const type = (String(body?.type || 'boulder').toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope';
@@ -35,7 +33,7 @@ export async function POST(req: Request) {
     const target = parseInt(String(body?.target ?? '0'), 10) || 0;
     if (!grade || !target) return apiError('grade and target required', 400);
     if (grade.length > MAX_LEN.grade) return apiError(`grade must be ≤${MAX_LEN.grade} characters`, 400);
-    const saved = await upsertClimbGoal(account, { year, type, grade, target });
+    const saved = await upsertClimbGoal(ctx.sheetAuth, ctx.account, { year, type, grade, target });
     cache.invalidate();
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
@@ -46,12 +44,12 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
     const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
     const id = url.searchParams.get('id');
     if (!id) return apiError('id required', 400);
-    const out = await deleteClimbGoal(account, id);
+    const out = await deleteClimbGoal(ctx.sheetAuth, ctx.account, id);
     cache.invalidate();
     return NextResponse.json(out);
   } catch (error: unknown) {

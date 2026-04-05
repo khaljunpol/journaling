@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 
+// Auth is now handled by NextAuth at /api/auth/signout
 export async function POST() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set('session', '', {
-    httpOnly: true,
-    secure: !!process.env.VERCEL,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
-  return res;
+  return NextResponse.json({ error: 'Use /api/auth/signout' }, { status: 410 });
 }

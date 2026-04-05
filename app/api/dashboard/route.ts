@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { requireSheetContext } from '@/lib/sheetAuth';
 import { localISO, weekStartLocal } from '@/lib/date';
 import {
   listActivities,
@@ -14,11 +15,11 @@ import {
   listClimbGoals,
 } from '@/lib/googleSheets';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
+    const { sheetAuth, account } = ctx;
 
     const today = new Date();
     const todayISO = localISO(today);
@@ -42,26 +43,25 @@ export async function GET(req: Request) {
     const twelveWeeksAgo = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - 7 * 12);
     const twelveWeeksAgoISO = localISO(twelveWeeksAgo);
 
-    // Call library functions directly — no HTTP round trips, no auth issues
     const safe = <T>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { console.error('[dashboard]', getErrorMessage(err)); return fallback; });
 
     const [activities, logs30, weights8w, highlights30] = await Promise.all([
-      safe(listActivities(account), []),
-      safe(getLogsBetween(account, from30ISO, todayISO), []),
-      safe(getWeightsBetween(account, eightWeeksAgoISO, todayISO), []),
-      safe(getHighlightsBetween(account, from30ISO, todayISO), []),
+      safe(listActivities(sheetAuth, account), []),
+      safe(getLogsBetween(sheetAuth, account, from30ISO, todayISO), []),
+      safe(getWeightsBetween(sheetAuth, account, eightWeeksAgoISO, todayISO), []),
+      safe(getHighlightsBetween(sheetAuth, account, from30ISO, todayISO), []),
     ]);
 
     const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY] = await Promise.all([
-      safe(getMoodsBetween(account, from7ISO, todayISO), []),
-      safe(getMoodsBetween(account, prevWeekFromISO, prevWeekToISO), []),
-      safe(getConsistencyMetrics(account), null),
-      safe(listTimeCategories(account), []),
-      safe(listHourLogs(account, yStartISO, yEndISO), []),
-      safe(listClimbLogs(account, from30ISO, todayISO), []),
-      safe(listClimbGoals(account), []),
-      safe(listClimbLogs(account, yStartISO, yEndISO), []),
+      safe(getMoodsBetween(sheetAuth, account, from7ISO, todayISO), []),
+      safe(getMoodsBetween(sheetAuth, account, prevWeekFromISO, prevWeekToISO), []),
+      safe(getConsistencyMetrics(sheetAuth, account), null),
+      safe(listTimeCategories(sheetAuth, account), []),
+      safe(listHourLogs(sheetAuth, account, yStartISO, yEndISO), []),
+      safe(listClimbLogs(sheetAuth, account, from30ISO, todayISO), []),
+      safe(listClimbGoals(sheetAuth, account), []),
+      safe(listClimbLogs(sheetAuth, account, yStartISO, yEndISO), []),
     ]);
 
     return NextResponse.json({

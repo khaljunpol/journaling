@@ -1,57 +1,78 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { parseCookies } from "@/lib/apiHelpers";
-import { DEFAULT_ACCOUNT } from "@/lib/constants";
-
-const ACCOUNTS = ["Alex", "Sam"] as const;
+import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 
 export default function AccountSwitcher() {
-  const [account, setAccount] = useState<string>(DEFAULT_ACCOUNT);
+  const { data: session, update } = useSession();
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
 
-  useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const initial = cookieAccount || (typeof window !== "undefined" ? localStorage.getItem("account") : null);
-    setAccount(initial || DEFAULT_ACCOUNT);
-    const onStorage = () => {
-      const a = localStorage.getItem("account") || DEFAULT_ACCOUNT;
-      setAccount(a);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const active = session?.activeSubAccount || '';
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const a = e.target.value;
-    setAccount(a);
-    try {
-      localStorage.setItem("account", a);
-      // Notify other components quickly
-      window.dispatchEvent(new StorageEvent("storage", { key: "account", newValue: a } as any));
-      window.dispatchEvent(new CustomEvent("account-change", { detail: a }));
-      // Also set a readable cookie so server components can read the selection
-      const maxAge = 60 * 60 * 24 * 30; // 30 days
-      document.cookie = `account=${encodeURIComponent(a)}; path=/; max-age=${maxAge}; samesite=lax`;
-    } catch {}
-  };
+  async function switchTo(name: string) {
+    await update({ activeSubAccount: name });
+    window.location.reload();
+  }
+
+  async function addSubAccount(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    await update({ activeSubAccount: name });
+    setAdding(false);
+    setNewName('');
+    window.location.reload();
+  }
+
+  if (!session) return null;
 
   return (
-    <label className="inline-flex items-center gap-3 text-sm">
-      <select
-        value={account}
-        onChange={onChange}
-        title="Switch account"
-        className="input py-1 text-sm"
-        aria-label="Select account"
+    <div className="relative inline-flex items-center gap-1">
+      {active && (
+        <span
+          className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium cursor-default"
+          style={{ background: 'var(--surface-alt)', color: 'var(--accent)' }}
+          title={`Active: ${active}`}
+        >
+          {active}
+        </span>
+      )}
+      <button
+        onClick={() => setAdding((v) => !v)}
+        className="btn-outline px-2 py-1 text-xs"
+        title="Switch or add sub-account"
       >
-        {ACCOUNTS.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-      </select>
-    </label>
+        ⊕
+      </button>
+      {adding && (
+        <div
+          className="absolute right-0 top-full mt-1 w-52 card p-3 z-40 shadow-lg space-y-2"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Switch / Add Account</div>
+          <form onSubmit={addSubAccount} className="flex gap-1">
+            <input
+              autoFocus
+              type="text"
+              className="input flex-1 py-1 text-sm"
+              placeholder="e.g. Sam"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <button type="submit" className="btn px-2 py-1 text-sm">Go</button>
+          </form>
+          {active && (
+            <button
+              className="w-full text-left text-xs px-1 py-0.5 rounded"
+              style={{ color: 'var(--muted-foreground)' }}
+              onClick={() => switchTo(active)}
+            >
+              Current: {active}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

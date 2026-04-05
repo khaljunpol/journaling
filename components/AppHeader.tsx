@@ -67,7 +67,7 @@ export default function AppHeader() {
     document.documentElement.setAttribute('data-theme', next);
   }
 
-  if (pathname?.startsWith('/login')) return null;
+  if (pathname?.startsWith('/login') || pathname?.startsWith('/setup')) return null;
 
   const link = (href: string, label: string) => {
     const active = pathname === href;
