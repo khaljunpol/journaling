@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TimeCategory as Category } from '@/lib/types';
-import { useAccount } from '@/lib/useAccount';
 
 export default function TimeCategoriesEditor() {
-  const account = useAccount();
   const [items, setItems] = useState<Category[]>([]);
   const [name, setName] = useState('');
   const [color, setColor] = useState('#888888');
@@ -17,7 +15,7 @@ export default function TimeCategoriesEditor() {
       if (ctrlRef.current) ctrlRef.current.abort();
       const controller = new AbortController();
       ctrlRef.current = controller;
-      const res = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`, { signal: controller.signal });
+      const res = await fetch('/api/time/categories', { signal: controller.signal });
       if (!res.ok) { setItems([]); return; }
       const list: Category[] = await res.json();
       setItems(list || []);
@@ -27,7 +25,7 @@ export default function TimeCategoriesEditor() {
     }
   }
 
-  useEffect(() => { refresh(); }, [account]);
+  useEffect(() => { refresh(); }, []);
 
   function updateItem(id: string, patch: Partial<Category>) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -39,7 +37,7 @@ export default function TimeCategoriesEditor() {
     setIsSaving(true);
     try {
       const order = (items?.length || 0) + 1;
-      const res = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: trimmed, color, order }) });
+      const res = await fetch('/api/time/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: trimmed, color, order }) });
       if (res.ok) {
         setName(''); setColor('#888888');
         refresh();
@@ -52,7 +50,7 @@ export default function TimeCategoriesEditor() {
   async function saveEdit(it: Category, patch: Partial<Category>) {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, name: patch.name ?? it.name, color: patch.color ?? it.color, order: patch.order ?? it.order }) });
+      const res = await fetch('/api/time/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, name: patch.name ?? it.name, color: patch.color ?? it.color, order: patch.order ?? it.order }) });
       if (res.ok) refresh();
     } finally {
       setIsSaving(false);
@@ -63,7 +61,7 @@ export default function TimeCategoriesEditor() {
     if (!confirm(`Delete category "${it.name}"?`)) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
+      const res = await fetch('/api/time/categories', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
       if (res.ok) refresh();
     } finally {
       setIsSaving(false);

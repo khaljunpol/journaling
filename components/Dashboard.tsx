@@ -7,7 +7,6 @@ import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
 import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
 import { computeWeeklySummary, computeAttentionSignals, computeMoodActivityCorrelation, type Signal } from '@/lib/insights';
-import { useAccount } from '@/lib/useAccount';
 import Link from 'next/link';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
@@ -119,7 +118,6 @@ export default function Dashboard() {
     const d30 = new Date(today); d30.setDate(d30.getDate() - 29);
     const from30ISO = localISO(d30);
 
-    const account = useAccount();
     const [loading, setLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
     const [hasData, setHasData] = useState(false);
@@ -302,24 +300,24 @@ export default function Dashboard() {
         setHasData(false);
 
         try {
-            const cached = getCache<any>(`dashboard:${account}`);
+            const cached = getCache<unknown>('dashboard');
             if (cached?.data) applyFromPayload(cached.data, { source: 'cache', cachedAt: cached.cachedAt });
         } catch { }
 
         const load = async () => {
             try {
                 dashCtrl.current = new AbortController();
-                const res = await fetch(`/api/dashboard?account=${encodeURIComponent(account)}`, { signal: dashCtrl.current.signal });
+                const res = await fetch('/api/dashboard', { signal: dashCtrl.current.signal });
                 if (!res.ok) throw new Error('Failed');
                 const data = await res.json();
                 applyFromPayload(data, { source: 'fresh' });
-                try { setCache(`dashboard:${account}`, data); } catch { }
+                try { setCache('dashboard', data); } catch { }
             } catch { }
         };
 
         setLoading(true);
         load().finally(() => setLoading(false));
-    }, [account]);
+    }, []);
 
     // ── Derived values ────────────────────────────────────────────────────────
     const last7Expected = activities.length * 7;

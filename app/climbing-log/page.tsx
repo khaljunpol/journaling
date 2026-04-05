@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { useAccount } from '@/lib/useAccount';
 import { pad, localTodayISO, parseLocalDate } from '@/lib/date';
 import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE, BOULDER_GRADES, FRENCH_GRADES } from '@/lib/climbing';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
@@ -11,7 +10,6 @@ type GoalEntry = { id: string; year: number; type: 'boulder' | 'rope'; grade: st
 
 export default function ClimbingLogPage() {
   const today = localTodayISO();
-  const account = useAccount();
   const [date, setDate] = useState<string>(today);
   const [session, setSession] = useState<number>(1);
   const [type, setType] = useState<'boulder' | 'rope'>('boulder');
@@ -36,18 +34,18 @@ export default function ClimbingLogPage() {
     try {
       if (ctrlRef.current) ctrlRef.current.abort();
       ctrlRef.current = new AbortController();
-      const res = await fetch(`/api/climbing/logs?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
+      const res = await fetch(`/api/climbing/logs?date=${date}`, { signal: ctrlRef.current.signal });
       const items = res.ok ? await res.json() : [];
       setLogs(Array.isArray(items) ? items : []);
     } catch { setLogs([]); }
   }
 
-  useEffect(() => { refresh(); }, [date, account]);
+  useEffect(() => { refresh(); }, [date]);
 
   async function refreshAll(page = 1) {
     setAllLoading(true);
     try {
-      const res = await fetch(`/api/climbing/logs?account=${encodeURIComponent(account)}&limit=${allLimit}&page=${page}`);
+      const res = await fetch(`/api/climbing/logs?limit=${allLimit}&page=${page}`);
       if (res.ok) {
         const data = await res.json();
         if (data && Array.isArray(data.items)) {
@@ -63,21 +61,21 @@ export default function ClimbingLogPage() {
     } finally { setAllLoading(false); }
   }
 
-  useEffect(() => { refreshAll(1); }, [account]);
+  useEffect(() => { refreshAll(1); }, []);
 
-  useEffect(() => { (async () => { try { const gRes = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`); const gs = gRes.ok ? await gRes.json() : []; setGoals(Array.isArray(gs) ? gs : []); } catch { } })(); }, [account]);
+  useEffect(() => { (async () => { try { const gRes = await fetch('/api/climbing/goals'); const gs = gRes.ok ? await gRes.json() : []; setGoals(Array.isArray(gs) ? gs : []); } catch { } })(); }, []);
 
   async function addLog() {
     setAdding(true);
     try {
       const body = { date, session, type, grade: grade.trim(), attempts: flash ? 0 : attempts, location: location.trim(), notes: notes.trim() };
-      const res = await fetch(`/api/climbing/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/api/climbing/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (res.ok) { setGrade(type === 'boulder' ? DEFAULT_BOULDER_GRADE : DEFAULT_ROPE_GRADE); setAttempts(1); setFlash(false); setLocation(''); setNotes(''); refresh(); refreshAll(allPage); }
     } finally { setAdding(false); }
   }
 
   async function removeLog(id: string) {
-    await fetch(`/api/climbing/logs?id=${encodeURIComponent(id)}&account=${encodeURIComponent(account)}`, { method: 'DELETE' });
+    await fetch(`/api/climbing/logs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     refresh();
     refreshAll(allPage);
   }
@@ -88,7 +86,7 @@ export default function ClimbingLogPage() {
     if (!yrLogs) {
       try {
         const yrStart = `${yr}-01-01`; const yrEnd = `${yr}-12-31`;
-        const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}&account=${encodeURIComponent(account)}`);
+        const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}`);
         const items = resp.ok ? await resp.json() : [];
         yrLogs = Array.isArray(items) ? items : [];
         setYearCache((prev) => ({ ...prev, [yr]: yrLogs! }));
@@ -314,8 +312,8 @@ export default function ClimbingLogPage() {
   const frenchGrades = FRENCH_GRADES;
 
   async function saveGoal() {
-    const res = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(goalForm) });
-    if (res.ok) { /* refresh goals */ try { const gRes = await fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`); const gs = gRes.ok ? await gRes.json() : []; setGoals(Array.isArray(gs) ? gs : []); } catch { } }
+    const res = await fetch('/api/climbing/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(goalForm) });
+    if (res.ok) { /* refresh goals */ try { const gRes = await fetch('/api/climbing/goals'); const gs = gRes.ok ? await gRes.json() : []; setGoals(Array.isArray(gs) ? gs : []); } catch { } }
   }
 
   return (

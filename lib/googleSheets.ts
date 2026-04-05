@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 
 export type SheetAuth = {
   accessToken: string;
@@ -25,10 +26,10 @@ function getOAuthSheets(sa: SheetAuth) {
 // Known tabs cache keyed by spreadsheetId — persists across hot reloads via globalThis
 const globalKey = '__knownSheets';
 function getKnownSheets(spreadsheetId: string): Set<string> {
-  const g = globalThis as any;
+  const g = globalThis as typeof globalThis & { [globalKey]?: Map<string, Set<string>> };
   if (!g[globalKey]) g[globalKey] = new Map<string, Set<string>>();
   if (!g[globalKey].has(spreadsheetId)) g[globalKey].set(spreadsheetId, new Set<string>());
-  return g[globalKey].get(spreadsheetId);
+  return g[globalKey].get(spreadsheetId)!;
 }
 
 async function ensureSheetExists(sa: SheetAuth, title: string, headers?: string[]) {
@@ -410,9 +411,10 @@ export async function getConsistencyMetrics(sa: SheetAuth, account: string) {
     })
     .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 
-  for (let i = 0; i < weeks.length; i++) {
-    const slice = weeks.slice(Math.max(0, i - 3), i + 1);
-    (weeks[i] as any).movingAvg4 = slice.reduce((acc, w) => acc + w.rate, 0) / slice.length;
+  const weeksWithAvg = weeks as Array<typeof weeks[number] & { movingAvg4: number }>;
+  for (let i = 0; i < weeksWithAvg.length; i++) {
+    const slice = weeksWithAvg.slice(Math.max(0, i - 3), i + 1);
+    weeksWithAvg[i].movingAvg4 = slice.reduce((acc, w) => acc + w.rate, 0) / slice.length;
   }
 
   const avgRate = weeks.length ? weeks.reduce((acc, w) => acc + w.rate, 0) / weeks.length : 0;
@@ -481,9 +483,6 @@ function computeCurrentStreakDays(completedDates: Set<string>) {
 }
 
 // ── Climbing ─────────────────────────────────────────────────
-
-export type ClimbLog = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
-export type ClimbGoal = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
 
 export async function listClimbLogs(sa: SheetAuth, account: string, fromISO?: string, toISO?: string) {
   const sheets = getOAuthSheets(sa);
@@ -607,8 +606,6 @@ export async function deleteClimbGoal(sa: SheetAuth, account: string, id: string
 }
 
 // ── Time Tracking ────────────────────────────────────────────
-
-export type HourLog = { id: string; date: string; hour: number; category: number };
 
 function hourIndexToColumnLetter(hourIndex: number) {
   let n = 2 + hourIndex;

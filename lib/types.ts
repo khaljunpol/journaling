@@ -23,6 +23,7 @@ export type DaySummary = {
 
 // Time tracker
 export type TimeCategory = { id: string; name: string; color: string; order: number };
+export type HourLog = { id: string; date: string; hour: number; category: number };
 export type TimeEntry = { date: string; hour: number; category: number };
 export type TimeEntryAny = { date: string; hour: number; category: number | string };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAccount } from '@/lib/useAccount';
 import { localTodayISO } from '@/lib/date';
 import type { Activity, Log } from '@/lib/types';
 
@@ -9,11 +8,10 @@ export default function TodayChecklist() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const today = useMemo(() => localTodayISO(), []);
-  const account = useAccount();
 
   async function fetchActivities() {
     try {
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`);
+      const res = await fetch('/api/activities');
       if (!res.ok) { setActivities([]); return; }
       const data = await res.json();
       setActivities(Array.isArray(data) ? data : []);
@@ -24,7 +22,7 @@ export default function TodayChecklist() {
 
   async function fetchLogs() {
     try {
-      const res = await fetch(`/api/logs?date=${today}&account=${encodeURIComponent(account)}`);
+      const res = await fetch(`/api/logs?date=${today}`);
       if (!res.ok) { setLogs([]); return; }
       const data = await res.json();
       setLogs(Array.isArray(data) ? data : []);
@@ -36,10 +34,10 @@ export default function TodayChecklist() {
   useEffect(() => {
     fetchActivities();
     fetchLogs();
-  }, [account]);
+  }, []);
 
   async function toggle(activityId: string, checked: boolean) {
-    const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today, activityId, completed: checked }) });
+    const res = await fetch('/api/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today, activityId, completed: checked }) });
     if (!res.ok) {
       let msg = 'Failed to update log';
       try { const j = await res.json(); msg = j?.error || msg; } catch {}

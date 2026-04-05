@@ -2,27 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import { getCache, setCache } from '@/lib/cache';
-import { useAccount } from '@/lib/useAccount';
 
 export default function DailyWeight({ dateISO }: { dateISO: string }) {
   const [weight, setWeight] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const account = useAccount();
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const cacheKey = `weight:${account}:${dateISO}`;
+        const cacheKey = `weight:${dateISO}`;
         const cached = getCache<{ weight: number | null }>(cacheKey);
         if (cached) {
           const w = cached.data?.weight;
           if (!cancelled) setWeight(w != null && isFinite(w) ? String(w) : '');
         }
-        const res = await fetch(`/api/weights?date=${dateISO}&account=${encodeURIComponent(account)}`);
+        const res = await fetch(`/api/weights?date=${dateISO}`);
         if (res.ok && !cancelled) {
           const j = await res.json();
           const w = j?.weight;
@@ -35,15 +33,15 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateISO, account]);
+  }, [dateISO]);
 
   async function save() {
     const w = parseFloat(weight);
     if (!isFinite(w)) return;
-    try { setCache(`weight:${account}:${dateISO}`, { weight: w }); } catch {}
+    try { setCache(`weight:${dateISO}`, { weight: w }); } catch {}
     setSaving(true);
     setSaved(false);
-    await fetch(`/api/weights?account=${encodeURIComponent(account)}`, {
+    await fetch('/api/weights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateISO, weight: w }),

@@ -4,7 +4,6 @@ import { getCache, setCache } from '@/lib/cache';
 import { localISO } from '@/lib/date';
 import { MOODS, moodBackground, moodColor, moodEmoji } from '@/lib/mood';
 import type { MoodItem, DaySummary } from '@/lib/types';
-import { useAccount } from '@/lib/useAccount';
 import { COLORS } from '@/lib/colors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/components/Modal';
@@ -214,7 +213,6 @@ function DayModalContent({
 export default function MoodYearGrid() {
   const now = new Date();
   const [year, setYear] = useState<number>(now.getFullYear());
-  const account = useAccount();
   const [items, setItems] = useState<MoodItem[]>([]);
   const ctrlRef = useRef<AbortController | null>(null);
   const [lastUpdatedMs, setLastUpdatedMs] = useState<number | null>(null);
@@ -232,7 +230,7 @@ export default function MoodYearGrid() {
         ctrlRef.current = new AbortController();
         const fromISO = `${year}-01-01`;
         const toISO = `${year}-12-31`;
-        const cacheKey = `moods:year:${account}:${year}`;
+        const cacheKey = `moods:year:${year}`;
         const cached = getCache<MoodItem[]>(cacheKey);
         if (cached) {
           const valid = Array.isArray(cached.data) ? cached.data.filter((x) => typeof x?.score === 'number' && x?.date) : [];
@@ -241,7 +239,7 @@ export default function MoodYearGrid() {
           try { setLastUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cached.cachedAt))); } catch {}
           appliedCache = true;
         }
-        const res = await fetch(`/api/moods?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
+        const res = await fetch(`/api/moods?from=${fromISO}&to=${toISO}`, { signal: ctrlRef.current.signal });
         const data: MoodItem[] = res.ok ? await res.json() : [];
         const valid = Array.isArray(data) ? data.filter((x) => typeof x?.score === 'number' && x?.date) : [];
         const normalized = valid.map((x) => ({ date: x.date.slice(0, 10), score: Math.max(0, Math.min(10, Math.round(x.score))) }));
@@ -252,24 +250,23 @@ export default function MoodYearGrid() {
         if (!appliedCache) setItems([]);
       }
     }
-    if (account && year) load();
-  }, [account, year]);
+    if (year) load();
+  }, [year]);
 
   // Fetch day summary when a date is selected
   useEffect(() => {
     if (!selectedDate) return;
     setDaySummary('loading');
-    const acc = account;
     const date = selectedDate;
 
     async function fetchSummary() {
       try {
         const [logsRes, activitiesRes, highlightRes, weightRes, climbRes] = await Promise.allSettled([
-          fetch(`/api/logs?date=${date}&account=${encodeURIComponent(acc)}`),
-          fetch(`/api/activities?account=${encodeURIComponent(acc)}`),
-          fetch(`/api/highlights?date=${date}&account=${encodeURIComponent(acc)}`),
-          fetch(`/api/weights?date=${date}&account=${encodeURIComponent(acc)}`),
-          fetch(`/api/climbing/logs?from=${date}&to=${date}&account=${encodeURIComponent(acc)}`),
+          fetch(`/api/logs?date=${date}`),
+          fetch('/api/activities'),
+          fetch(`/api/highlights?date=${date}`),
+          fetch(`/api/weights?date=${date}`),
+          fetch(`/api/climbing/logs?from=${date}&to=${date}`),
         ]);
 
         const logs = logsRes.status === 'fulfilled' && logsRes.value.ok ? await logsRes.value.json() : [];

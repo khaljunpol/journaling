@@ -2,25 +2,23 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, Tooltip } from 'recharts';
-import { useAccount } from '@/lib/useAccount';
 import type { ActivitySeries } from '@/lib/types';
 import { CHART_COLORS } from '@/lib/colors';
 
 export default function ActivityTrends() {
   const [series, setSeries] = useState<ActivitySeries[]>([]);
   const [loading, setLoading] = useState(true);
-  const account = useAccount();
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/metrics?account=${encodeURIComponent(account)}`)
+    fetch('/api/metrics')
       .then((r) => r.ok ? r.json() : null)
       .then((json) => {
         setSeries(Array.isArray(json?.byActivity) ? json.byActivity : []);
       })
       .catch(() => setSeries([]))
       .finally(() => setLoading(false));
-  }, [account]);
+  }, []);
 
   if (loading) return <div className="card p-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>Loading trends…</div>;
   if (series.length === 0) return null;
