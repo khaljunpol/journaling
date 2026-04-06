@@ -292,7 +292,7 @@ export default function MoodYearGrid() {
     }
 
     fetchSummary();
-  }, [selectedDate, account, items]);
+  }, [selectedDate, items]);
 
   const days = useMemo(() => {
     const start = new Date(`${year}-01-01T00:00:00`);

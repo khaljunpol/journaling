@@ -224,7 +224,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                     setActivities(next);
                     setDragOverId(null);
                     setDragId(null);
-                    try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
+                    try { setCache('activitiesOrder', next.map(x => x.id)); } catch {}
                   }}
                   onDragEnd={() => { setDragOverId(null); setDragId(null); }}
                   style={dragOverId === a.id ? { background: 'color-mix(in oklab, var(--accent) 8%, transparent)' } : undefined}

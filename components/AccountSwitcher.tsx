@@ -6,10 +6,20 @@ import { useEffect, useRef, useState } from 'react';
 export default function AccountSwitcher() {
   const { data: session, update } = useSession();
   const [open, setOpen] = useState(false);
+  const [accounts, setAccounts] = useState<string[]>([]);
   const [newName, setNewName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   const active = session?.activeSubAccount || '';
+
+  // Fetch available accounts when dropdown opens
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/accounts')
+      .then((r) => r.ok ? r.json() : [])
+      .then((list) => setAccounts(Array.isArray(list) ? list : []))
+      .catch(() => setAccounts([]));
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
@@ -38,13 +48,12 @@ export default function AccountSwitcher() {
     e.preventDefault();
     const name = newName.trim();
     if (!name) return;
-    setNewName('');
-    setOpen(false);
-    await update({ activeSubAccount: name });
-    window.location.reload();
+    await switchTo(name);
   }
 
   if (!session) return null;
+
+  const others = accounts.filter((a) => a !== active);
 
   return (
     <div className="relative" ref={ref}>
@@ -54,7 +63,9 @@ export default function AccountSwitcher() {
         aria-expanded={open}
         title="Switch account"
       >
-        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{active || '—'}</span>
+        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+          {active || '—'}
+        </span>
         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>▾</span>
       </button>
 
@@ -64,9 +75,10 @@ export default function AccountSwitcher() {
           style={{ borderColor: 'var(--border)' }}
         >
           <div className="px-2 py-1 text-xs uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
-            Switch account
+            Account
           </div>
 
+          {/* Current active */}
           {active && (
             <button
               className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm"
@@ -78,10 +90,29 @@ export default function AccountSwitcher() {
             </button>
           )}
 
+          {/* Other accounts from the sheet */}
+          {others.length > 0 && (
+            <>
+              <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+              {others.map((name) => (
+                <button
+                  key={name}
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-sm transition"
+                  style={{ color: 'var(--text)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  onClick={() => switchTo(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </>
+          )}
+
           <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
 
           <div className="px-2 py-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            Switch to another account
+            {others.length > 0 ? 'Or type a name' : 'Switch to'}
           </div>
           <form onSubmit={onAdd} className="flex gap-1 px-1">
             <input
