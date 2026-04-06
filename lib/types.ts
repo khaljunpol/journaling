@@ -27,6 +27,34 @@ export type HourLog = { id: string; date: string; hour: number; category: number
 export type TimeEntry = { date: string; hour: number; category: number };
 export type TimeEntryAny = { date: string; hour: number; category: number | string };
 
+// Sidequests
+export type SidequestType = 'milestone' | 'pb' | 'timed' | 'count' | 'oneoff';
+
+export type SidequestMilestone = { label: string; completedAt?: string };
+
+export type Sidequest = {
+  id: string;
+  title: string;
+  type: SidequestType;
+  year: number;
+  unit?: string;
+  target?: number;
+  milestones?: SidequestMilestone[];
+  description?: string;
+  createdAt: string;
+  completedAt?: string;
+};
+
+export type SidequestLog = {
+  id: string;
+  sidequestId: string;
+  date: string;
+  value?: number;
+  value2?: number;
+  note?: string;
+  milestoneIndex?: number;
+};
+
 // Climbing
 export type ClimbType = 'boulder' | 'rope';
 export type ClimbLog = { id: string; date: string; session: number; type: ClimbType; grade: string; attempts: number; location?: string; notes?: string };

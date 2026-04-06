@@ -14,6 +14,7 @@ import {
   listClimbLogs,
   listClimbGoals,
 } from '@/lib/googleSheets';
+import { listSidequests } from '@/lib/sidequests';
 
 export async function GET() {
   try {
@@ -53,7 +54,7 @@ export async function GET() {
       safe(getHighlightsBetween(sheetAuth, account, from30ISO, todayISO), []),
     ]);
 
-    const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY] = await Promise.all([
+    const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY, sidequests] = await Promise.all([
       safe(getMoodsBetween(sheetAuth, account, from7ISO, todayISO), []),
       safe(getMoodsBetween(sheetAuth, account, prevWeekFromISO, prevWeekToISO), []),
       safe(getConsistencyMetrics(sheetAuth, account), null),
@@ -62,6 +63,7 @@ export async function GET() {
       safe(listClimbLogs(sheetAuth, account, from30ISO, todayISO), []),
       safe(listClimbGoals(sheetAuth, account), []),
       safe(listClimbLogs(sheetAuth, account, yStartISO, yEndISO), []),
+      safe(listSidequests(sheetAuth, account, y), []),
     ]);
 
     return NextResponse.json({
@@ -79,6 +81,7 @@ export async function GET() {
       goals: Array.isArray(goals) ? goals : [],
       climbY: Array.isArray(climbY) ? climbY : [],
       moodsPrev7: Array.isArray(moodsPrev7) ? moodsPrev7 : [],
+      sidequests: Array.isArray(sidequests) ? sidequests : [],
     });
   } catch (error: unknown) {
     console.error('[GET /api/dashboard]', getErrorMessage(error));

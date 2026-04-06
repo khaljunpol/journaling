@@ -1,13 +1,13 @@
 "use client";
 
-import type { Activity, WeightPoint, MoodItem, TimeEntryAny } from '@/lib/types';
+import type { Activity, WeightPoint, MoodItem, TimeEntryAny, Sidequest } from '@/lib/types';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
 import { getCache, setCache } from '@/lib/cache';
 import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
 import { computeWeeklySummary, computeAttentionSignals, computeMoodActivityCorrelation, type Signal } from '@/lib/insights';
-import Link from 'next/link';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
 function Sk({ w = 'w-16', h = 'h-4' }: { w?: string; h?: string }) {
@@ -151,6 +151,9 @@ export default function Dashboard() {
     const [timeCategories, setTimeCategories] = useState<Array<{ id: string; name: string; color: string; order: number }>>([]);
     const [timeStats, setTimeStats] = useState<{ todayHours: number; weekTotal: number; weekTop: Array<{ name: string; count: number }>; balance: { productive: number; rest: number; sleep: number } }>({ todayHours: 0, weekTotal: 0, weekTop: [], balance: { productive: 0, rest: 0, sleep: 0 } });
 
+    // ── Sidequests state
+    const [sidequests, setSidequests] = useState<Sidequest[]>([]);
+
     // ── Climbing state
     const [climbStats, setClimbStats] = useState<{ sessionsThisWeek: number; sessionsLastWeek: number; flashRate30d: number; avgAttempts30d: number }>({ sessionsThisWeek: 0, sessionsLastWeek: 0, flashRate30d: 0, avgAttempts30d: 0 });
     const [goalStats, setGoalStats] = useState<Array<{ label: string; percent: number; onTrack: 'ahead' | 'on track' | 'behind' }>>([]);
@@ -289,6 +292,9 @@ export default function Dashboard() {
         const cur = new Date(sTodayISO);
         for (let i = 0; i < 60; i++) { const iso = toISODate(cur); if (climbDates.has(iso)) { cStreak++; cur.setDate(cur.getDate() - 1); } else break; }
         setConsistency({ climbingWeeksYTD: climbWeeksYTD, timeWeeksYTD, moodStreakDays: Number(metrics?.summary?.currentStreakDays) || 0, climbingStreakDays: cStreak });
+
+        // Sidequests
+        setSidequests(Array.isArray(data?.sidequests) ? data.sidequests : []);
 
         setLastUpdated(opts?.source === 'cache' && opts.cachedAt ? new Date(opts.cachedAt).toLocaleTimeString() : new Date().toLocaleTimeString());
         setHasData(true);
@@ -669,6 +675,66 @@ export default function Dashboard() {
                         <div className="subtle text-sm">No goals set for {y}</div>
                     )}
                 </div>
+            </div>
+            {/* ── SIDEQUESTS ───────────────────────────────────────────────── */}
+            <SectionHeader title="Sidequests" />
+            <div className="card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                    <div className="font-semibold">Year goals &amp; challenges</div>
+                    <Link href="/sidequests" className="text-xs subtle hover:underline">View all →</Link>
+                </div>
+                {!hasData ? (
+                    <div className="space-y-2"><Sk w="w-full" h="h-4" /><Sk w="w-3/4" h="h-4" /></div>
+                ) : sidequests.length === 0 ? (
+                    <div className="subtle text-sm">
+                        No sidequests yet.{' '}
+                        <Link href="/sidequests" className="underline" style={{ color: 'var(--accent)' }}>Add one →</Link>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex gap-4 flex-wrap text-sm">
+                            <div>
+                                <span className="subtle">Active: </span>
+                                <span className="font-semibold">{sidequests.filter(s => !s.completedAt).length}</span>
+                            </div>
+                            <div>
+                                <span className="subtle">Done: </span>
+                                <span className="font-semibold">{sidequests.filter(s => !!s.completedAt).length}</span>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            {sidequests.filter(s => !s.completedAt).slice(0, 4).map((sq) => (
+                                <div key={sq.id} className="flex items-center gap-2 text-sm">
+                                    <span
+                                        className="text-xs px-1.5 py-0.5 rounded font-medium"
+                                        style={{
+                                            background: sq.type === 'oneoff' ? 'color-mix(in oklab, #6366f1 15%, transparent)' :
+                                                sq.type === 'milestone' ? 'color-mix(in oklab, #f59e0b 15%, transparent)' :
+                                                sq.type === 'pb' ? 'color-mix(in oklab, #10b981 15%, transparent)' :
+                                                sq.type === 'timed' ? 'color-mix(in oklab, #3b82f6 15%, transparent)' :
+                                                'color-mix(in oklab, #ec4899 15%, transparent)',
+                                            color: sq.type === 'oneoff' ? '#6366f1' :
+                                                sq.type === 'milestone' ? '#d97706' :
+                                                sq.type === 'pb' ? '#059669' :
+                                                sq.type === 'timed' ? '#2563eb' : '#db2777',
+                                        }}
+                                    >{sq.type}</span>
+                                    <span className="flex-1 truncate">{sq.title}</span>
+                                    {sq.milestones && (
+                                        <span className="subtle text-xs tabular-nums">
+                                            {sq.milestones.filter(m => m.completedAt).length}/{sq.milestones.length}
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                            {sidequests.filter(s => !s.completedAt).length > 4 && (
+                                <Link href="/sidequests" className="text-xs subtle hover:underline block">
+                                    +{sidequests.filter(s => !s.completedAt).length - 4} more active
+                                </Link>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
         </main>
     );

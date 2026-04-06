@@ -36,6 +36,7 @@ export default function AppHeader() {
         case 't': router.push('/time'); break;
         case 'c': router.push('/climbing'); break;
         case 'm': router.push('/mood'); break;
+        case 's': router.push('/sidequests'); break;
       }
     }
     window.addEventListener('keydown', onKey);
@@ -185,6 +186,7 @@ export default function AppHeader() {
             {link('/time', 'Time')}
             {link('/climbing', 'Climbing')}
             {link('/mood', 'Mood')}
+            {link('/sidequests', 'Sidequests')}
           </nav>
         </div>
       </div>
