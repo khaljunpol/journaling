@@ -465,15 +465,18 @@ function HourHeader() {
     <div className="flex items-center gap-1 mb-1">
       <div className="w-7 shrink-0" />
       <div className="flex-1 grid grid-cols-24">
-        {Array.from({ length: 24 }, (_, h) => (
-          <div
-            key={h}
-            className="text-center select-none overflow-hidden"
-            style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
-          >
-            {h % 6 === 0 ? h : ''}
-          </div>
-        ))}
+        {Array.from({ length: 24 }, (_, i) => {
+          const h = (i + 1) % 24; // display order: 1,2,...,23,0
+          return (
+            <div
+              key={i}
+              className="text-center select-none overflow-hidden"
+              style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
+            >
+              {i % 6 === 0 ? (h === 0 ? '24' : h) : ''}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -532,15 +535,17 @@ function DaysRows({
             <span className="text-[10px] font-medium leading-none">{di}</span>
           </div>
 
-          {/* 24 hour cells with hour numbers */}
+          {/* 24 hour cells — starting at 1 AM, midnight last */}
           <div className="flex-1 grid grid-cols-24">
-            {Array.from({ length: 24 }, (_, h) => {
+            {Array.from({ length: 24 }, (_, i) => {
+              const h = (i + 1) % 24; // 1,2,...,23,0
               const logs = byDate.get(iso) || [];
               const hit = logs.find((x) => x.hour === h);
               const draftCat = (draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
               const bgCategory = draftCat !== null ? draftCat : (hit ? hit.category : null);
               const filled = bgCategory !== null && bgCategory !== undefined;
               const cellBg = filled ? getColor(bgCategory as number) : undefined;
+              const label = h === 0 ? '24' : h;
 
               return (
                 <div
@@ -551,13 +556,13 @@ function DaysRows({
                     fontSize: 7,
                     color: filled ? 'rgba(0,0,0,0.45)' : 'var(--muted-foreground)',
                     lineHeight: 1,
-                    borderRight: h < 23 ? '0.5px solid var(--surface)' : undefined,
+                    borderRight: i < 23 ? '0.5px solid var(--surface)' : undefined,
                   }}
                   onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
                   onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
-                  title={`${iso} ${pad(h)}:00–${pad(h + 1)}:00`}
+                  title={`${iso} ${pad(h)}:00`}
                 >
-                  {h}
+                  {label}
                 </div>
               );
             })}
