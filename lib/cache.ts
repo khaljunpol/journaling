@@ -3,7 +3,7 @@
 
 export type CacheEntry<T> = { cachedAt: string; data: T };
 
-export function getCache<T = any>(key: string): CacheEntry<T> | null {
+export function getCache<T = unknown>(key: string): CacheEntry<T> | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(key);
@@ -18,7 +18,7 @@ export function getCache<T = any>(key: string): CacheEntry<T> | null {
   }
 }
 
-export function setCache<T = any>(key: string, data: T): void {
+export function setCache<T = unknown>(key: string, data: T): void {
   if (typeof window === 'undefined') return;
   try {
     const entry: CacheEntry<T> = { cachedAt: new Date().toISOString(), data };

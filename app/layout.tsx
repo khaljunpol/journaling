@@ -1,6 +1,7 @@
 import AppHeader from '@/components/AppHeader';
 import HeaderGate from '../components/HeaderGate';
 import LayoutGate from '@/components/LayoutGate';
+import Providers from '@/components/Providers';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import type { ReactNode } from 'react';
 // @ts-ignore: side-effect global CSS import for Next.js
@@ -15,13 +16,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     return (
         <html lang="en">
             <body className="min-h-dvh overflow-x-hidden">
-                <ServiceWorkerRegister />
-                <LayoutGate>
-                    <HeaderGate>
-                        <AppHeader />
-                    </HeaderGate>
-                    {children}
-                </LayoutGate>
+                <Providers>
+                    <ServiceWorkerRegister />
+                    <LayoutGate>
+                        <HeaderGate>
+                            <AppHeader />
+                        </HeaderGate>
+                        {children}
+                    </LayoutGate>
+                </Providers>
             </body>
         </html>
     );

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
 import { normalizeStatus } from '@/lib/status';
 import { getCache, setCache } from '@/lib/cache';
-import { useAccount } from '@/lib/useAccount';
 import { daysInMonth, pad, localISO } from '@/lib/date';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -19,7 +18,6 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   const todayY = today.getFullYear();
   const todayM = today.getMonth();
   const todayD = today.getDate();
-  const account = useAccount();
   const todayBtnRef = useRef<HTMLButtonElement | null>(null);
   const actsVersionRef = useRef(0);
   const logsVersionRef = useRef(0);
@@ -37,10 +35,10 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     try {
       if (actsCtrlRef.current) actsCtrlRef.current.abort();
       actsCtrlRef.current = new AbortController();
-      const cacheKey = `activities:${account}`;
+      const cacheKey = 'activities';
       const cached = getCache<Activity[]>(cacheKey);
       const applyOrder = (arr: Activity[]) => {
-        const orderKey = `activitiesOrder:${account}`;
+        const orderKey = 'activitiesOrder';
         const cachedOrder = getCache<string[]>(orderKey);
         const order = Array.isArray(cachedOrder?.data) ? cachedOrder!.data : [];
         if (!order.length) return arr;
@@ -51,13 +49,13 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         return ordered;
       };
       if (cached && vActs === actsVersionRef.current) {
-        const base = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+        const base = Array.isArray(cached.data) ? cached.data.map((a) => ({ ...a, status: normalizeStatus(a.status as ActivityStatus) })) : [];
         setActivities(applyOrder(base));
       }
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
+      const res = await fetch('/api/activities', { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (vActs === actsVersionRef.current) setActivities([]); return; }
       const data = await res.json();
-      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as ActivityStatus) })) : [];
       if (vActs === actsVersionRef.current) setActivities(applyOrder(arr));
       try { setCache<Activity[]>(cacheKey, arr); } catch {}
     } catch { if (vActs === actsVersionRef.current) setActivities([]); }
@@ -68,7 +66,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     try {
       if (logsCtrlRef.current) logsCtrlRef.current.abort();
       logsCtrlRef.current = new AbortController();
-      const cacheKey = `logs:${account}:${fromISO}|${toISO}`;
+      const cacheKey = `logs:${fromISO}|${toISO}`;
       const cached = getCache<Log[]>(cacheKey);
       if (cached && vLogs === logsVersionRef.current) {
         const data = Array.isArray(cached.data) ? cached.data : [];
@@ -76,7 +74,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
         for (const l of data) { map[`${l.date}|${l.activityId}`] = !!l.completed; }
         setLogs(map);
       }
-      const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`, { signal: logsCtrlRef.current.signal });
+      const res = await fetch(`/api/logs?from=${fromISO}&to=${toISO}`, { signal: logsCtrlRef.current.signal });
       if (!res.ok) { if (vLogs === logsVersionRef.current) setLogs({}); return; }
       const data: Log[] = await res.json();
       const map: Record<string, boolean> = {};
@@ -94,8 +92,8 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
     setActivities([]);
     setLogs({});
     fetchActivities();
-  }, [account]);
-  useEffect(() => { fetchRangeLogs(); }, [fromISO, toISO, account]);
+  }, []);
+  useEffect(() => { fetchRangeLogs(); }, [fromISO, toISO]);
 
   useEffect(() => {
     if (year === todayY && month === todayM && todayBtnRef.current) {
@@ -104,7 +102,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
   }, [year, month]);
 
   async function toggle(dateISO: string, activityId: string, checked: boolean) {
-    const res = await fetch(`/api/logs?account=${encodeURIComponent(account)}`, {
+    const res = await fetch('/api/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateISO, activityId, completed: checked }),
@@ -226,7 +224,7 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                     setActivities(next);
                     setDragOverId(null);
                     setDragId(null);
-                    try { setCache(`activitiesOrder:${account}`, next.map(x => x.id)); } catch {}
+                    try { setCache('activitiesOrder', next.map(x => x.id)); } catch {}
                   }}
                   onDragEnd={() => { setDragOverId(null); setDragId(null); }}
                   style={dragOverId === a.id ? { background: 'color-mix(in oklab, var(--accent) 8%, transparent)' } : undefined}

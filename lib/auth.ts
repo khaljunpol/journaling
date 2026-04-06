@@ -1,24 +1,62 @@
-import { SignJWT, jwtVerify } from 'jose';
-import { SESSION_EXPIRY } from '@/lib/constants';
+import NextAuth from 'next-auth';
+import Google from 'next-auth/providers/google';
 
-function getSecretKey() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error('Missing SESSION_SECRET');
-  return new TextEncoder().encode(secret);
-}
+const allowedEmails = (process.env.ALLOWED_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
-export async function issueSession() {
-  const key = getSecretKey();
-  const token = await new SignJWT({ sub: 'admin' })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(SESSION_EXPIRY)
-    .sign(key);
-  return token;
-}
-
-export async function verifySession(token: string) {
-  const key = getSecretKey();
-  const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'] });
-  return payload;
-}
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          scope: [
+            'openid',
+            'email',
+            'profile',
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
+          ].join(' '),
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    }),
+  ],
+  callbacks: {
+    async signIn({ profile }) {
+      if (!allowedEmails.length) return true;
+      const email = profile?.email?.toLowerCase() || '';
+      return allowedEmails.includes(email);
+    },
+    async jwt({ token, account, trigger, session }) {
+      // First sign-in: store Google OAuth tokens
+      if (account) {
+        token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token;
+        token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
+      }
+      // Handle session.update() calls from client (e.g. after setup)
+      if (trigger === 'update' && session) {
+        if (session.spreadsheetId !== undefined) token.spreadsheetId = session.spreadsheetId;
+        if (session.activeSubAccount !== undefined) token.activeSubAccount = session.activeSubAccount;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.accessToken = (token.accessToken as string) || '';
+      session.refreshToken = (token.refreshToken as string) || '';
+      session.accessTokenExpires = (token.accessTokenExpires as number) || 0;
+      session.spreadsheetId = (token.spreadsheetId as string | null) ?? null;
+      session.activeSubAccount = (token.activeSubAccount as string | null) ?? null;
+      return session;
+    },
+  },
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+});

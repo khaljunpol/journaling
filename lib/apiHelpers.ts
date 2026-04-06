@@ -1,19 +1,4 @@
 import { NextResponse } from 'next/server';
-import { DEFAULT_ACCOUNT } from '@/lib/constants';
-
-// Allowlist of valid account identifiers. Must match AccountSwitcher ACCOUNTS.
-export const VALID_ACCOUNTS = ['Alex', 'Sam'] as const;
-export type ValidAccount = typeof VALID_ACCOUNTS[number];
-
-/**
- * Extracts and validates the ?account= query param.
- * Returns the account string, or null if invalid.
- */
-export function getAccountParam(url: URL): string | null {
-  const raw = url.searchParams.get('account') || DEFAULT_ACCOUNT;
-  if (!(VALID_ACCOUNTS as readonly string[]).includes(raw)) return null;
-  return raw;
-}
 
 /**
  * Returns a consistent JSON error response.

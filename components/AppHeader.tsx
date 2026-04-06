@@ -3,12 +3,14 @@
 import AccountSwitcher from '@/components/AccountSwitcher';
 import LogoutButton from '@/components/LogoutButton';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 export default function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const { update } = useSession();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -34,6 +36,7 @@ export default function AppHeader() {
         case 't': router.push('/time'); break;
         case 'c': router.push('/climbing'); break;
         case 'm': router.push('/mood'); break;
+        case 's': router.push('/sidequests'); break;
       }
     }
     window.addEventListener('keydown', onKey);
@@ -67,7 +70,7 @@ export default function AppHeader() {
     document.documentElement.setAttribute('data-theme', next);
   }
 
-  if (pathname?.startsWith('/login')) return null;
+  if (pathname?.startsWith('/login') || pathname?.startsWith('/setup')) return null;
 
   const link = (href: string, label: string) => {
     const active = pathname === href;
@@ -153,6 +156,20 @@ export default function AppHeader() {
                     <div className="px-2 py-1 subtle text-xs uppercase tracking-wider">Analytics</div>
                     {menuLink('/climbing-log', 'Climbing Log')}
                     <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+                    <button
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition"
+                      style={{ color: 'var(--muted-foreground)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      onClick={async () => {
+                        closeSettings();
+                        await update({ spreadsheetId: null, activeSubAccount: null });
+                        router.push('/setup');
+                      }}
+                    >
+                      Disconnect sheet
+                    </button>
+                    <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
                     <div className="px-2 py-1.5" onClick={closeSettings}>
                       <LogoutButton />
                     </div>
@@ -169,6 +186,7 @@ export default function AppHeader() {
             {link('/time', 'Time')}
             {link('/climbing', 'Climbing')}
             {link('/mood', 'Mood')}
+            {link('/sidequests', 'Sidequests')}
           </nav>
         </div>
       </div>

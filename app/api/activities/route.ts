@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createActivity, listActivities } from '@/lib/googleSheets';
-import { apiError, getAccountParam, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { requireSheetContext } from '@/lib/sheetAuth';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
-    const data = await listActivities(account);
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
+    const data = await listActivities(ctx.sheetAuth, ctx.account);
     return NextResponse.json(data);
   } catch (error: unknown) {
     console.error('[GET /api/activities]', getErrorMessage(error));
@@ -17,22 +17,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
     const body = await req.json();
     const name = String(body?.name || '').trim();
     const status = String(body?.status || 'active').trim() as 'active' | 'stopped';
     if (!name) return apiError('name required', 400);
     if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
-    const created = await createActivity(account, name, { status: status === 'stopped' ? 'stopped' : 'active' });
+    const created = await createActivity(ctx.sheetAuth, ctx.account, name, { status: status === 'stopped' ? 'stopped' : 'active' });
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {
-    const msg = getErrorMessage(error);
-    console.error('[POST /api/activities]', msg);
-    if (msg.includes('Missing GOOGLE_SPREADSHEET_ID') || msg.includes('Missing Google service account')) {
-      return apiError('Google Sheets not configured', 503);
-    }
-    return apiError(msg || 'Unknown error', 500);
+    console.error('[POST /api/activities]', getErrorMessage(error));
+    return apiError(getErrorMessage(error) || 'Unknown error', 500);
   }
 }

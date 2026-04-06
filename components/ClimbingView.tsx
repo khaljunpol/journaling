@@ -3,7 +3,6 @@
 import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, parseLocalDate, localISO as toLocalISO, weekStartLocal } from '@/lib/date';
 import type { ClimbGoal, ClimbLog } from '@/lib/types';
-import { useAccount } from '@/lib/useAccount';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -12,7 +11,6 @@ import { COLORS } from '@/lib/colors';
 
 export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
-  const account = useAccount();
   const [date, setDate] = useState<string>(today);
   const [logs, setLogs] = useState<Array<ClimbLog>>([]);
   const [rangeLogs, setRangeLogs] = useState<Array<ClimbLog>>([]);
@@ -38,9 +36,9 @@ export default function ClimbingView() {
       const fromISO = toLocalISO(start);
       const toISO = toLocalISO(end);
       // Apply cached immediately where available
-      const dayKey = `climb:day:${account}:${date}`;
-      const goalsKey = `climb:goals:${account}`;
-      const rangeKey = `climb:range:${account}:${fromISO}|${toISO}`;
+      const dayKey = `climb:day:${date}`;
+      const goalsKey = 'climb:goals';
+      const rangeKey = `climb:range:${fromISO}|${toISO}`;
       const cachedDay = getCache<typeof logs>(dayKey);
       if (cachedDay) setLogs(Array.isArray(cachedDay.data) ? cachedDay.data : []);
       if (cachedDay) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedDay.cachedAt))); } catch { } }
@@ -52,9 +50,9 @@ export default function ClimbingView() {
       if (cachedRange) { try { setUpdatedMs((prev) => Math.max(prev ?? 0, Date.parse(cachedRange.cachedAt))); } catch { } }
       // Fetch logs, goals, and range logs in parallel
       const [dayResp, goalsResp, rangeResp] = await Promise.all([
-        fetch(`/api/climbing/logs?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal }),
-        fetch(`/api/climbing/goals?account=${encodeURIComponent(account)}`),
-        fetch(`/api/climbing/logs?from=${fromISO}&to=${toISO}&account=${encodeURIComponent(account)}`),
+        fetch(`/api/climbing/logs?date=${date}`, { signal: ctrlRef.current.signal }),
+        fetch('/api/climbing/goals'),
+        fetch(`/api/climbing/logs?from=${fromISO}&to=${toISO}`),
       ]);
       const dayItems: Array<ClimbLog> = dayResp.ok ? await dayResp.json() : [];
       const gs: Array<ClimbGoal> = goalsResp.ok ? await goalsResp.json() : [];
@@ -67,13 +65,13 @@ export default function ClimbingView() {
       try { setCache(rangeKey, Array.isArray(rangeItems) ? rangeItems : []); } catch { }
       setUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Fetch logs per goal year for accurate progress (use simple client cache to avoid repeat calls)
-      const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g: any) => g.year))) : [];
+      const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g) => g.year))) : [];
       if (gYears.length) {
         const YEAR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes freshness window
         const entries = await Promise.all(gYears.map(async (yr: number) => {
-          const cacheKey = `${account}|${yr}`;
+          const cacheKey = String(yr);
           // Prefer localStorage cache if fresh; otherwise fetch
-          const lsKey = `climb:year:${account}:${yr}`;
+          const lsKey = `climb:year:${yr}`;
           const cached = getCache<Array<ClimbLog>>(lsKey);
           const isFresh = cached && (() => { try { return (Date.now() - Date.parse(cached.cachedAt)) < YEAR_CACHE_TTL_MS; } catch { return false; } })();
           if (isFresh && cached) {
@@ -83,7 +81,7 @@ export default function ClimbingView() {
           }
           const yrStart = `${yr}-01-01`;
           const yrEnd = `${yr}-12-31`;
-          const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}&account=${encodeURIComponent(account)}`);
+          const resp = await fetch(`/api/climbing/logs?from=${yrStart}&to=${yrEnd}`);
           const items: Array<ClimbLog> = resp.ok ? await resp.json() : [];
           const arr: Array<ClimbLog> = Array.isArray(items) ? items : [];
           yearCacheRef.current.set(cacheKey, arr);
@@ -99,10 +97,10 @@ export default function ClimbingView() {
     } catch { setLogs([]); }
   }
 
-  useEffect(() => { refresh(); }, [date, account]);
+  useEffect(() => { refresh(); }, [date]);
 
   async function removeLog(id: string) {
-    await fetch(`/api/climbing/logs?id=${encodeURIComponent(id)}&account=${encodeURIComponent(account)}`, { method: 'DELETE' });
+    await fetch(`/api/climbing/logs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     refresh();
   }
 

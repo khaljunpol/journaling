@@ -1,55 +1,52 @@
 import { google } from 'googleapis';
+import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 
-const scopes = ['https://www.googleapis.com/auth/spreadsheets'];
+export type SheetAuth = {
+  accessToken: string;
+  refreshToken: string;
+  spreadsheetId: string;
+};
 
-function getAuth() {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n');
-  if (!clientEmail || !privateKey) {
-    throw new Error('Missing Google service account env vars');
-  }
-  return new google.auth.JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes,
+function getOAuthClient(sa: SheetAuth) {
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  );
+  client.setCredentials({
+    access_token: sa.accessToken,
+    refresh_token: sa.refreshToken,
   });
+  return client;
 }
 
-function getSheets() {
-  return google.sheets({ version: 'v4', auth: getAuth() });
+function getOAuthSheets(sa: SheetAuth) {
+  return google.sheets({ version: 'v4', auth: getOAuthClient(sa) });
 }
 
-function getSpreadsheetId() {
-  const id = process.env.GOOGLE_SPREADSHEET_ID;
-  if (!id) throw new Error('Missing GOOGLE_SPREADSHEET_ID');
-  return id;
-}
-
-// Sheets confirmed to exist — persists across hot reloads via globalThis
+// Known tabs cache keyed by spreadsheetId — persists across hot reloads via globalThis
 const globalKey = '__knownSheets';
-function getKnownSheets(): Set<string> {
-  const g = globalThis as any;
-  if (!g[globalKey]) g[globalKey] = new Set<string>();
-  return g[globalKey];
+function getKnownSheets(spreadsheetId: string): Set<string> {
+  const g = globalThis as typeof globalThis & { [globalKey]?: Map<string, Set<string>> };
+  if (!g[globalKey]) g[globalKey] = new Map<string, Set<string>>();
+  if (!g[globalKey].has(spreadsheetId)) g[globalKey].set(spreadsheetId, new Set<string>());
+  return g[globalKey].get(spreadsheetId)!;
 }
 
-async function ensureSheetExists(title: string, headers?: string[]) {
-  const known = getKnownSheets();
+async function ensureSheetExists(sa: SheetAuth, title: string, headers?: string[]) {
+  const known = getKnownSheets(sa.spreadsheetId);
   if (known.has(title)) return;
 
   try {
-    const sheets = getSheets();
-    const spreadsheetId = getSpreadsheetId();
+    const sheets = getOAuthSheets(sa);
+    const spreadsheetId = sa.spreadsheetId;
     const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
     const existing = (meta.data.sheets || []).some((s) => s.properties?.title === title);
     if (!existing) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
-        requestBody: {
-          requests: [{ addSheet: { properties: { title } } }],
-        },
+        requestBody: { requests: [{ addSheet: { properties: { title } } }] },
       });
-      if (headers && headers.length) {
+      if (headers?.length) {
         await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: `${title}!A1`,
@@ -60,33 +57,22 @@ async function ensureSheetExists(title: string, headers?: string[]) {
     }
     known.add(title);
   } catch (error: unknown) {
-    // On quota errors (429), assume sheet exists and proceed — reads will fail naturally if it doesn't
     const status = (error as Record<string, unknown>)?.status;
     const code = (error as Record<string, unknown>)?.code;
-    if (status === 429 || code === 429) {
-      known.add(title);
-      return;
-    }
+    if (status === 429 || code === 429) { known.add(title); return; }
     throw error;
   }
 }
 
-// Data model (separate tabs per account):
-// - Sheet "Activities_<account>": columns [id, name, status]
-// - Sheet "Logs_<account>": columns [date ISO, activityId, completed]
-// - Sheet "Highlights_<account>": columns [date ISO, text]
+// ── Activities ──────────────────────────────────────────────
 
-export async function listActivities(account: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function listActivities(sa: SheetAuth, account: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status']);
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${title}!A2:C`,
-  });
-  const values = res.data.values || [];
-  return values
+  await ensureSheetExists(sa, title, ['id', 'name', 'status']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
+  return (res.data.values || [])
     .filter((row) => row && row[0] && String(row[0]).trim() !== '')
     .map(([id, name, status]) => ({
       id: String(id).trim(),
@@ -95,27 +81,25 @@ export async function listActivities(account: string) {
     }));
 }
 
-export async function createActivity(account: string, name: string, options?: { status?: 'active' | 'stopped' }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function createActivity(sa: SheetAuth, account: string, name: string, options?: { status?: 'active' | 'stopped' }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'status']);
   const id = String(Date.now());
   const status = options?.status ?? 'active';
   await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `${title}!A1:C`,
-    valueInputOption: 'RAW',
+    spreadsheetId, range: `${title}!A1:C`, valueInputOption: 'RAW',
     requestBody: { values: [[id, name, status]] },
   });
   return { id, name, status };
 }
 
-export async function updateActivity(account: string, id: string, updates: { name?: string; status?: 'active' | 'stopped' }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function updateActivity(sa: SheetAuth, account: string, id: string, updates: { name?: string; status?: 'active' | 'stopped' }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'status']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -127,19 +111,17 @@ export async function updateActivity(account: string, id: string, updates: { nam
   const name = updates.name ?? existing[1] ?? '';
   const status = updates.status ?? (existing[2] || 'active');
   await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `${title}!B${rowIndex}:C${rowIndex}`,
-    valueInputOption: 'RAW',
+    spreadsheetId, range: `${title}!B${rowIndex}:C${rowIndex}`, valueInputOption: 'RAW',
     requestBody: { values: [[name, status]] },
   });
   return { id, name: String(name), status: String(status) };
 }
 
-export async function deleteActivity(account: string, id: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function deleteActivity(sa: SheetAuth, account: string, id: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Activities_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'status']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'status']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -147,49 +129,40 @@ export async function deleteActivity(account: string, id: string) {
     if (values[i][0] === id) { rowIndex = i + 2; break; }
   }
   if (rowIndex === -1) throw new Error('Activity not found');
-  // Delete the row to avoid leaving empty rows that can cause duplicates or blank IDs
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
   const sheetId = sheet?.properties?.sheetId;
   if (typeof sheetId === 'number') {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex },
-          },
-        }],
-      },
+      requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] },
     });
   } else {
-    // Fallback: clear values if sheetId not found
     await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:C${rowIndex}` });
   }
   return { id };
 }
 
-export async function appendLog(account: string, dateISO: string, activityId: string, completed: boolean) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+// ── Activity Logs ────────────────────────────────────────────
+
+export async function appendLog(sa: SheetAuth, account: string, dateISO: string, activityId: string, completed: boolean) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Logs_${account}`;
-  await ensureSheetExists(title, ['date', 'activityId', 'completed']);
+  await ensureSheetExists(sa, title, ['date', 'activityId', 'completed']);
   await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `${title}!A1:C`,
-    valueInputOption: 'RAW',
+    spreadsheetId, range: `${title}!A1:C`, valueInputOption: 'RAW',
     requestBody: { values: [[dateISO, activityId, completed ? '1' : '0']] },
   });
 }
 
-export async function getLogsForDate(account: string, dateISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function getLogsForDate(sa: SheetAuth, account: string, dateISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Logs_${account}`;
-  await ensureSheetExists(title, ['date', 'activityId', 'completed']);
+  await ensureSheetExists(sa, title, ['date', 'activityId', 'completed']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
-  const values = res.data.values || [];
-  return values
+  return (res.data.values || [])
     .map(([date, activityId, completed]) => ({
       date: String(date).trim(),
       activityId: String(activityId).trim(),
@@ -198,16 +171,15 @@ export async function getLogsForDate(account: string, dateISO: string) {
     .filter((row) => row.date === dateISO);
 }
 
-export async function getLogsBetween(account: string, fromISO: string, toISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function getLogsBetween(sa: SheetAuth, account: string, fromISO: string, toISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Logs_${account}`;
-  await ensureSheetExists(title, ['date', 'activityId', 'completed']);
+  await ensureSheetExists(sa, title, ['date', 'activityId', 'completed']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:C` });
-  const values = res.data.values || [];
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  return values
+  return (res.data.values || [])
     .map(([date, activityId, completed]) => ({
       date: String(date).trim(),
       activityId: String(activityId).trim(),
@@ -219,12 +191,13 @@ export async function getLogsBetween(account: string, fromISO: string, toISO: st
     });
 }
 
-export async function setHighlight(account: string, dateISO: string, text: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+// ── Highlights ───────────────────────────────────────────────
+
+export async function setHighlight(sa: SheetAuth, account: string, dateISO: string, text: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Highlights_${account}`;
-  await ensureSheetExists(title, ['date', 'text']);
-  // Upsert: find existing row by date
+  await ensureSheetExists(sa, title, ['date', 'text']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -233,59 +206,67 @@ export async function setHighlight(account: string, dateISO: string, text: strin
   }
   if (rowIndex === -1) {
     await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${title}!A1:B`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!A1:B`, valueInputOption: 'RAW',
       requestBody: { values: [[dateISO, text]] },
     });
   } else {
     await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${title}!B${rowIndex}`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!B${rowIndex}`, valueInputOption: 'RAW',
       requestBody: { values: [[text]] },
     });
   }
 }
 
-export async function getHighlight(account: string, dateISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function getHighlight(sa: SheetAuth, account: string, dateISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Highlights_${account}`;
-  await ensureSheetExists(title, ['date', 'text']);
+  await ensureSheetExists(sa, title, ['date', 'text']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][0] === dateISO) {
-      return String(values[i][1] || '');
-    }
+  for (const row of (res.data.values || [])) {
+    if (row[0] === dateISO) return String(row[1] || '');
   }
   return '';
 }
 
-// Weights per account
-// Sheet "Weights_<account>": columns [date ISO, weight]
-export async function getWeight(account: string, dateISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Weights_${account}`;
-  await ensureSheetExists(title, ['date', 'weight']);
+export async function getHighlightsBetween(sa: SheetAuth, account: string, fromISO: string, toISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
+  const title = `Highlights_${account}`;
+  await ensureSheetExists(sa, title, ['date', 'text']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][0] === dateISO) {
-      const w = parseFloat(String(values[i][1] || '').trim());
+  const from = new Date(fromISO).getTime();
+  const to = new Date(toISO).getTime();
+  return (res.data.values || [])
+    .map(([date, text]) => ({ date: String(date).trim(), text: String(text ?? '').trim() }))
+    .filter(({ date }) => {
+      const t = new Date(date).getTime();
+      return !Number.isNaN(t) && t >= from && t <= to;
+    });
+}
+
+// ── Weights ──────────────────────────────────────────────────
+
+export async function getWeight(sa: SheetAuth, account: string, dateISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
+  const title = `Weights_${account}`;
+  await ensureSheetExists(sa, title, ['date', 'weight']);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
+  for (const row of (res.data.values || [])) {
+    if (row[0] === dateISO) {
+      const w = parseFloat(String(row[1] || '').trim());
       return Number.isFinite(w) ? w : null;
     }
   }
   return null;
 }
 
-export async function setWeight(account: string, dateISO: string, weight: number) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function setWeight(sa: SheetAuth, account: string, dateISO: string, weight: number) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Weights_${account}`;
-  await ensureSheetExists(title, ['date', 'weight']);
+  await ensureSheetExists(sa, title, ['date', 'weight']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -294,31 +275,26 @@ export async function setWeight(account: string, dateISO: string, weight: number
   }
   if (rowIndex === -1) {
     await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${title}!A1:B`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!A1:B`, valueInputOption: 'RAW',
       requestBody: { values: [[dateISO, String(weight)]] },
     });
   } else {
     await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${title}!B${rowIndex}`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!B${rowIndex}`, valueInputOption: 'RAW',
       requestBody: { values: [[String(weight)]] },
     });
   }
 }
 
-export async function getWeightsBetween(account: string, fromISO: string, toISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function getWeightsBetween(sa: SheetAuth, account: string, fromISO: string, toISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Weights_${account}`;
-  await ensureSheetExists(title, ['date', 'weight']);
+  await ensureSheetExists(sa, title, ['date', 'weight']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  return values
+  return (res.data.values || [])
     .map(([date, weight]) => ({
       date: String(date).trim(),
       weight: parseFloat(String(weight ?? '').trim()),
@@ -329,29 +305,28 @@ export async function getWeightsBetween(account: string, fromISO: string, toISO:
     });
 }
 
-// Moods per account (0..10)
-// Sheet "Moods_<account>": columns [date ISO, score]
-export async function getMood(account: string, dateISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+// ── Moods ────────────────────────────────────────────────────
+
+export async function getMood(sa: SheetAuth, account: string, dateISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Moods_${account}`;
-  await ensureSheetExists(title, ['date', 'score']);
+  await ensureSheetExists(sa, title, ['date', 'score']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][0] === dateISO) {
-      const s = parseInt(String(values[i][1] || '').trim(), 10);
+  for (const row of (res.data.values || [])) {
+    if (row[0] === dateISO) {
+      const s = parseInt(String(row[1] || '').trim(), 10);
       return Number.isFinite(s) ? s : null;
     }
   }
   return null;
 }
 
-export async function setMood(account: string, dateISO: string, score: number) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function setMood(sa: SheetAuth, account: string, dateISO: string, score: number) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Moods_${account}`;
-  await ensureSheetExists(title, ['date', 'score']);
+  await ensureSheetExists(sa, title, ['date', 'score']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -360,31 +335,26 @@ export async function setMood(account: string, dateISO: string, score: number) {
   }
   if (rowIndex === -1) {
     await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${title}!A1:B`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!A1:B`, valueInputOption: 'RAW',
       requestBody: { values: [[dateISO, String(score)]] },
     });
   } else {
     await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${title}!B${rowIndex}`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!B${rowIndex}`, valueInputOption: 'RAW',
       requestBody: { values: [[String(score)]] },
     });
   }
 }
 
-export async function getMoodsBetween(account: string, fromISO: string, toISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function getMoodsBetween(sa: SheetAuth, account: string, fromISO: string, toISO: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Moods_${account}`;
-  await ensureSheetExists(title, ['date', 'score']);
+  await ensureSheetExists(sa, title, ['date', 'score']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  return values
+  return (res.data.values || [])
     .map(([date, score]) => ({
       date: String(date).trim(),
       score: parseInt(String(score ?? '').trim(), 10),
@@ -395,43 +365,27 @@ export async function getMoodsBetween(account: string, fromISO: string, toISO: s
     });
 }
 
-export async function getHighlightsBetween(account: string, fromISO: string, toISO: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
-  const title = `Highlights_${account}`;
-  await ensureSheetExists(title, ['date', 'text']);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:B` });
-  const values = res.data.values || [];
-  const from = new Date(fromISO).getTime();
-  const to = new Date(toISO).getTime();
-  return values
-    .map(([date, text]) => ({ date: String(date).trim(), text: String(text ?? '').trim() }))
-    .filter(({ date }) => {
-      const t = new Date(date).getTime();
-      return !Number.isNaN(t) && t >= from && t <= to;
-    });
-}
-export async function getConsistencyMetrics(account: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+// ── Consistency Metrics ──────────────────────────────────────
+
+export async function getConsistencyMetrics(sa: SheetAuth, account: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const logsTitle = `Logs_${account}`;
   const actsTitle = `Activities_${account}`;
-  await ensureSheetExists(logsTitle, ['date', 'activityId', 'completed']);
+  await ensureSheetExists(sa, logsTitle, ['date', 'activityId', 'completed']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${logsTitle}!A2:C` });
   const values = res.data.values || [];
-  // Count active activities for expected totals
-  await ensureSheetExists(actsTitle, ['id', 'name']);
+  await ensureSheetExists(sa, actsTitle, ['id', 'name']);
   const activitiesRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${actsTitle}!A2:B` });
   const activities = (activitiesRes.data.values || []).map(([id, name]) => ({ id, name }));
-  const activityCount = Array.isArray(activities) ? activities.length : 0;
+  const activityCount = activities.length;
   const activityMap: Record<string, { id: string; name: string }> = {};
-  for (const a of Array.isArray(activities) ? activities : []) {
-    activityMap[a.id] = { id: a.id, name: a.name };
-  }
-  // Aggregate completion rate per week with counts and moving average
+  for (const a of activities) activityMap[a.id] = { id: a.id, name: a.name };
+
   const byWeek: Record<string, { done: number; total: number; firstDate?: Date }> = {};
   const completedDates = new Set<string>();
   let totalCompletions = 0;
+
   for (const [dateISO, _activityId, completed] of values) {
     const d = new Date(dateISO);
     if (Number.isNaN(d.getTime())) continue;
@@ -453,25 +407,16 @@ export async function getConsistencyMetrics(account: string) {
       const expectedDays = computeExpectedDaysInWeek(start, end);
       const expectedTotal = activityCount > 0 ? expectedDays * activityCount : total;
       const rate = expectedTotal ? done / expectedTotal : 0;
-      return {
-        week,
-        done,
-        total: expectedTotal,
-        rate,
-        date: start ? start.toISOString().slice(0, 10) : undefined,
-      };
+      return { week, done, total: expectedTotal, rate, date: start ? start.toISOString().slice(0, 10) : undefined };
     })
     .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 
-  // 4-week moving average of rate
-  for (let i = 0; i < weeks.length; i++) {
-    const start = Math.max(0, i - 3);
-    const slice = weeks.slice(start, i + 1);
-    const avg = slice.reduce((acc, w) => acc + w.rate, 0) / slice.length;
-    (weeks[i] as any).movingAvg4 = avg;
+  const weeksWithAvg = weeks as Array<typeof weeks[number] & { movingAvg4: number }>;
+  for (let i = 0; i < weeksWithAvg.length; i++) {
+    const slice = weeksWithAvg.slice(Math.max(0, i - 3), i + 1);
+    weeksWithAvg[i].movingAvg4 = slice.reduce((acc, w) => acc + w.rate, 0) / slice.length;
   }
 
-  // Summary: average rate, best week, current streak days
   const avgRate = weeks.length ? weeks.reduce((acc, w) => acc + w.rate, 0) / weeks.length : 0;
   let bestWeek: { week: string; rate: number } | null = null;
   for (const w of weeks) {
@@ -479,7 +424,6 @@ export async function getConsistencyMetrics(account: string) {
   }
   const currentStreakDays = computeCurrentStreakDays(completedDates);
 
-  // Per-activity breakdown: done per week / expected days in that week
   const byActivityWeek: Record<string, Record<string, { done: number }>> = {};
   for (const [dateISO, activityId, completed] of values) {
     const d = new Date(dateISO);
@@ -490,30 +434,18 @@ export async function getConsistencyMetrics(account: string) {
     if (completed === '1') bucket.done += 1;
   }
 
-  // Build a Map for O(1) week lookups instead of O(n) find() per activity-week pair
   const weeksMap = new Map(weeks.map((w) => [w.week, w]));
-
   const byActivity = Object.entries(byActivityWeek).map(([activityId, actWeeksMap]) => {
     const label = activityMap[activityId]?.name || activityId;
     const activityWeeks = Object.entries(actWeeksMap).map(([weekKey, agg]) => {
       const overall = weeksMap.get(weekKey);
       const expectedDays = overall ? Math.max(1, Math.min(7, Math.round((overall.total || 0) / Math.max(1, activityCount)))) : 7;
-      const rate = expectedDays ? agg.done / expectedDays : 0;
-      return { week: weekKey, done: agg.done, total: expectedDays, rate };
+      return { week: weekKey, done: agg.done, total: expectedDays, rate: expectedDays ? agg.done / expectedDays : 0 };
     }).sort((a, b) => a.week.localeCompare(b.week));
     return { id: activityId, name: label, weeks: activityWeeks };
   });
 
-  return {
-    weeks,
-    byActivity,
-    summary: {
-      avgRate,
-      bestWeek,
-      currentStreakDays,
-      totalCompletions,
-    },
-  };
+  return { weeks, byActivity, summary: { avgRate, bestWeek, currentStreakDays, totalCompletions } };
 }
 
 function getWeekNumber(d: Date) {
@@ -521,13 +453,12 @@ function getWeekNumber(d: Date) {
   const dayNum = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return weekNo;
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
 function getIsoWeekStart(d: Date) {
   const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const day = date.getUTCDay() || 7; // 1..7 (Mon..Sun), treat Sun as 7
+  const day = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() - (day - 1));
   return date;
 }
@@ -535,53 +466,37 @@ function getIsoWeekStart(d: Date) {
 function computeExpectedDaysInWeek(start?: Date, end?: Date) {
   if (!start || !end) return 0;
   const today = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
-  // If week is fully in the past, expect 7 days; if current week, expect up to today; if future, expect 0
   if (end < today) return 7;
   if (start > today) return 0;
-  // days from start..today inclusive
-  const diff = Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
-  return Math.min(7, Math.max(0, diff));
+  return Math.min(7, Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86400000) + 1));
 }
 
 function computeCurrentStreakDays(completedDates: Set<string>) {
   let streak = 0;
-  const today = new Date();
-  // Use UTC date ISO format to match stored dates (YYYY-MM-DD)
   const toISO = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10);
-  let cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  while (true) {
-    const iso = toISO(cursor);
-    if (completedDates.has(iso)) {
-      streak += 1;
-      cursor.setUTCDate(cursor.getUTCDate() - 1);
-    } else {
-      break;
-    }
+  let cursor = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+  while (completedDates.has(toISO(cursor))) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   return streak;
 }
 
-// ---------------- Climbing: Logs and Goals ----------------
-// Climbs_<account>: [id, date, session, type, grade, attempts, location, notes]
-// ClimbGoals_<account>: [id, year, type, grade, target]
+// ── Climbing ─────────────────────────────────────────────────
 
-export type ClimbLog = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
-export type ClimbGoal = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
-
-export async function listClimbLogs(account: string, fromISO?: string, toISO?: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function listClimbLogs(sa: SheetAuth, account: string, fromISO?: string, toISO?: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Climbs_${account}`;
-  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  await ensureSheetExists(sa, title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:H` });
-  const values = res.data.values || [];
-  const rows: ClimbLog[] = values
+  const rows: ClimbLog[] = (res.data.values || [])
     .filter((r) => r && r[0])
     .map(([id, date, session, type, grade, attempts, location, notes]) => ({
       id: String(id).trim(),
       date: String(date).trim(),
       session: parseInt(String(session ?? '0'), 10) || 0,
-      type: (String(type || 'boulder').trim().toLowerCase() === 'rope' ? 'rope' : 'boulder'),
+      type: (String(type || 'boulder').trim().toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope',
       grade: String(grade || '').trim(),
       attempts: parseInt(String(attempts ?? '0'), 10) || 0,
       location: String(location || '').trim() || undefined,
@@ -590,28 +505,27 @@ export async function listClimbLogs(account: string, fromISO?: string, toISO?: s
   if (!fromISO || !toISO) return rows;
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  return rows.filter((r) => {
-    const t = new Date(r.date).getTime();
-    return !Number.isNaN(t) && t >= from && t <= to;
-  });
+  return rows.filter((r) => { const t = new Date(r.date).getTime(); return !Number.isNaN(t) && t >= from && t <= to; });
 }
 
-export async function addClimbLog(account: string, entry: { date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function addClimbLog(sa: SheetAuth, account: string, entry: { date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Climbs_${account}`;
-  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  await ensureSheetExists(sa, title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
   const id = String(Date.now());
-  const row = [id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')];
-  await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:H`, valueInputOption: 'RAW', requestBody: { values: [row] } });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId, range: `${title}!A1:H`, valueInputOption: 'RAW',
+    requestBody: { values: [[id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')]] },
+  });
   return { id, ...entry } as ClimbLog;
 }
 
-export async function deleteClimbLog(account: string, id: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function deleteClimbLog(sa: SheetAuth, account: string, id: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Climbs_${account}`;
-  await ensureSheetExists(title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
+  await ensureSheetExists(sa, title, ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:H` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -630,14 +544,13 @@ export async function deleteClimbLog(account: string, id: string) {
   return { id };
 }
 
-export async function listClimbGoals(account: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function listClimbGoals(sa: SheetAuth, account: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `ClimbGoals_${account}`;
-  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  await ensureSheetExists(sa, title, ['id', 'year', 'type', 'grade', 'target']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
-  const values = res.data.values || [];
-  return values.filter((r) => r && r[0]).map(([id, year, type, grade, target]) => ({
+  return (res.data.values || []).filter((r) => r && r[0]).map(([id, year, type, grade, target]) => ({
     id: String(id).trim(),
     year: parseInt(String(year ?? '0'), 10) || new Date().getFullYear(),
     type: (String(type || 'boulder').trim().toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope',
@@ -646,38 +559,34 @@ export async function listClimbGoals(account: string) {
   })) as ClimbGoal[];
 }
 
-export async function upsertClimbGoal(account: string, goal: { year: number; type: 'boulder' | 'rope'; grade: string; target: number }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function upsertClimbGoal(sa: SheetAuth, account: string, goal: { year: number; type: 'boulder' | 'rope'; grade: string; target: number }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `ClimbGoals_${account}`;
-  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  await ensureSheetExists(sa, title, ['id', 'year', 'type', 'grade', 'target']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
   const values = res.data.values || [];
-  let rowIndex = -1;
-  let existingId = '';
+  let rowIndex = -1; let existingId = '';
   for (let i = 0; i < values.length; i++) {
     const [id, year, type, grade] = values[i];
-    if (
-      parseInt(String(year ?? '0'), 10) === goal.year &&
-      String(type || '').trim().toLowerCase() === goal.type &&
-      String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()
-    ) { rowIndex = i + 2; existingId = id; break; }
+    if (parseInt(String(year ?? '0'), 10) === goal.year && String(type || '').trim().toLowerCase() === goal.type && String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()) {
+      rowIndex = i + 2; existingId = id; break;
+    }
   }
   if (rowIndex === -1) {
     const id = String(Date.now());
     await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:E`, valueInputOption: 'RAW', requestBody: { values: [[id, String(goal.year), goal.type, goal.grade, String(goal.target)]] } });
     return { id, ...goal } as ClimbGoal;
-  } else {
-    await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!E${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[String(goal.target)]] } });
-    return { id: existingId, ...goal } as ClimbGoal;
   }
+  await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!E${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[String(goal.target)]] } });
+  return { id: existingId, ...goal } as ClimbGoal;
 }
 
-export async function deleteClimbGoal(account: string, id: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function deleteClimbGoal(sa: SheetAuth, account: string, id: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `ClimbGoals_${account}`;
-  await ensureSheetExists(title, ['id', 'year', 'type', 'grade', 'target']);
+  await ensureSheetExists(sa, title, ['id', 'year', 'type', 'grade', 'target']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:E` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -696,15 +605,10 @@ export async function deleteClimbGoal(account: string, id: string) {
   return { id };
 }
 
-// ---------------- Time Tracking (Daily rows) ----------------
-// Hours_<account>: [date, h1, h2, ..., h24] where each hN is category id (0..11) or empty
-export type HourLog = { id: string; date: string; hour: number; category: number };
+// ── Time Tracking ────────────────────────────────────────────
 
 function hourIndexToColumnLetter(hourIndex: number) {
-  // hourIndex 0..23 maps to column B..Y (A is date)
-  const colNumber = 2 + hourIndex; // 1-based: A=1, B=2
-  // Convert to letter(s)
-  let n = colNumber;
+  let n = 2 + hourIndex;
   let letters = '';
   while (n > 0) {
     const rem = (n - 1) % 26;
@@ -714,58 +618,47 @@ function hourIndexToColumnLetter(hourIndex: number) {
   return letters;
 }
 
-export async function listHourLogs(account: string, fromISO?: string, toISO?: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function listHourLogs(sa: SheetAuth, account: string, fromISO?: string, toISO?: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Hours_${account}`;
   const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
-  await ensureSheetExists(title, headers);
-  // Read columns A (date) through Y (24 hours)
+  await ensureSheetExists(sa, title, headers);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
-  const values = res.data.values || [];
   const expand: HourLog[] = [];
-  for (const row of values) {
+  for (const row of (res.data.values || [])) {
     if (!row || !row[0]) continue;
     const date = String(row[0]).trim();
     for (let h = 0; h < 24; h++) {
       const v = row[1 + h];
       if (v !== undefined && v !== null && String(v).trim() !== '') {
         const category = parseInt(String(v).trim(), 10);
-        if (Number.isFinite(category)) {
-          expand.push({ id: `${date}-${h}`, date, hour: h, category });
-        }
+        if (Number.isFinite(category)) expand.push({ id: `${date}-${h}`, date, hour: h, category });
       }
     }
   }
   if (!fromISO || !toISO) return expand;
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  return expand.filter((r) => {
-    const t = new Date(r.date).getTime();
-    return !Number.isNaN(t) && t >= from && t <= to;
-  });
+  return expand.filter((r) => { const t = new Date(r.date).getTime(); return !Number.isNaN(t) && t >= from && t <= to; });
 }
 
-export async function upsertHourLog(account: string, entry: { date: string; hour: number; category: number }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function upsertHourLog(sa: SheetAuth, account: string, entry: { date: string; hour: number; category: number }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Hours_${account}`;
   const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
-  await ensureSheetExists(title, headers);
-  // Fetch all rows to find date
+  await ensureSheetExists(sa, title, headers);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
-    const date = String((values[i] && values[i][0]) || '').trim();
-    if (date === entry.date) { rowIndex = i + 2; break; }
+    if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
   }
   const colLetter = hourIndexToColumnLetter(entry.hour);
   if (rowIndex === -1) {
-    // Append a new row: date + 24 blank hours, then set the specific hour
-    const row = new Array(1 + 24).fill('');
-    row[0] = entry.date;
-    row[1 + entry.hour] = String(entry.category);
+    const row = new Array(25).fill('');
+    row[0] = entry.date; row[1 + entry.hour] = String(entry.category);
     await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:Y`, valueInputOption: 'RAW', requestBody: { values: [row] } });
   } else {
     await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!${colLetter}${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[String(entry.category)]] } });
@@ -773,26 +666,22 @@ export async function upsertHourLog(account: string, entry: { date: string; hour
   return { id: `${entry.date}-${entry.hour}`, ...entry } as HourLog;
 }
 
-export async function deleteHourLog(account: string, id: string) {
-  // Not supported in daily-row model by id; consider clearing by date+hour if needed.
+export async function deleteHourLog(_sa: SheetAuth, _account: string, id: string) {
   return { id };
 }
 
-export async function upsertHourLogsBatch(account: string, entry: { date: string; entries: Array<{ hour: number; category: number }> }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function upsertHourLogsBatch(sa: SheetAuth, account: string, entry: { date: string; entries: Array<{ hour: number; category: number }> }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `Hours_${account}`;
   const headers = ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)];
-  await ensureSheetExists(title, headers);
-  // Fetch all rows to find date
+  await ensureSheetExists(sa, title, headers);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Y` });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
-    const date = String((values[i] && values[i][0]) || '').trim();
-    if (date === entry.date) { rowIndex = i + 2; break; }
+    if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
   }
-  // Build the row values for columns B..Y
   let rowHours: string[] = new Array(24).fill('');
   if (rowIndex !== -1) {
     const existing = values[rowIndex - 2] || [];
@@ -807,23 +696,22 @@ export async function upsertHourLogsBatch(account: string, entry: { date: string
     }
   }
   if (rowIndex === -1) {
-    const row = [entry.date, ...rowHours];
-    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:Y`, valueInputOption: 'RAW', requestBody: { values: [row] } });
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:Y`, valueInputOption: 'RAW', requestBody: { values: [[entry.date, ...rowHours]] } });
   } else {
     await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!B${rowIndex}:Y${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [rowHours] } });
   }
   return { date: entry.date, count: entry.entries.length };
 }
 
-// ---------------- Time Categories (Settings) ----------------
-// TimeCategories_<account>: [id, name, color, order]
+// ── Time Categories ──────────────────────────────────────────
+
 export type TimeCategory = { id: string; name: string; color: string; order: number };
 
-export async function listTimeCategories(account: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function listTimeCategories(sa: SheetAuth, account: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `TimeCategories_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'color', 'order']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
   const values = res.data.values || [];
   if (values.length === 0) {
@@ -842,9 +730,7 @@ export async function listTimeCategories(account: string) {
       { id: '11', name: 'misc', color: '#64748b', order: 11 },
     ];
     await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${title}!A1:D`,
-      valueInputOption: 'RAW',
+      spreadsheetId, range: `${title}!A1:D`, valueInputOption: 'RAW',
       requestBody: { values: defaults.map((c) => [c.id, c.name, c.color, String(c.order)]) },
     });
     return defaults;
@@ -858,7 +744,6 @@ export async function listTimeCategories(account: string) {
       order: Number.isFinite(parseInt(String(order ?? ''), 10)) ? parseInt(String(order ?? ''), 10) : i,
     }))
     .sort((a, b) => a.order - b.order);
-  // If the sheet was previously seeded without 'misc' (11), append it.
   if (!rows.some((r) => r.id === '11')) {
     const misc: TimeCategory = { id: '11', name: 'misc', color: '#64748b', order: 11 };
     await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:D`, valueInputOption: 'RAW', requestBody: { values: [[misc.id, misc.name, misc.color, String(misc.order)]] } });
@@ -868,15 +753,14 @@ export async function listTimeCategories(account: string) {
   return rows;
 }
 
-export async function upsertTimeCategory(account: string, entry: { id?: string; name: string; color: string; order?: number }) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function upsertTimeCategory(sa: SheetAuth, account: string, entry: { id?: string; name: string; color: string; order?: number }) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `TimeCategories_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'color', 'order']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
   const values = res.data.values || [];
-  let rowIndex = -1;
-  let existingId = '';
+  let rowIndex = -1; let existingId = '';
   if (entry.id) {
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0]).trim() === entry.id) { rowIndex = i + 2; existingId = entry.id; break; }
@@ -888,18 +772,17 @@ export async function upsertTimeCategory(account: string, entry: { id?: string; 
   const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);
   if (rowIndex === -1) {
     await sheets.spreadsheets.values.append({ spreadsheetId, range: `${title}!A1:D`, valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order)]] } });
-    return { id, name, color, order } as TimeCategory;
   } else {
     await sheets.spreadsheets.values.update({ spreadsheetId, range: `${title}!B${rowIndex}:D${rowIndex}`, valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order)]] } });
-    return { id, name, color, order } as TimeCategory;
   }
+  return { id, name, color, order } as TimeCategory;
 }
 
-export async function deleteTimeCategory(account: string, id: string) {
-  const sheets = getSheets();
-  const spreadsheetId = getSpreadsheetId();
+export async function deleteTimeCategory(sa: SheetAuth, account: string, id: string) {
+  const sheets = getOAuthSheets(sa);
+  const { spreadsheetId } = sa;
   const title = `TimeCategories_${account}`;
-  await ensureSheetExists(title, ['id', 'name', 'color', 'order']);
+  await ensureSheetExists(sa, title, ['id', 'name', 'color', 'order']);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:D` });
   const values = res.data.values || [];
   let rowIndex = -1;

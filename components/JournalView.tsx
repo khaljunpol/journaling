@@ -6,7 +6,6 @@ import DailyWeight from '@/components/DailyWeightClient';
 import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, pad } from '@/lib/date';
 import { MOODS } from '@/lib/mood';
-import { useAccount } from '@/lib/useAccount';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 function stepDate(iso: string, delta: number): string {
@@ -19,7 +18,6 @@ export default function JournalView() {
   const today = useMemo(() => localTodayISO(), []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [isPending, startTransition] = useTransition();
-  const account = useAccount();
   const [moodScore, setMoodScore] = useState<number | null>(null);
   const moodCtrlRef = useRef<AbortController | null>(null);
 
@@ -36,12 +34,12 @@ export default function JournalView() {
   useEffect(() => {
     async function fetchMood() {
       try {
-        const cacheKey = `mood:${account}:${selectedDate}`;
+        const cacheKey = `mood:${selectedDate}`;
         const cached = getCache<{ score: number | null }>(cacheKey);
         if (cached && typeof cached.data?.score === 'number') setMoodScore(cached.data.score);
         if (moodCtrlRef.current) moodCtrlRef.current.abort();
         moodCtrlRef.current = new AbortController();
-        const res = await fetch(`/api/moods?date=${selectedDate}&account=${encodeURIComponent(account)}`, { signal: moodCtrlRef.current.signal });
+        const res = await fetch(`/api/moods?date=${selectedDate}`, { signal: moodCtrlRef.current.signal });
         if (!res.ok) return;
         const data = await res.json();
         const score = typeof data?.score === 'number' ? data.score : null;
@@ -50,14 +48,14 @@ export default function JournalView() {
       } catch { /* ignore */ }
     }
     fetchMood();
-  }, [selectedDate, account]);
+  }, [selectedDate]);
 
   async function saveMood(score: number) {
     const prev = moodScore;
     setMoodScore(score);
-    try { setCache(`mood:${account}:${selectedDate}`, { score }); } catch {}
+    try { setCache(`mood:${selectedDate}`, { score }); } catch {}
     try {
-      const res = await fetch(`/api/moods?account=${encodeURIComponent(account)}`, {
+      const res = await fetch('/api/moods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, score }),

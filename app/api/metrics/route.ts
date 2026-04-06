@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getConsistencyMetrics } from '@/lib/googleSheets';
-import { apiError, getAccountParam, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { requireSheetContext } from '@/lib/sheetAuth';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const account = getAccountParam(url);
-    if (!account) return apiError('Invalid account', 400);
-    const data = await getConsistencyMetrics(account);
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
+    const data = await getConsistencyMetrics(ctx.sheetAuth, ctx.account);
     return NextResponse.json(data);
   } catch (error: unknown) {
     console.error('[GET /api/metrics]', getErrorMessage(error));

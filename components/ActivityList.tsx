@@ -3,13 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ActivityStatus, Activity } from '@/lib/types';
 import { normalizeStatus, toBackendStatus } from '@/lib/status';
-import { useAccount } from '@/lib/useAccount';
 import { COLORS } from '@/lib/colors';
 
 export default function ActivityList() {
   const [items, setItems] = useState<Activity[]>([]);
   const [name, setName] = useState('');
-  const account = useAccount();
   const fetchVersionRef = useRef(0);
   const actsCtrlRef = useRef<AbortController | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -28,10 +26,10 @@ export default function ActivityList() {
     try {
       if (actsCtrlRef.current) actsCtrlRef.current.abort();
       actsCtrlRef.current = new AbortController();
-      const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { signal: actsCtrlRef.current.signal });
+      const res = await fetch('/api/activities', { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (v === fetchVersionRef.current) setItems([]); return; }
       const data = await res.json();
-      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as any) })) : [];
+      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as ActivityStatus) })) : [];
       if (v === fetchVersionRef.current) setItems(arr);
     } catch {
       if (v === fetchVersionRef.current) setItems([]);
@@ -42,12 +40,12 @@ export default function ActivityList() {
     if (actsCtrlRef.current) actsCtrlRef.current.abort();
     setItems([]);
     refresh();
-  }, [account]);
+  }, []);
 
   async function add() {
     const nm = name.trim();
     if (!nm) return;
-    const res = await fetch(`/api/activities?account=${encodeURIComponent(account)}`, { method: 'POST', body: JSON.stringify({ name: nm, status: toBackendStatus('to continue') }), headers: { 'Content-Type': 'application/json' } });
+    const res = await fetch('/api/activities', { method: 'POST', body: JSON.stringify({ name: nm, status: toBackendStatus('to continue') }), headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) return;
     setName('');
     showToast(`"${nm}" added`);
@@ -55,17 +53,17 @@ export default function ActivityList() {
   }
 
   async function updateName(id: string, newName: string) {
-    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
+    await fetch(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
     refresh();
   }
 
   async function updateStatus(id: string, status: ActivityStatus) {
-    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'PATCH', body: JSON.stringify({ status: toBackendStatus(status) }), headers: { 'Content-Type': 'application/json' } });
+    await fetch(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ status: toBackendStatus(status) }), headers: { 'Content-Type': 'application/json' } });
     refresh();
   }
 
   async function remove(id: string) {
-    await fetch(`/api/activities/${id}?account=${encodeURIComponent(account)}`, { method: 'DELETE' });
+    await fetch(`/api/activities/${id}`, { method: 'DELETE' });
     refresh();
   }
 

@@ -1,6 +1,3 @@
-// Account
-export const DEFAULT_ACCOUNT = 'Alex';
-
 // Auth / session
 export const SESSION_MAX_AGE_S = 60 * 60 * 24 * 7; // 7 days
 export const SESSION_EXPIRY = '7d' as const;

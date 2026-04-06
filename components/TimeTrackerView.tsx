@@ -2,7 +2,6 @@
 
 import { getCache, setCache } from '@/lib/cache';
 import { pad, localTodayISO, parseLocalDate, localISO } from '@/lib/date';
-import { useAccount } from '@/lib/useAccount';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +13,6 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function TimeTrackerView() {
-  const account = useAccount();
   const [date] = useState<string>(localTodayISO());
   const [hours, setHours] = useState<Array<number | null>>(Array.from({ length: 24 }, () => null));
   const [yearLogs, setYearLogs] = useState<Array<TimeEntry>>([]);
@@ -38,7 +36,7 @@ export default function TimeTrackerView() {
       if (ctrlRef.current) ctrlRef.current.abort();
       ctrlRef.current = new AbortController();
 
-      const dayKey = `time:day:${account}:${date}`;
+      const dayKey = `time:day:${date}`;
       const cachedDay = getCache<Array<TimeEntry>>(dayKey);
       if (cachedDay) {
         const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
@@ -47,7 +45,7 @@ export default function TimeTrackerView() {
         }
         setHours(arr);
       }
-      const res = await fetch(`/api/time?date=${date}&account=${encodeURIComponent(account)}`, { signal: ctrlRef.current.signal });
+      const res = await fetch(`/api/time?date=${date}`, { signal: ctrlRef.current.signal });
       const items: Array<TimeEntry> = (res.ok ? await res.json() : []) || [];
       const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
       for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
@@ -56,18 +54,18 @@ export default function TimeTrackerView() {
 
       const yFrom = `${viewYear}-01-01`;
       const yTo = `${viewYear}-12-31`;
-      const yearKey = `time:year:${account}:${viewYear}`;
+      const yearKey = `time:year:${viewYear}`;
       const cachedYear = getCache<Array<TimeEntry>>(yearKey);
       if (cachedYear) setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []);
-      const yRes = await fetch(`/api/time?from=${yFrom}&to=${yTo}&account=${encodeURIComponent(account)}`);
+      const yRes = await fetch(`/api/time?from=${yFrom}&to=${yTo}`);
       const yItems: Array<TimeEntry> = yRes.ok ? await yRes.json() : [];
       setYearLogs(Array.isArray(yItems) ? yItems : []);
       try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch {}
 
-      const catsKey = `time:cats:${account}`;
+      const catsKey = 'time:cats';
       const cachedCats = getCache<CatItem[]>(catsKey);
       if (cachedCats) setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []);
-      const cRes = await fetch(`/api/time/categories?account=${encodeURIComponent(account)}`);
+      const cRes = await fetch('/api/time/categories');
       const list: CatItem[] = cRes.ok ? await cRes.json() : [];
       setCats(Array.isArray(list) ? list : []);
       try { setCache(catsKey, Array.isArray(list) ? list : []); } catch {}
@@ -76,11 +74,11 @@ export default function TimeTrackerView() {
     }
   }
 
-  useEffect(() => { refresh(); }, [account, viewYear]);
+  useEffect(() => { refresh(); }, [viewYear]);
 
   async function saveBatchForDate(iso: string, items: Array<{ h: number; category: number }>) {
     if (!items.length) return false;
-    const res = await fetch(`/api/time?account=${encodeURIComponent(account)}`, {
+    const res = await fetch('/api/time', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: iso, entries: items.map((it) => ({ hour: it.h, category: it.category })) }),
@@ -467,15 +465,18 @@ function HourHeader() {
     <div className="flex items-center gap-1 mb-1">
       <div className="w-7 shrink-0" />
       <div className="flex-1 grid grid-cols-24">
-        {Array.from({ length: 24 }, (_, h) => (
-          <div
-            key={h}
-            className="text-center select-none overflow-hidden"
-            style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
-          >
-            {h % 6 === 0 ? h : ''}
-          </div>
-        ))}
+        {Array.from({ length: 24 }, (_, i) => {
+          const h = (i + 1) % 24; // display order: 1,2,...,23,0
+          return (
+            <div
+              key={i}
+              className="text-center select-none overflow-hidden"
+              style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
+            >
+              {i % 6 === 0 ? (h === 0 ? '24' : h) : ''}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -534,15 +535,17 @@ function DaysRows({
             <span className="text-[10px] font-medium leading-none">{di}</span>
           </div>
 
-          {/* 24 hour cells with hour numbers */}
+          {/* 24 hour cells — starting at 1 AM, midnight last */}
           <div className="flex-1 grid grid-cols-24">
-            {Array.from({ length: 24 }, (_, h) => {
+            {Array.from({ length: 24 }, (_, i) => {
+              const h = (i + 1) % 24; // 1,2,...,23,0
               const logs = byDate.get(iso) || [];
               const hit = logs.find((x) => x.hour === h);
               const draftCat = (draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
               const bgCategory = draftCat !== null ? draftCat : (hit ? hit.category : null);
               const filled = bgCategory !== null && bgCategory !== undefined;
               const cellBg = filled ? getColor(bgCategory as number) : undefined;
+              const label = h === 0 ? '24' : h;
 
               return (
                 <div
@@ -553,13 +556,13 @@ function DaysRows({
                     fontSize: 7,
                     color: filled ? 'rgba(0,0,0,0.45)' : 'var(--muted-foreground)',
                     lineHeight: 1,
-                    borderRight: h < 23 ? '0.5px solid var(--surface)' : undefined,
+                    borderRight: i < 23 ? '0.5px solid var(--surface)' : undefined,
                   }}
                   onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
                   onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
-                  title={`${iso} ${pad(h)}:00–${pad(h + 1)}:00`}
+                  title={`${iso} ${pad(h)}:00`}
                 >
-                  {h}
+                  {label}
                 </div>
               );
             })}

@@ -2,14 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getCache, setCache } from '@/lib/cache';
-import { useAccount } from '@/lib/useAccount';
 
 export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const account = useAccount();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -18,12 +16,12 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
     async function load() {
       setLoading(true);
       try {
-        const cacheKey = `highlight:${account}:${dateISO}`;
+        const cacheKey = `highlight:${dateISO}`;
         const cached = getCache<{ text: string }>(cacheKey);
         if (cached && typeof cached.data?.text === 'string' && !cancelled) {
           setText(cached.data.text);
         }
-        const res = await fetch(`/api/highlights?date=${dateISO}&account=${encodeURIComponent(account)}`);
+        const res = await fetch(`/api/highlights?date=${dateISO}`);
         if (res.ok && !cancelled) {
           const j = await res.json();
           const nextText = String(j?.text || '');
@@ -36,7 +34,7 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [dateISO, account]);
+  }, [dateISO]);
 
   // Auto-grow textarea
   useEffect(() => {
@@ -47,10 +45,10 @@ export default function DailyHighlight({ dateISO }: { dateISO: string }) {
   }, [text]);
 
   function doSave(value: string) {
-    try { setCache(`highlight:${account}:${dateISO}`, { text: value }); } catch {}
+    try { setCache(`highlight:${dateISO}`, { text: value }); } catch {}
     setSaving(true);
     setSaved(false);
-    fetch(`/api/highlights?account=${encodeURIComponent(account)}`, {
+    fetch('/api/highlights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateISO, text: value }),

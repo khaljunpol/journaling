@@ -1,57 +1,132 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { parseCookies } from "@/lib/apiHelpers";
-import { DEFAULT_ACCOUNT } from "@/lib/constants";
-
-const ACCOUNTS = ["Alex", "Sam"] as const;
+import { useSession } from 'next-auth/react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function AccountSwitcher() {
-  const [account, setAccount] = useState<string>(DEFAULT_ACCOUNT);
+  const { data: session, update } = useSession();
+  const [open, setOpen] = useState(false);
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [newName, setNewName] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
 
+  const active = session?.activeSubAccount || '';
+
+  // Fetch available accounts when dropdown opens
   useEffect(() => {
-    const cookieAccount = (() => {
-      try { return parseCookies(document.cookie)['account'] ?? null; } catch { return null; }
-    })();
-    const initial = cookieAccount || (typeof window !== "undefined" ? localStorage.getItem("account") : null);
-    setAccount(initial || DEFAULT_ACCOUNT);
-    const onStorage = () => {
-      const a = localStorage.getItem("account") || DEFAULT_ACCOUNT;
-      setAccount(a);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    if (!open) return;
+    fetch('/api/accounts')
+      .then((r) => r.ok ? r.json() : [])
+      .then((list) => setAccounts(Array.isArray(list) ? list : []))
+      .catch(() => setAccounts([]));
+  }, [open]);
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const a = e.target.value;
-    setAccount(a);
-    try {
-      localStorage.setItem("account", a);
-      // Notify other components quickly
-      window.dispatchEvent(new StorageEvent("storage", { key: "account", newValue: a } as any));
-      window.dispatchEvent(new CustomEvent("account-change", { detail: a }));
-      // Also set a readable cookie so server components can read the selection
-      const maxAge = 60 * 60 * 24 * 30; // 30 days
-      document.cookie = `account=${encodeURIComponent(a)}; path=/; max-age=${maxAge}; samesite=lax`;
-    } catch {}
-  };
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  async function switchTo(name: string) {
+    setOpen(false);
+    await update({ activeSubAccount: name });
+    window.location.reload();
+  }
+
+  async function onAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    await switchTo(name);
+  }
+
+  if (!session) return null;
+
+  const others = accounts.filter((a) => a !== active);
 
   return (
-    <label className="inline-flex items-center gap-3 text-sm">
-      <select
-        value={account}
-        onChange={onChange}
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="btn-outline px-2.5 py-1 text-sm flex items-center gap-1.5"
+        aria-expanded={open}
         title="Switch account"
-        className="input py-1 text-sm"
-        aria-label="Select account"
       >
-        {ACCOUNTS.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+          {active || '—'}
+        </span>
+        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 mt-2 w-52 card p-2 z-40 shadow-lg space-y-1"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="px-2 py-1 text-xs uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+            Account
+          </div>
+
+          {/* Current active */}
+          {active && (
+            <button
+              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm"
+              style={{ background: 'var(--surface-alt)', color: 'var(--accent)', fontWeight: 500 }}
+              onClick={() => setOpen(false)}
+            >
+              {active}
+              <span className="text-xs">✓</span>
+            </button>
+          )}
+
+          {/* Other accounts from the sheet */}
+          {others.length > 0 && (
+            <>
+              <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+              {others.map((name) => (
+                <button
+                  key={name}
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-sm transition"
+                  style={{ color: 'var(--text)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-alt)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  onClick={() => switchTo(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </>
+          )}
+
+          <div className="my-1 h-px" style={{ background: 'var(--border)' }} />
+
+          <div className="px-2 py-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            {others.length > 0 ? 'Or type a name' : 'Switch to'}
+          </div>
+          <form onSubmit={onAdd} className="flex gap-1 px-1">
+            <input
+              autoFocus
+              type="text"
+              className="input flex-1 py-1 text-sm"
+              placeholder="e.g. Sam"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <button type="submit" className="btn px-2 py-1 text-sm">Go</button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
