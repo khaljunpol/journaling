@@ -1,13 +1,13 @@
 "use client";
 
-import type { Activity, WeightPoint, MoodItem, TimeEntryAny, Sidequest } from '@/lib/types';
+import { getCache, setCache } from '@/lib/cache';
+import { localISO, toISODate, weekKey, weekStartLocal } from '@/lib/date';
+import { computeAttentionSignals, computeMoodActivityCorrelation, computeWeeklySummary } from '@/lib/insights';
+import { moodColor, moodEmoji } from '@/lib/mood';
+import type { Activity, MoodItem, Sidequest, TimeEntryAny, WeightPoint } from '@/lib/types';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { localISO, toISODate, weekStartLocal, weekKey, pad } from '@/lib/date';
-import { getCache, setCache } from '@/lib/cache';
-import { moodEmoji, moodColor, moodLabel } from '@/lib/mood';
-import { computeWeeklySummary, computeAttentionSignals, computeMoodActivityCorrelation, type Signal } from '@/lib/insights';
 
 // ─── Skeleton primitive ───────────────────────────────────────────────────────
 function Sk({ w = 'w-16', h = 'h-4' }: { w?: string; h?: string }) {
