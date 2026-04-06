@@ -31,6 +31,14 @@ export default function SidequestsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Refresh a single item in state without full reload
+  async function refreshItem(id: string) {
+    const res = await fetch(`/api/sidequests/${id}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    setItems((prev) => prev.map((s) => s.id === id ? { ...d, logs: d.logs || [] } : s));
+  }
+
   async function handleCreate(data: Partial<Sidequest>) {
     const res = await fetch('/api/sidequests', {
       method: 'POST',
@@ -51,7 +59,7 @@ export default function SidequestsPage() {
     });
     if (!res.ok) throw new Error('Failed to update');
     setEditItem(null);
-    await load();
+    await refreshItem(editItem.id);
   }
 
   async function handleDelete(id: string) {
@@ -66,7 +74,7 @@ export default function SidequestsPage() {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error('Failed to log');
-    await load();
+    await refreshItem(id);
   }
 
 
@@ -205,7 +213,7 @@ export default function SidequestsPage() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(patch),
                 });
-                await load();
+                await refreshItem(sq.id);
               }}
             />
           ))}

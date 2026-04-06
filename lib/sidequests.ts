@@ -70,7 +70,7 @@ function rowToLog(row: string[]): SidequestLog {
     value2: value2 ? (parseFloat(String(value2)) || undefined) : undefined,
     note: String(note || '').trim() || undefined,
     milestoneIndex: milestoneIndex !== '' && milestoneIndex !== undefined
-      ? (parseInt(String(milestoneIndex), 10) || undefined) : undefined,
+      ? (n => isNaN(n) ? undefined : n)(parseInt(String(milestoneIndex), 10)) : undefined,
   };
 }
 

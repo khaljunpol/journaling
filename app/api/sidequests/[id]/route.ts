@@ -77,17 +77,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
 
       // If milestone: mark the milestone completedAt on the sidequest itself
+      // Client sends current milestones array to avoid an extra read
       if (body.milestoneIndex != null) {
-        const sq = await getSidequest(ctx.sheetAuth, ctx.account, id);
-        if (sq?.milestones) {
-          const milestones = sq.milestones.map((m, i) =>
-            i === body.milestoneIndex ? { ...m, completedAt: log.date } : m
+        const idx = parseInt(String(body.milestoneIndex), 10);
+        const clientMilestones: Array<{ label: string; completedAt?: string }> | undefined =
+          Array.isArray(body.milestones) ? body.milestones : undefined;
+        if (clientMilestones) {
+          const milestones = clientMilestones.map((m, i) =>
+            i === idx ? { ...m, completedAt: log.date } : m
           );
           const allDone = milestones.every((m) => m.completedAt);
+          const alreadyCompleted: boolean = !!body.sqCompletedAt;
           await updateSidequest(ctx.sheetAuth, ctx.account, id, {
             milestones,
-            ...(allDone && !sq.completedAt ? { completedAt: log.date } : {}),
+            ...(allDone && !alreadyCompleted ? { completedAt: log.date } : {}),
           });
+        } else {
+          // Fallback: read from sheet
+          const sq = await getSidequest(ctx.sheetAuth, ctx.account, id);
+          if (sq?.milestones) {
+            const milestones = sq.milestones.map((m, i) =>
+              i === idx ? { ...m, completedAt: log.date } : m
+            );
+            const allDone = milestones.every((m) => m.completedAt);
+            await updateSidequest(ctx.sheetAuth, ctx.account, id, {
+              milestones,
+              ...(allDone && !sq.completedAt ? { completedAt: log.date } : {}),
+            });
+          }
         }
       }
 

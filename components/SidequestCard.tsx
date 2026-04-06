@@ -26,7 +26,7 @@ function fmtDate(iso: string) {
 function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
   sq: Sidequest;
   logs: SidequestLog[];
-  onLog: (data: Partial<SidequestLog>) => Promise<void>;
+  onLog: (data: Partial<SidequestLog> & Record<string, unknown>) => Promise<void>;
   onToggleComplete: () => Promise<void>;
 }) {
   const milestones = sq.milestones || [];
@@ -38,7 +38,13 @@ function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
   async function checkMilestone(idx: number) {
     if (completedIndices.has(idx)) return;
     const today = new Date().toISOString().slice(0, 10);
-    await onLog({ milestoneIndex: idx, date: today });
+    // Pass milestones to server so it skips an extra sheet read
+    await onLog({
+      milestoneIndex: idx,
+      date: today,
+      milestones: sq.milestones,
+      sqCompletedAt: sq.completedAt,
+    });
   }
 
   return (
@@ -414,7 +420,7 @@ export default function SidequestCard({
 }: {
   sidequest: Sidequest;
   logs: SidequestLog[];
-  onLog: (data: Partial<SidequestLog>) => Promise<void>;
+  onLog: (data: Partial<SidequestLog> & Record<string, unknown>) => Promise<void>;
   onUpdate: (patch: Partial<Sidequest>) => Promise<void>;
   onDelete: () => Promise<void>;
   onEdit?: () => void;
