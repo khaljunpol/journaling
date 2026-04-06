@@ -710,13 +710,13 @@ export default function Dashboard() {
                                         style={{
                                             background: sq.type === 'oneoff' ? 'color-mix(in oklab, #6366f1 15%, transparent)' :
                                                 sq.type === 'milestone' ? 'color-mix(in oklab, #f59e0b 15%, transparent)' :
-                                                sq.type === 'pb' ? 'color-mix(in oklab, #10b981 15%, transparent)' :
-                                                sq.type === 'timed' ? 'color-mix(in oklab, #3b82f6 15%, transparent)' :
-                                                'color-mix(in oklab, #ec4899 15%, transparent)',
+                                                    sq.type === 'pb' ? 'color-mix(in oklab, #10b981 15%, transparent)' :
+                                                        sq.type === 'timed' ? 'color-mix(in oklab, #3b82f6 15%, transparent)' :
+                                                            'color-mix(in oklab, #ec4899 15%, transparent)',
                                             color: sq.type === 'oneoff' ? '#6366f1' :
                                                 sq.type === 'milestone' ? '#d97706' :
-                                                sq.type === 'pb' ? '#059669' :
-                                                sq.type === 'timed' ? '#2563eb' : '#db2777',
+                                                    sq.type === 'pb' ? '#059669' :
+                                                        sq.type === 'timed' ? '#2563eb' : '#db2777',
                                         }}
                                     >{sq.type}</span>
                                     <span className="flex-1 truncate">{sq.title}</span>
