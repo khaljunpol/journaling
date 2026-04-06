@@ -17,12 +17,22 @@ function getSheets(sa: SheetAuth) {
 
 // ── Sheet helpers ────────────────────────────────────────────
 
+// Cache confirmed-existing sheets so ensureSheet only hits the API once per process
+const _sheetExistsCache = new Set<string>();
+
 async function ensureSheet(sa: SheetAuth, title: string, headers: string[]) {
+  const cacheKey = `${sa.spreadsheetId}::${title}`;
+  if (_sheetExistsCache.has(cacheKey)) return;
+
   const sheets = getSheets(sa);
   const { spreadsheetId } = sa;
   const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
-  const exists = (meta.data.sheets || []).some((s) => s.properties?.title === title);
-  if (!exists) {
+  const existing = (meta.data.sheets || []).map((s) => s.properties?.title);
+
+  // Mark all known sheets as confirmed — avoid future checks for sibling sheets too
+  for (const t of existing) { if (t) _sheetExistsCache.add(`${spreadsheetId}::${t}`); }
+
+  if (!existing.includes(title)) {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: { requests: [{ addSheet: { properties: { title } } }] },
@@ -32,6 +42,7 @@ async function ensureSheet(sa: SheetAuth, title: string, headers: string[]) {
       requestBody: { values: [headers] },
     });
   }
+  _sheetExistsCache.add(cacheKey);
 }
 
 // ── Sidequests CRUD ──────────────────────────────────────────
@@ -74,6 +85,14 @@ function rowToLog(row: string[]): SidequestLog {
   };
 }
 
+/** Ensures both sidequest sheets exist. Call once before parallel reads to avoid a race. */
+export async function warmupSidequestSheets(sa: SheetAuth, account: string): Promise<void> {
+  // A single spreadsheets.get populates the cache for all tabs at once.
+  // Running ensureSheet for the first tab covers the second too (see cache logic above).
+  await ensureSheet(sa, sqTitle(account), SQ_HEADERS);
+  await ensureSheet(sa, sqLogTitle(account), SQ_LOG_HEADERS);
+}
+
 export async function listSidequests(sa: SheetAuth, account: string, year?: number): Promise<Sidequest[]> {
   const sheets = getSheets(sa);
   const { spreadsheetId } = sa;
@@ -114,7 +133,6 @@ export async function updateSidequest(sa: SheetAuth, account: string, id: string
   const sheets = getSheets(sa);
   const { spreadsheetId } = sa;
   const title = sqTitle(account);
-  await ensureSheet(sa, title, SQ_HEADERS);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:J` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -141,7 +159,6 @@ export async function deleteSidequest(sa: SheetAuth, account: string, id: string
   const sheets = getSheets(sa);
   const { spreadsheetId } = sa;
   const title = sqTitle(account);
-  await ensureSheet(sa, title, SQ_HEADERS);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:J` });
   const values = res.data.values || [];
   let rowIndex = -1;
@@ -199,7 +216,6 @@ export async function deleteSidequestLog(sa: SheetAuth, account: string, logId: 
   const sheets = getSheets(sa);
   const { spreadsheetId } = sa;
   const title = sqLogTitle(account);
-  await ensureSheet(sa, title, SQ_LOG_HEADERS);
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:G` });
   const values = res.data.values || [];
   let rowIndex = -1;

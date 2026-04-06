@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
-import { listSidequests, createSidequest, listSidequestLogs } from '@/lib/sidequests';
+import { listSidequests, createSidequest, listSidequestLogs, warmupSidequestSheets } from '@/lib/sidequests';
 import type { SidequestType } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -13,6 +13,8 @@ export async function GET(req: Request) {
     const includeLogs = searchParams.get('logs') === 'true';
 
     if (includeLogs) {
+      // Warm up both sheets first so the parallel reads don't race on ensureSheet
+      await warmupSidequestSheets(ctx.sheetAuth, ctx.account);
       const [sqs, allLogs] = await Promise.all([
         listSidequests(ctx.sheetAuth, ctx.account, year),
         listSidequestLogs(ctx.sheetAuth, ctx.account),
