@@ -25,7 +25,7 @@ function StatCard({
     loading?: boolean;
     href?: string;
 }) {
-    const arrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : null;
+    const arrow = trend === 'up' ? '↑ ' : trend === 'down' ? '↓' : null;
     const arrowColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-400' : '';
     const inner = (
         <div className={`card p-4 flex flex-col gap-1${href ? ' cursor-pointer hover:ring-2 hover:ring-(--ring) transition-shadow' : ''}`}>
