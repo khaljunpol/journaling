@@ -269,14 +269,15 @@ export default function ClimbingView() {
     const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
     const accent = COLORS.accent;
     const green = COLORS.success;
-    const muted = 'rgba(255,255,255,0.6)';
-    const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 12; c.shadowOffsetY = 4; };
-    const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0; };
+    const muted = '#ffffff';
+    const dim = 'rgba(255,255,255,0.85)';
+    const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = 28; c.shadowOffsetX = 0; c.shadowOffsetY = 2; };
+    const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetX = 0; c.shadowOffsetY = 0; };
     const write = (text: string, size: number, x: number, y: number, opts: { bold?: boolean; color?: string; align?: CanvasTextAlign } = {}) => {
       c.font = `${opts.bold ? '700' : '400'} ${size}px ${font}`;
       c.fillStyle = opts.color || '#ffffff';
       c.textAlign = opts.align || 'center';
-      shadow(); c.fillText(text, x, y); noShadow();
+      shadow(); c.fillText(text, x, y); c.fillText(text, x, y); noShadow();
     };
     const download = (name: string) => {
       canvas.toBlob((blob) => {
@@ -286,7 +287,7 @@ export default function ClimbingView() {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }, 'image/png');
     };
-    return { canvas, c, W, H, write, accent, green, muted, shadow, noShadow, download };
+    return { canvas, c, W, H, write, accent, green, muted, dim, shadow, noShadow, download };
   }
 
   function drawProgressRing(c: CanvasRenderingContext2D, cx: number, cy: number, r: number, pct: number, accent: string, green: string) {

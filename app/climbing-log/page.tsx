@@ -138,14 +138,16 @@ export default function ClimbingLogPage() {
     const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
     const accent = '#fc4c02';
     const green = '#22c55e';
-    const muted = 'rgba(255,255,255,0.6)';
-    const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 12; c.shadowOffsetY = 4; };
-    const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0; };
+    const muted = '#ffffff';
+    const dim = 'rgba(255,255,255,0.85)';
+    const shadow = () => { c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = 28; c.shadowOffsetX = 0; c.shadowOffsetY = 2; };
+    const noShadow = () => { c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetX = 0; c.shadowOffsetY = 0; };
+    // write draws text twice for extra shadow punch on bright backgrounds
     const write = (text: string, size: number, x: number, y: number, opts: { bold?: boolean; color?: string; align?: CanvasTextAlign } = {}) => {
       c.font = `${opts.bold ? '700' : '400'} ${size}px ${font}`;
       c.fillStyle = opts.color || '#ffffff';
       c.textAlign = opts.align || 'center';
-      shadow(); c.fillText(text, x, y); noShadow();
+      shadow(); c.fillText(text, x, y); c.fillText(text, x, y); noShadow();
     };
     const download = (name: string) => {
       canvas.toBlob((blob) => {
@@ -176,7 +178,7 @@ export default function ClimbingLogPage() {
       c.fillStyle = pct >= 100 ? green : accent; c.fill();
       noShadow();
     };
-    return { canvas, c, W, H, write, accent, green, muted, font, shadow, noShadow, download, drawBadge, drawMeter };
+    return { canvas, c, W, H, write, accent, green, muted, dim, font, shadow, noShadow, download, drawBadge, drawMeter };
   }
 
   // Version 1: Centered — badge + meter + stats
@@ -184,7 +186,7 @@ export default function ClimbingLogPage() {
     try {
       const dateISO = String(l.date).slice(0, 10);
       const { yr, ordinal, target } = await getProgressForLog({ ...l, date: dateISO });
-      const { W, H, write, accent, muted, download, drawBadge, drawMeter } = createOverlayCanvas();
+      const { W, H, write, accent, muted, dim, download, drawBadge, drawMeter } = createOverlayCanvas();
       const pct = target ? Math.min(100, Math.round((ordinal / target) * 100)) : 0;
       const cx = W / 2;
       const padX = 100;
@@ -203,7 +205,7 @@ export default function ClimbingLogPage() {
       if (target > 0) {
         write(`${ordinal} / ${target}`, 34, padX, meterY - 16, { bold: true, align: 'left' });
         write(`${pct}%`, 34, W - padX, meterY - 16, { bold: true, color: accent, align: 'right' });
-        write(`${yr} GOAL`, 22, cx, meterY + meterH + 36, { color: 'rgba(255,255,255,0.4)' });
+        write(`${yr} GOAL`, 22, cx, meterY + meterH + 36, { color: dim });
       } else {
         write(`Send #${ordinal}`, 34, padX, meterY - 16, { bold: true, align: 'left' });
       }
@@ -230,7 +232,7 @@ export default function ClimbingLogPage() {
     try {
       const dateISO = String(l.date).slice(0, 10);
       const { yr, ordinal, target } = await getProgressForLog({ ...l, date: dateISO });
-      const { W, H, write, accent, muted, download, drawMeter } = createOverlayCanvas();
+      const { W, H, write, accent, muted, dim, download, drawMeter } = createOverlayCanvas();
       const pct = target ? Math.min(100, Math.round((ordinal / target) * 100)) : 0;
       const padX = 80;
 
@@ -257,7 +259,7 @@ export default function ClimbingLogPage() {
       write(`${typeName}  ·  S${l.session}  ·  ${attText}`, 28, padX, inlineY, { color: muted, align: 'left' });
 
       if (target > 0) {
-        write(`${yr} Goal`, 22, W - padX, inlineY, { color: 'rgba(255,255,255,0.35)', align: 'right' });
+        write(`${yr} Goal`, 22, W - padX, inlineY, { color: dim, align: 'right' });
       }
 
       download(`climb-${l.id}-compact.png`);
@@ -269,7 +271,7 @@ export default function ClimbingLogPage() {
     try {
       const dateISO = String(l.date).slice(0, 10);
       const { yr, ordinal, target } = await getProgressForLog({ ...l, date: dateISO });
-      const { W, H, write, accent, green, muted, download, drawMeter } = createOverlayCanvas();
+      const { W, H, write, accent, green, muted, dim, download, drawMeter } = createOverlayCanvas();
       const pct = target ? Math.min(100, Math.round((ordinal / target) * 100)) : 0;
       const padX = 100;
 
@@ -301,7 +303,7 @@ export default function ClimbingLogPage() {
         drawMeter(padX, meterY, meterW, 36, pct);
         write(`${ordinal}/${target}`, 26, padX, meterY + 60, { bold: true, align: 'left' });
         write(`${pct}%`, 26, W - padX, meterY + 60, { bold: true, color: pct >= 100 ? green : accent, align: 'right' });
-        write(`${yr} Goal`, 20, padX, meterY + 88, { color: 'rgba(255,255,255,0.35)', align: 'left' });
+        write(`${yr} Goal`, 20, padX, meterY + 88, { color: dim, align: 'left' });
       }
 
       download(`climb-${l.id}-bold.png`);
