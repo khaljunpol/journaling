@@ -203,11 +203,11 @@ export default function ClimbingLogPage() {
       drawMeter(padX, meterY, meterW, meterH, pct);
 
       if (target > 0) {
-        write(`${ordinal} / ${target}`, 34, padX, meterY - 16, { bold: true, align: 'left' });
-        write(`${pct}%`, 34, W - padX, meterY - 16, { bold: true, color: accent, align: 'right' });
-        write(`${yr} GOAL`, 22, cx, meterY + meterH + 36, { color: dim });
+        write(`${ordinal} / ${target}`, 64, padX, meterY - 16, { bold: true, align: 'left' });
+        write(`${pct}%`, 64, W - padX, meterY - 16, { bold: true, color: accent, align: 'right' });
+        write(`${yr} GOAL`, 26, cx, meterY + meterH + 40, { color: dim });
       } else {
-        write(`Send #${ordinal}`, 34, padX, meterY - 16, { bold: true, align: 'left' });
+        write(`Send #${ordinal}`, 52, padX, meterY - 16, { bold: true, align: 'left' });
       }
 
       // Stats
@@ -248,8 +248,8 @@ export default function ClimbingLogPage() {
       drawMeter(padX, bottomBase - 50, meterW, 32, pct);
 
       if (target > 0) {
-        write(`${ordinal}/${target}`, 28, padX, bottomBase + 10, { bold: true, align: 'left' });
-        write(`${pct}%`, 28, W - padX, bottomBase + 10, { bold: true, color: accent, align: 'right' });
+        write(`${ordinal}/${target}`, 56, padX, bottomBase + 18, { bold: true, align: 'left' });
+        write(`${pct}%`, 56, W - padX, bottomBase + 18, { bold: true, color: accent, align: 'right' });
       }
 
       // Inline stats
@@ -301,9 +301,9 @@ export default function ClimbingLogPage() {
         const meterY = statsY + stats.length * lineH + 30;
         const meterW = W - padX * 2;
         drawMeter(padX, meterY, meterW, 36, pct);
-        write(`${ordinal}/${target}`, 26, padX, meterY + 60, { bold: true, align: 'left' });
-        write(`${pct}%`, 26, W - padX, meterY + 60, { bold: true, color: pct >= 100 ? green : accent, align: 'right' });
-        write(`${yr} Goal`, 20, padX, meterY + 88, { color: dim, align: 'left' });
+        write(`${ordinal}/${target}`, 56, padX, meterY + 68, { bold: true, align: 'left' });
+        write(`${pct}%`, 56, W - padX, meterY + 68, { bold: true, color: pct >= 100 ? green : accent, align: 'right' });
+        write(`${yr} Goal`, 24, padX, meterY + 102, { color: dim, align: 'left' });
       }
 
       download(`climb-${l.id}-bold.png`);
