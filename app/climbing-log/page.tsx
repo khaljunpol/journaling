@@ -248,12 +248,12 @@ export default function ClimbingLogPage() {
       drawMeter(padX, bottomBase - 50, meterW, 32, pct);
 
       if (target > 0) {
-        write(`${ordinal}/${target}`, 56, padX, bottomBase + 18, { bold: true, align: 'left' });
-        write(`${pct}%`, 56, W - padX, bottomBase + 18, { bold: true, color: accent, align: 'right' });
+        write(`${ordinal}/${target}`, 56, padX, bottomBase + 48, { bold: true, align: 'left' });
+        write(`${pct}%`, 56, W - padX, bottomBase + 48, { bold: true, color: accent, align: 'right' });
       }
 
       // Inline stats
-      const inlineY = bottomBase + 60;
+      const inlineY = target > 0 ? bottomBase + 110 : bottomBase + 60;
       const attText = l.attempts === 0 ? 'Flash' : `${l.attempts} att`;
       const typeName = l.type === 'boulder' ? 'Boulder' : 'Rope';
       write(`${typeName}  ·  S${l.session}  ·  ${attText}`, 28, padX, inlineY, { color: muted, align: 'left' });
@@ -301,9 +301,9 @@ export default function ClimbingLogPage() {
         const meterY = statsY + stats.length * lineH + 30;
         const meterW = W - padX * 2;
         drawMeter(padX, meterY, meterW, 36, pct);
-        write(`${ordinal}/${target}`, 56, padX, meterY + 68, { bold: true, align: 'left' });
-        write(`${pct}%`, 56, W - padX, meterY + 68, { bold: true, color: pct >= 100 ? green : accent, align: 'right' });
-        write(`${yr} Goal`, 24, padX, meterY + 102, { color: dim, align: 'left' });
+        write(`${ordinal}/${target}`, 56, padX, meterY + 96, { bold: true, align: 'left' });
+        write(`${pct}%`, 56, W - padX, meterY + 96, { bold: true, color: pct >= 100 ? green : accent, align: 'right' });
+        write(`${yr} Goal`, 24, padX, meterY + 136, { color: dim, align: 'left' });
       }
 
       download(`climb-${l.id}-bold.png`);
