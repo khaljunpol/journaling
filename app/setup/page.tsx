@@ -6,6 +6,11 @@ import { useState } from 'react';
 
 type Mode = 'create' | 'existing';
 
+function parseSpreadsheetId(input: string): string {
+  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : input.trim();
+}
+
 export default function SetupPage() {
   const { data: session, update } = useSession();
   const router = useRouter();
@@ -27,8 +32,8 @@ export default function SetupPage() {
 
     try {
       if (mode === 'existing') {
-        const id = existingId.trim();
-        if (!id) { setError('Please enter a spreadsheet ID'); setLoading(false); return; }
+        const id = parseSpreadsheetId(existingId);
+        if (!id) { setError('Please enter a spreadsheet URL or ID'); setLoading(false); return; }
         await update({ spreadsheetId: id, activeSubAccount: subAccountName });
         router.push('/');
         return;
@@ -132,16 +137,16 @@ export default function SetupPage() {
 
         {mode === 'existing' && (
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium">Spreadsheet ID</label>
+            <label className="block text-sm font-medium">Spreadsheet URL or ID</label>
             <input
               type="text"
               className="w-full input"
               value={existingId}
               onChange={(e) => setExistingId(e.target.value)}
-              placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+              placeholder="https://docs.google.com/spreadsheets/d/…"
             />
             <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Found in the sheet URL: docs.google.com/spreadsheets/d/<strong>ID</strong>/edit
+              Paste the full URL or just the ID from docs.google.com/spreadsheets/d/<strong>ID</strong>/edit
             </p>
           </div>
         )}
