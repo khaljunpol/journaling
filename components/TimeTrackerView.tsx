@@ -1,5 +1,6 @@
 "use client";
 
+import SummaryPromptPanel from '@/components/SummaryPromptPanel';
 import { getCache, setCache } from '@/lib/cache';
 import { pad, localTodayISO, parseLocalDate, localISO, weekdayInitial } from '@/lib/date';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
@@ -181,6 +182,14 @@ export default function TimeTrackerView() {
   const periodLabel = viewMode === 'month'
     ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
     : String(viewYear);
+  const promptAnchorISO = useMemo(() => {
+    const today = new Date();
+    const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const day = today.getFullYear() === viewYear && today.getMonth() === viewMonth
+      ? Math.min(today.getDate(), lastDay)
+      : 1;
+    return localISO(new Date(viewYear, viewMonth, day));
+  }, [viewMonth, viewYear]);
 
   return (
     <section className="space-y-6">
@@ -456,6 +465,12 @@ export default function TimeTrackerView() {
           </button>
         </div>
       </div>
+
+      <SummaryPromptPanel
+        title="Time AI prompt"
+        endpoint="/api/prompts/time"
+        anchorISO={promptAnchorISO}
+      />
     </section>
   );
 }

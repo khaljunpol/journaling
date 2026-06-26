@@ -3,6 +3,7 @@
 import ActivityCalendar from '@/components/ActivityCalendarClient';
 import DailyHighlight from '@/components/DailyHighlightClient';
 import DailyWeight from '@/components/DailyWeightClient';
+import SummaryPromptPanel from '@/components/SummaryPromptPanel';
 import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, pad } from '@/lib/date';
 import { MOODS } from '@/lib/mood';
@@ -170,6 +171,12 @@ export default function JournalView() {
 
       {/* ── Highlight ───────────────────────────────────────── */}
       <DailyHighlight dateISO={selectedDate} />
+
+      <SummaryPromptPanel
+        title="Journal AI prompt"
+        endpoint="/api/prompts/journal"
+        anchorISO={selectedDate}
+      />
 
     </div>
   );
