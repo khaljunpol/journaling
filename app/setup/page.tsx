@@ -3,13 +3,9 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { parseSpreadsheetId } from '@/lib/setup';
 
 type Mode = 'create' | 'existing';
-
-function parseSpreadsheetId(input: string): string {
-  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : input.trim();
-}
 
 export default function SetupPage() {
   const { data: session, update } = useSession();
@@ -34,7 +30,18 @@ export default function SetupPage() {
       if (mode === 'existing') {
         const id = parseSpreadsheetId(existingId);
         if (!id) { setError('Please enter a spreadsheet URL or ID'); setLoading(false); return; }
-        await update({ spreadsheetId: id, activeSubAccount: subAccountName });
+        const res = await fetch('/api/setup/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ spreadsheetId: id, subAccountName }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setError(j?.error || 'Could not connect that spreadsheet');
+          setLoading(false);
+          return;
+        }
+        await update({ activeSubAccount: subAccountName });
         router.push('/');
         return;
       }
@@ -51,7 +58,7 @@ export default function SetupPage() {
         return;
       }
       const { spreadsheetId } = await res.json();
-      await update({ spreadsheetId, activeSubAccount: subAccountName });
+      if (spreadsheetId) await update({ activeSubAccount: subAccountName });
       router.push('/');
     } catch {
       setError('Something went wrong. Please try again.');

@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth';
 import { apiError } from '@/lib/apiHelpers';
+import { getStoredSheetContextForSession } from '@/lib/server/sheetContext';
 import type { SheetAuth } from '@/lib/googleSheets';
 
 export type { SheetAuth };
@@ -15,14 +16,6 @@ export type SheetContext = {
  */
 export async function requireSheetContext(): Promise<SheetContext | ReturnType<typeof apiError>> {
   const session = await auth();
-  if (!session?.accessToken) return apiError('Unauthorized', 401);
-  if (!session.spreadsheetId) return apiError('Setup required', 403);
-  return {
-    sheetAuth: {
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken,
-      spreadsheetId: session.spreadsheetId,
-    },
-    account: session.activeSubAccount || 'default',
-  };
+  const result = await getStoredSheetContextForSession(session);
+  return result.ok ? result.context : apiError(result.message, result.status);
 }

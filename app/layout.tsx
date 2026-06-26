@@ -1,4 +1,5 @@
 import AppHeader from '@/components/AppHeader';
+import ConnectionGate from '@/components/ConnectionGate';
 import HeaderGate from '../components/HeaderGate';
 import LayoutGate from '@/components/LayoutGate';
 import Providers from '@/components/Providers';
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                         <HeaderGate>
                             <AppHeader />
                         </HeaderGate>
-                        {children}
+                        <ConnectionGate>{children}</ConnectionGate>
                     </LayoutGate>
                 </Providers>
             </body>

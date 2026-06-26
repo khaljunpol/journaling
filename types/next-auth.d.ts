@@ -6,7 +6,6 @@ declare module 'next-auth' {
     accessToken: string;
     refreshToken: string;
     accessTokenExpires: number;
-    spreadsheetId: string | null;
     activeSubAccount: string | null;
   }
 }
@@ -16,7 +15,6 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     refreshToken?: string;
     accessTokenExpires?: number;
-    spreadsheetId?: string | null;
     activeSubAccount?: string | null;
   }
 }

@@ -163,7 +163,8 @@ export default function AppHeader() {
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                       onClick={async () => {
                         closeSettings();
-                        await update({ spreadsheetId: null, activeSubAccount: null });
+                        await fetch('/api/connection', { method: 'DELETE' });
+                        await update({ activeSubAccount: null });
                         router.push('/setup');
                       }}
                     >

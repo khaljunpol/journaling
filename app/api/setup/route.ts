@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { google } from 'googleapis';
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { saveGoogleConnection } from '@/lib/server/googleConnectionStore';
+import { getSessionUserKey } from '@/lib/server/sheetContext';
 
 export async function POST(req: Request) {
   try {
     const session = await auth();
     if (!session?.accessToken) return apiError('Unauthorized', 401);
+    const userKey = getSessionUserKey(session);
+    if (!userKey || !session.user?.email) return apiError('Unauthorized', 401);
 
     const { subAccountName, folderName } = await req.json();
     const name = String(subAccountName || '').trim();
@@ -56,6 +60,15 @@ export async function POST(req: Request) {
         fields: 'id, parents',
       });
     }
+
+    await saveGoogleConnection(userKey, {
+      email: session.user.email,
+      refreshToken: session.refreshToken || undefined,
+      accessToken: session.accessToken,
+      accessTokenExpires: session.accessTokenExpires,
+      spreadsheetId,
+      activeSubAccount: name,
+    });
 
     return NextResponse.json({ spreadsheetId, subAccountName: name });
   } catch (error: unknown) {

@@ -17,6 +17,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             'openid',
             'email',
             'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
           ].join(' '),
           access_type: 'offline',
           prompt: 'consent',
@@ -33,13 +34,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, account, trigger, session }) {
       // First sign-in: store Google OAuth tokens
       if (account) {
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
+        token.accessToken = account.access_token || token.accessToken;
+        token.refreshToken = account.refresh_token || token.refreshToken;
         token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
       }
-      // Handle session.update() calls from client (e.g. after setup)
+      // Handle session.update() calls from client for UI-only account switching.
       if (trigger === 'update' && session) {
-        if (session.spreadsheetId !== undefined) token.spreadsheetId = session.spreadsheetId;
         if (session.activeSubAccount !== undefined) token.activeSubAccount = session.activeSubAccount;
       }
       return token;
@@ -48,7 +48,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.accessToken = (token.accessToken as string) || '';
       session.refreshToken = (token.refreshToken as string) || '';
       session.accessTokenExpires = (token.accessTokenExpires as number) || 0;
-      session.spreadsheetId = (token.spreadsheetId as string | null) ?? null;
       session.activeSubAccount = (token.activeSubAccount as string | null) ?? null;
       return session;
     },
