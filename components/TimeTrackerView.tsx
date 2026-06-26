@@ -2,7 +2,7 @@
 
 import SummaryPromptPanel from '@/components/SummaryPromptPanel';
 import { getCache, setCache } from '@/lib/cache';
-import { pad, localTodayISO, parseLocalDate, localISO, weekdayInitial } from '@/lib/date';
+import { pad, localTodayISO, parseLocalDate, localISO } from '@/lib/date';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,6 +12,7 @@ type CatItem = TimeCategory;
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function TimeTrackerView() {
   const [date] = useState<string>(localTodayISO());
@@ -549,9 +550,9 @@ function DaysRows({
           >
             <span
               className="font-semibold uppercase opacity-55"
-              style={{ fontSize: 9, lineHeight: '9px' }}
+              style={{ fontSize: 6, lineHeight: '6px' }}
             >
-              {weekdayInitial(new Date(viewYear, m, di))}
+              {WEEKDAY_INITIALS[new Date(viewYear, m, di).getDay()]}
             </span>
             <span
               className="mt-px font-semibold"
