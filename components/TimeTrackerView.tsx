@@ -1,7 +1,7 @@
 "use client";
 
 import { getCache, setCache } from '@/lib/cache';
-import { pad, localTodayISO, parseLocalDate, localISO } from '@/lib/date';
+import { pad, localTodayISO, parseLocalDate, localISO, weekdayInitial } from '@/lib/date';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -529,10 +529,21 @@ function DaysRows({
         >
           {/* Date label — compact */}
           <div
-            className="w-7 shrink-0 text-center"
+            className="flex h-6 w-7 shrink-0 flex-col items-center justify-center text-center sm:h-7"
             style={{ color: isToday ? 'var(--accent)' : 'var(--muted-foreground)' }}
           >
-            <span className="text-[10px] font-medium leading-none">{di}</span>
+            <span
+              className="font-semibold uppercase opacity-55"
+              style={{ fontSize: 9, lineHeight: '9px' }}
+            >
+              {weekdayInitial(new Date(viewYear, m, di))}
+            </span>
+            <span
+              className="mt-px font-semibold"
+              style={{ fontSize: 11, lineHeight: '11px' }}
+            >
+              {di}
+            </span>
           </div>
 
           {/* 24 hour cells — starting at 1 AM, midnight last */}

@@ -3,7 +3,7 @@ import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSh
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { createApiCache } from '@/lib/apiCache';
-import { HOUR_MAX, CATEGORY_MAX } from '@/lib/constants';
+import { parseTimeEntry } from '@/lib/time';
 
 const cache = createApiCache(60_000);
 const getKey = (account: string, date?: string | null, from?: string | null, to?: string | null) => {
@@ -50,24 +50,20 @@ export async function POST(req: Request) {
     if (!date) return apiError('date required', 400);
 
     if (Array.isArray(body?.entries)) {
-      const entries = (body.entries as Array<any>).map((e) => ({
-        hour: parseInt(String(e?.hour ?? '-1'), 10),
-        category: parseInt(String(e?.category ?? '-1'), 10),
-      }));
-      for (const e of entries) {
-        if (!Number.isFinite(e.hour) || e.hour < 0 || e.hour > HOUR_MAX) return apiError('hour must be 0..23', 400);
-        if (!Number.isFinite(e.category) || e.category < 0 || e.category > CATEGORY_MAX) return apiError('category must be 0..11', 400);
+      const entries = [];
+      for (const raw of body.entries as Array<any>) {
+        const parsed = parseTimeEntry({ hour: raw?.hour, category: raw?.category });
+        if (!parsed.ok) return apiError(parsed.message, 400);
+        entries.push(parsed.entry);
       }
       const saved = await upsertHourLogsBatch(ctx.sheetAuth, ctx.account, { date, entries });
       cache.invalidate();
       return NextResponse.json(saved, { status: 201 });
     }
 
-    const hour = parseInt(String(body?.hour ?? '-1'), 10);
-    const category = parseInt(String(body?.category ?? '-1'), 10);
-    if (!Number.isFinite(hour) || hour < 0 || hour > HOUR_MAX) return apiError('hour must be 0..23', 400);
-    if (!Number.isFinite(category) || category < 0 || category > CATEGORY_MAX) return apiError('category must be 0..11', 400);
-    const saved = await upsertHourLog(ctx.sheetAuth, ctx.account, { date, hour, category });
+    const parsed = parseTimeEntry({ hour: body?.hour, category: body?.category });
+    if (!parsed.ok) return apiError(parsed.message, 400);
+    const saved = await upsertHourLog(ctx.sheetAuth, ctx.account, { date, ...parsed.entry });
     cache.invalidate();
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
