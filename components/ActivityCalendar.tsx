@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityStatus, Activity, Log } from '@/lib/types';
 import { normalizeStatus } from '@/lib/status';
 import { getCache, setCache } from '@/lib/cache';
-import { daysInMonth, pad, localISO } from '@/lib/date';
+import { daysInMonth, pad, localISO, weekdayInitial } from '@/lib/date';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -187,16 +187,19 @@ export default function ActivityCalendar({ selectedDateISO, onSelectDate }: { se
                       onClick={() => selectDay(d)}
                       aria-pressed={isSelected}
                       title={localISO(new Date(year, month, d))}
-                      className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-all"
+                      className="mx-auto flex h-9 w-7 flex-col items-center justify-center rounded-full text-xs font-medium leading-none transition-all"
                       style={
                         isSelected
                           ? { background: 'var(--accent)', color: 'var(--accent-foreground)', boxShadow: '0 0 0 2px var(--accent)' }
                           : isToday
                             ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.6 }
-                            : { color: 'var(--muted-foreground)' }
+                          : { color: 'var(--muted-foreground)' }
                       }
                     >
-                      {d}
+                      <span className="text-[9px] font-semibold uppercase opacity-75">
+                        {weekdayInitial(new Date(year, month, d))}
+                      </span>
+                      <span className="mt-0.5">{d}</span>
                     </button>
                   </th>
                 );

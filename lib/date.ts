@@ -22,3 +22,9 @@ export function weekKey(d: Date): string {
 export function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
+
+const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+export function weekdayInitial(d: Date): string {
+  return WEEKDAY_INITIALS[d.getDay()];
+}
