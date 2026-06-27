@@ -11,16 +11,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Identity only — sheet access goes through a shared service account, so we
+      // don't request sheet/drive scopes or offline access (no fragile refresh tokens).
       authorization: {
         params: {
-          scope: [
-            'openid',
-            'email',
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive.file',
-          ].join(' '),
-          access_type: 'offline',
-          prompt: 'consent',
+          scope: ['openid', 'email', 'profile'].join(' '),
         },
       },
     }),
@@ -31,23 +26,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const email = profile?.email?.toLowerCase() || '';
       return allowedEmails.includes(email);
     },
-    async jwt({ token, account, trigger, session }) {
-      // First sign-in: store Google OAuth tokens
-      if (account) {
-        token.accessToken = account.access_token || token.accessToken;
-        token.refreshToken = account.refresh_token || token.refreshToken;
-        token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
-      }
-      // Handle session.update() calls from client for UI-only account switching.
+    async jwt({ token, trigger, session }) {
+      // Per-user state lives in the JWT cookie (durable, no external store needed):
+      // which spreadsheet they connected and which sub-account is active. Updated
+      // from the client via session.update() after setup / account switch.
       if (trigger === 'update' && session) {
+        if (session.spreadsheetId !== undefined) token.spreadsheetId = session.spreadsheetId;
         if (session.activeSubAccount !== undefined) token.activeSubAccount = session.activeSubAccount;
       }
       return token;
     },
     async session({ session, token }) {
-      session.accessToken = (token.accessToken as string) || '';
-      session.refreshToken = (token.refreshToken as string) || '';
-      session.accessTokenExpires = (token.accessTokenExpires as number) || 0;
+      session.spreadsheetId = (token.spreadsheetId as string | null) ?? null;
       session.activeSubAccount = (token.activeSubAccount as string | null) ?? null;
       return session;
     },

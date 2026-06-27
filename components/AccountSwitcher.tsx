@@ -8,19 +8,9 @@ export default function AccountSwitcher() {
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [newName, setNewName] = useState('');
-  const [storedActive, setStoredActive] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
-  const active = storedActive || session?.activeSubAccount || '';
-
-  useEffect(() => {
-    fetch('/api/connection')
-      .then((r) => r.ok ? r.json() : null)
-      .then((connection) => {
-        if (connection?.activeSubAccount) setStoredActive(connection.activeSubAccount);
-      })
-      .catch(() => {});
-  }, []);
+  const active = session?.activeSubAccount || '';
 
   // Fetch available accounts when dropdown opens
   useEffect(() => {
@@ -50,12 +40,7 @@ export default function AccountSwitcher() {
 
   async function switchTo(name: string) {
     setOpen(false);
-    await fetch('/api/connection', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activeSubAccount: name }),
-    });
-    setStoredActive(name);
+    // Active sub-account is persisted in the session JWT.
     await update({ activeSubAccount: name });
     window.location.reload();
   }

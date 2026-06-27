@@ -1,18 +1,10 @@
-import { google } from 'googleapis';
+import { getServiceSheets } from '@/lib/googleSheets';
 import type { SheetAuth } from '@/lib/googleSheets';
 import type { Sidequest, SidequestLog, SidequestMilestone, SidequestType } from '@/lib/types';
 
-function getOAuthClient(sa: SheetAuth) {
-  const client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-  );
-  client.setCredentials({ access_token: sa.accessToken, refresh_token: sa.refreshToken });
-  return client;
-}
-
-function getSheets(sa: SheetAuth) {
-  return google.sheets({ version: 'v4', auth: getOAuthClient(sa) });
+// Sheet access uses the shared service account; `sa` only carries the spreadsheetId.
+function getSheets(_sa: SheetAuth) {
+  return getServiceSheets();
 }
 
 // ── Sheet helpers ────────────────────────────────────────────

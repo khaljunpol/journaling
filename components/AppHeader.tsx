@@ -163,8 +163,8 @@ export default function AppHeader() {
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                       onClick={async () => {
                         closeSettings();
-                        await fetch('/api/connection', { method: 'DELETE' });
-                        await update({ activeSubAccount: null });
+                        // Clear the connection from the session JWT; no server store to delete.
+                        await update({ spreadsheetId: null, activeSubAccount: null });
                         router.push('/setup');
                       }}
                     >

@@ -5,19 +5,26 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { parseSpreadsheetId } from '@/lib/setup';
 
-type Mode = 'create' | 'existing';
+const serviceAccountEmail = process.env.NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL || '';
 
 export default function SetupPage() {
   const { data: session, update } = useSession();
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('create');
   const [name, setName] = useState('');
-  const [folder, setFolder] = useState('Journaling');
   const [existingId, setExistingId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const defaultName = session?.user?.name?.split(' ')[0] || '';
+
+  async function copyEmail() {
+    try {
+      await navigator.clipboard.writeText(serviceAccountEmail);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard may be unavailable */ }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,39 +33,23 @@ export default function SetupPage() {
     const subAccountName = (name.trim() || defaultName).trim();
     if (!subAccountName) { setError('Please enter a name'); setLoading(false); return; }
 
-    try {
-      if (mode === 'existing') {
-        const id = parseSpreadsheetId(existingId);
-        if (!id) { setError('Please enter a spreadsheet URL or ID'); setLoading(false); return; }
-        const res = await fetch('/api/setup/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ spreadsheetId: id, subAccountName }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          setError(j?.error || 'Could not connect that spreadsheet');
-          setLoading(false);
-          return;
-        }
-        await update({ activeSubAccount: subAccountName });
-        router.push('/');
-        return;
-      }
+    const id = parseSpreadsheetId(existingId);
+    if (!id) { setError('Please enter a spreadsheet URL or ID'); setLoading(false); return; }
 
-      const res = await fetch('/api/setup', {
+    try {
+      const res = await fetch('/api/setup/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subAccountName, folderName: folder.trim() }),
+        body: JSON.stringify({ spreadsheetId: id, subAccountName }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error || 'Setup failed');
+        setError(j?.error || 'Could not connect that spreadsheet');
         setLoading(false);
         return;
       }
       const { spreadsheetId } = await res.json();
-      if (spreadsheetId) await update({ activeSubAccount: subAccountName });
+      await update({ spreadsheetId, activeSubAccount: subAccountName });
       router.push('/');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -71,7 +62,7 @@ export default function SetupPage() {
       <div>
         <h1 className="text-2xl font-semibold">Set up your journal</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Connect a Google Sheet to store your data.
+          Connect your own Google Sheet to store your data.
         </p>
       </div>
 
@@ -87,29 +78,42 @@ export default function SetupPage() {
         </div>
       )}
 
-      {/* Mode toggle */}
-      <div className="flex rounded-lg border overflow-hidden text-sm" style={{ borderColor: 'var(--border)' }}>
+      {/* How to connect */}
+      <ol className="space-y-2 text-sm" style={{ color: 'var(--text)' }}>
+        <li>
+          1. Create a Google Sheet you own (a blank one is fine —{' '}
+          <a href="https://sheets.new" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+            sheets.new
+          </a>
+          ).
+        </li>
+        <li>
+          2. Click <strong>Share</strong> and add this address as an <strong>Editor</strong>:
+        </li>
+      </ol>
+
+      {serviceAccountEmail ? (
         <button
           type="button"
-          onClick={() => setMode('create')}
-          className="flex-1 py-2 font-medium transition"
-          style={mode === 'create'
-            ? { background: 'var(--accent)', color: '#fff' }
-            : { background: 'var(--surface)', color: 'var(--text)' }}
+          onClick={copyEmail}
+          className="w-full rounded-lg border px-3 py-2 text-left text-sm break-all"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          title="Click to copy"
         >
-          Create new sheet
+          <span style={{ fontWeight: 600 }}>{serviceAccountEmail}</span>
+          <span className="ml-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            {copied ? 'Copied!' : '(tap to copy)'}
+          </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setMode('existing')}
-          className="flex-1 py-2 font-medium transition"
-          style={mode === 'existing'
-            ? { background: 'var(--accent)', color: '#fff' }
-            : { background: 'var(--surface)', color: 'var(--text)' }}
-        >
-          Use existing sheet
-        </button>
-      </div>
+      ) : (
+        <div className="rounded-lg border px-3 py-2 text-sm text-red-600" style={{ borderColor: 'var(--border)' }}>
+          Service account email is not configured. Set NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL.
+        </div>
+      )}
+
+      <p className="text-sm" style={{ color: 'var(--text)' }}>
+        3. Paste the sheet link below and pick a name.
+      </p>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -126,44 +130,24 @@ export default function SetupPage() {
           </p>
         </div>
 
-        {mode === 'create' && (
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">Google Drive folder name</label>
-            <input
-              type="text"
-              className="w-full input"
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
-              placeholder="Journaling"
-            />
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              A folder will be created in your Drive. Leave blank to save to root.
-            </p>
-          </div>
-        )}
-
-        {mode === 'existing' && (
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">Spreadsheet URL or ID</label>
-            <input
-              type="text"
-              className="w-full input"
-              value={existingId}
-              onChange={(e) => setExistingId(e.target.value)}
-              placeholder="https://docs.google.com/spreadsheets/d/…"
-            />
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Paste the full URL or just the ID from docs.google.com/spreadsheets/d/<strong>ID</strong>/edit
-            </p>
-          </div>
-        )}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium">Spreadsheet URL or ID</label>
+          <input
+            type="text"
+            className="w-full input"
+            value={existingId}
+            onChange={(e) => setExistingId(e.target.value)}
+            placeholder="https://docs.google.com/spreadsheets/d/…"
+          />
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            Paste the full URL or just the ID from docs.google.com/spreadsheets/d/<strong>ID</strong>/edit
+          </p>
+        </div>
 
         {error && <div className="text-sm text-red-600">{error}</div>}
 
         <button type="submit" className="w-full btn" disabled={loading}>
-          {loading
-            ? (mode === 'create' ? 'Creating your sheet…' : 'Connecting…')
-            : (mode === 'create' ? 'Create my journal' : 'Connect sheet')}
+          {loading ? 'Connecting…' : 'Connect sheet'}
         </button>
       </form>
     </main>

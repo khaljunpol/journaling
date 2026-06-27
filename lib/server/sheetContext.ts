@@ -1,9 +1,5 @@
-import { getSheetAuthForUser } from './googleOAuth.ts';
-
 export type SheetAuthContext = {
   sheetAuth: {
-    accessToken: string;
-    refreshToken: string;
     spreadsheetId: string;
   };
   account: string;
@@ -13,6 +9,8 @@ export type SessionLike = {
   user?: {
     email?: string | null;
   } | null;
+  spreadsheetId?: string | null;
+  activeSubAccount?: string | null;
 } | null;
 
 export type StoredSheetContextResult =
@@ -24,11 +22,25 @@ export function getSessionUserKey(session: SessionLike): string | null {
   return email || null;
 }
 
-export async function getStoredSheetContextForSession(
+/**
+ * Builds the sheet context from the session. The connected spreadsheet id and active
+ * sub-account live in the JWT (durable cookie), so there is no server-side store and no
+ * token to refresh — sheet access is handled by the shared service account.
+ */
+export function getStoredSheetContextForSession(
   session: SessionLike,
-): Promise<StoredSheetContextResult> {
+): StoredSheetContextResult {
   const userKey = getSessionUserKey(session);
   if (!userKey) return { ok: false, status: 401, message: 'Unauthorized' };
 
-  return getSheetAuthForUser(userKey);
+  const spreadsheetId = session?.spreadsheetId?.trim();
+  if (!spreadsheetId) return { ok: false, status: 403, message: 'Setup required' };
+
+  return {
+    ok: true,
+    context: {
+      sheetAuth: { spreadsheetId },
+      account: session?.activeSubAccount?.trim() || 'default',
+    },
+  };
 }

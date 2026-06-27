@@ -16,6 +16,6 @@ export type SheetContext = {
  */
 export async function requireSheetContext(): Promise<SheetContext | ReturnType<typeof apiError>> {
   const session = await auth();
-  const result = await getStoredSheetContextForSession(session);
+  const result = getStoredSheetContextForSession(session);
   return result.ok ? result.context : apiError(result.message, result.status);
 }

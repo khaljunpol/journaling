@@ -2,25 +2,39 @@ import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 
 export type SheetAuth = {
-  accessToken: string;
-  refreshToken: string;
   spreadsheetId: string;
 };
 
-function getOAuthClient(sa: SheetAuth) {
-  const client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-  );
-  client.setCredentials({
-    access_token: sa.accessToken,
-    refresh_token: sa.refreshToken,
-  });
-  return client;
+// Service-account auth: one robot account reads/writes every user's sheet.
+// Users share their own sheet with this account's email. Cached on globalThis so
+// the JWT client (and its internally-managed access token) is reused across requests.
+const globalAuthKey = '__sheetsServiceClient';
+
+function getPrivateKey(): string {
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
+  // Vercel/env files store the PEM with literal "\n" sequences; restore real newlines.
+  return key.replace(/\\n/g, '\n');
 }
 
-function getOAuthSheets(sa: SheetAuth) {
-  return google.sheets({ version: 'v4', auth: getOAuthClient(sa) });
+export function getServiceSheets() {
+  const g = globalThis as typeof globalThis & {
+    [globalAuthKey]?: ReturnType<typeof google.sheets>;
+  };
+  if (!g[globalAuthKey]) {
+    const auth = new google.auth.JWT({
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: getPrivateKey(),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    g[globalAuthKey] = google.sheets({ version: 'v4', auth });
+  }
+  return g[globalAuthKey];
+}
+
+// Kept name/signature so existing call sites are unchanged; auth no longer comes
+// from `sa` (the service account handles it), only the spreadsheetId is used.
+function getOAuthSheets(_sa: SheetAuth) {
+  return getServiceSheets();
 }
 
 // Known tabs cache keyed by spreadsheetId — persists across hot reloads via globalThis
