@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
 import { getSessionUserKey } from '@/lib/server/sheetContext';
+import { writeSheetConnection } from '@/lib/server/sheetConnection';
 import { parseSpreadsheetId } from '@/lib/setup';
 import { getServiceSheets } from '@/lib/googleSheets';
 
@@ -35,8 +36,9 @@ export async function POST(req: Request) {
       throw error;
     }
 
-    // The connection (spreadsheetId + sub-account) is persisted client-side into the
-    // JWT via session.update(); nothing is stored server-side.
+    // Persist the connection in a durable httpOnly cookie (survives reloads/cold starts).
+    await writeSheetConnection(spreadsheetId, name);
+
     return NextResponse.json({ spreadsheetId, subAccountName: name });
   } catch (error: unknown) {
     console.error('[POST /api/setup/connect]', error);

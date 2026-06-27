@@ -26,21 +26,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const email = profile?.email?.toLowerCase() || '';
       return allowedEmails.includes(email);
     },
-    async jwt({ token, trigger, session }) {
-      // Per-user state lives in the JWT cookie (durable, no external store needed):
-      // which spreadsheet they connected and which sub-account is active. Updated
-      // from the client via session.update() after setup / account switch.
-      if (trigger === 'update' && session) {
-        if (session.spreadsheetId !== undefined) token.spreadsheetId = session.spreadsheetId;
-        if (session.activeSubAccount !== undefined) token.activeSubAccount = session.activeSubAccount;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      session.spreadsheetId = (token.spreadsheetId as string | null) ?? null;
-      session.activeSubAccount = (token.activeSubAccount as string | null) ?? null;
-      return session;
-    },
+    // Login is identity only. The connected sheet + active sub-account are persisted in a
+    // durable server cookie (see lib/server/sheetConnection.ts), not in the JWT — relying
+    // on session.update() to persist them proved unreliable on next-auth v5 beta.
   },
   pages: {
     signIn: '/login',

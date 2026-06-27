@@ -1,15 +1,13 @@
 "use client";
 
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { parseSpreadsheetId } from '@/lib/setup';
 
 const serviceAccountEmail = process.env.NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL || '';
 
 export default function SetupPage() {
-  const { data: session, update } = useSession();
-  const router = useRouter();
+  const { data: session } = useSession();
   const [name, setName] = useState('');
   const [existingId, setExistingId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,9 +46,9 @@ export default function SetupPage() {
         setLoading(false);
         return;
       }
-      const { spreadsheetId } = await res.json();
-      await update({ spreadsheetId, activeSubAccount: subAccountName });
-      router.push('/');
+      // The connect route saved the connection to a durable cookie; just go to the app.
+      // Full navigation so the server re-reads the new cookie and the gate sees it.
+      window.location.assign('/');
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(false);

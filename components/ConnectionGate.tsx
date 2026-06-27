@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 export default function ConnectionGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [allowed, setAllowed] = useState(false);
 
   const skip =
@@ -28,15 +28,20 @@ export default function ConnectionGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    // The connected spreadsheet lives in the session JWT (durable, no server store).
-    if (!session?.spreadsheetId) {
-      setAllowed(false);
-      router.replace('/setup');
-      return;
-    }
+    // The connected sheet lives in a durable server cookie; ask the server.
+    let cancelled = false;
+    setAllowed(false);
+    fetch('/api/connection')
+      .then((res) => {
+        if (cancelled) return;
+        if (res.status === 401) { router.replace('/login'); return; }
+        if (res.status === 403) { router.replace('/setup'); return; }
+        setAllowed(true);
+      })
+      .catch(() => { if (!cancelled) setAllowed(true); });
 
-    setAllowed(true);
-  }, [pathname, router, skip, status, session?.spreadsheetId]);
+    return () => { cancelled = true; };
+  }, [pathname, router, skip, status]);
 
   return allowed ? <>{children}</> : null;
 }

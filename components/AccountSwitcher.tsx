@@ -4,13 +4,20 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
 export default function AccountSwitcher() {
-  const { data: session, update } = useSession();
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [newName, setNewName] = useState('');
+  const [active, setActive] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
-  const active = session?.activeSubAccount || '';
+  // Active sub-account lives in the durable connection cookie; read it from the server.
+  useEffect(() => {
+    fetch('/api/connection')
+      .then((r) => r.ok ? r.json() : null)
+      .then((c) => { if (c?.activeSubAccount) setActive(c.activeSubAccount); })
+      .catch(() => {});
+  }, []);
 
   // Fetch available accounts when dropdown opens
   useEffect(() => {
@@ -40,8 +47,12 @@ export default function AccountSwitcher() {
 
   async function switchTo(name: string) {
     setOpen(false);
-    // Active sub-account is persisted in the session JWT.
-    await update({ activeSubAccount: name });
+    // Active sub-account is persisted server-side in the connection cookie.
+    await fetch('/api/connection', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activeSubAccount: name }),
+    });
     window.location.reload();
   }
 

@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
 import { getServiceSheets } from '@/lib/googleSheets';
-import { getStoredSheetContextForSession } from '@/lib/server/sheetContext';
+import { getSheetContext } from '@/lib/server/sheetContext';
 
 export async function GET() {
   try {
-    const session = await auth();
-    const ctx = getStoredSheetContextForSession(session);
+    const ctx = await getSheetContext();
     if (!ctx.ok) return apiError(ctx.message, ctx.status);
 
     const sheets = getServiceSheets();

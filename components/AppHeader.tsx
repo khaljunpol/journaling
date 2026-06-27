@@ -3,14 +3,12 @@
 import AccountSwitcher from '@/components/AccountSwitcher';
 import LogoutButton from '@/components/LogoutButton';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 export default function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const { update } = useSession();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -163,8 +161,8 @@ export default function AppHeader() {
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                       onClick={async () => {
                         closeSettings();
-                        // Clear the connection from the session JWT; no server store to delete.
-                        await update({ spreadsheetId: null, activeSubAccount: null });
+                        // Clear the connection cookie server-side.
+                        await fetch('/api/connection', { method: 'DELETE' });
                         router.push('/setup');
                       }}
                     >

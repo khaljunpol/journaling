@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  buildSheetContext,
   getSessionUserKey,
-  getStoredSheetContextForSession,
-} from '../lib/server/sheetContext.ts';
+} from '../lib/server/sheetContextCore.ts';
 
 describe('getSessionUserKey', () => {
   it('lowercases and trims the email', () => {
@@ -17,35 +17,32 @@ describe('getSessionUserKey', () => {
   });
 });
 
-describe('getStoredSheetContextForSession', () => {
-  it('returns 401 when unauthenticated', () => {
-    const result = getStoredSheetContextForSession(null);
-    assert.deepEqual(result, { ok: false, status: 401, message: 'Unauthorized' });
-  });
-
-  it('returns 403 when authenticated but no spreadsheet is connected', () => {
-    const result = getStoredSheetContextForSession({ user: { email: 'a@b.com' } });
-    assert.deepEqual(result, { ok: false, status: 403, message: 'Setup required' });
-  });
-
-  it('builds the context from the session JWT state', () => {
-    const result = getStoredSheetContextForSession({
-      user: { email: 'a@b.com' },
-      spreadsheetId: 'sheet_123',
-      activeSubAccount: 'Alex',
+describe('buildSheetContext', () => {
+  it('returns 401 when there is no signed-in email', () => {
+    assert.deepEqual(buildSheetContext(null, 'sheet_123', 'Alex'), {
+      ok: false,
+      status: 401,
+      message: 'Unauthorized',
     });
-    assert.deepEqual(result, {
+  });
+
+  it('returns 403 when signed in but no sheet is connected', () => {
+    assert.deepEqual(buildSheetContext('a@b.com', null, null), {
+      ok: false,
+      status: 403,
+      message: 'Setup required',
+    });
+  });
+
+  it('builds the context from the email + connection cookie values', () => {
+    assert.deepEqual(buildSheetContext('a@b.com', 'sheet_123', 'Alex'), {
       ok: true,
       context: { sheetAuth: { spreadsheetId: 'sheet_123' }, account: 'Alex' },
     });
   });
 
-  it('falls back to the default account when none is active', () => {
-    const result = getStoredSheetContextForSession({
-      user: { email: 'a@b.com' },
-      spreadsheetId: 'sheet_123',
-      activeSubAccount: null,
-    });
+  it('falls back to the default account when none is set', () => {
+    const result = buildSheetContext('a@b.com', 'sheet_123', null);
     assert.equal(result.ok && result.context.account, 'default');
   });
 });
