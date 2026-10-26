@@ -17,7 +17,7 @@ function LoginContent() {
 
       {error === 'AccessDenied' && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          Your account isn't on the invite list. Contact the app owner to get access.
+          Your account isn’t on the invite list. Contact the app owner to get access.
         </div>
       )}
       {error && error !== 'AccessDenied' && (

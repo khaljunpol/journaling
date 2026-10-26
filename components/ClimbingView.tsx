@@ -9,6 +9,9 @@ import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 import { vScaleToNumber, BOULDER_GRADES, FRENCH_GRADES, frenchToIndex, normalizeGrade } from '@/lib/climbing';
 import { COLORS } from '@/lib/colors';
 
+const GoalOverlay = dynamic(() => import('./GoalOverlay'), { ssr: false });
+const YearSummaryChart = dynamic(() => import('./YearSummaryChart'), { ssr: false });
+
 export default function ClimbingView() {
   const today = useMemo(() => localTodayISO(), []);
   const [date, setDate] = useState<string>(today);
@@ -20,8 +23,6 @@ export default function ClimbingView() {
   const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
   const yearCacheRef = useRef<Map<string, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>(new Map());
-  const GoalOverlay = useMemo(() => dynamic(() => import('./GoalOverlay'), { ssr: false }), []);
-  const YearSummaryChart = useMemo(() => dynamic(() => import('./YearSummaryChart'), { ssr: false }), []);
   const [isYearSwitchPending, startYearSwitchTransition] = useTransition();
   const [updatedMs, setUpdatedMs] = useState<number | null>(null);
 
