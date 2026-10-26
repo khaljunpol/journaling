@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { localTodayISO } from '@/lib/date';
 import {
   buildJournalPrompt,
@@ -30,11 +30,11 @@ export async function GET(req: Request) {
     const range = getPromptPeriod(anchor, period);
 
     const [activities, logs, moods, highlights, weights] = await Promise.all([
-      listActivities(ctx.sheetAuth, ctx.account),
-      getLogsBetween(ctx.sheetAuth, ctx.account, range.fromISO, range.toISO),
-      getMoodsBetween(ctx.sheetAuth, ctx.account, range.fromISO, range.toISO),
-      getHighlightsBetween(ctx.sheetAuth, ctx.account, range.fromISO, range.toISO),
-      getWeightsBetween(ctx.sheetAuth, ctx.account, range.fromISO, range.toISO),
+      listActivities(ctx.sheetAuth),
+      getLogsBetween(ctx.sheetAuth, range.fromISO, range.toISO),
+      getMoodsBetween(ctx.sheetAuth, range.fromISO, range.toISO),
+      getHighlightsBetween(ctx.sheetAuth, range.fromISO, range.toISO),
+      getWeightsBetween(ctx.sheetAuth, range.fromISO, range.toISO),
     ]);
 
     const prompt = buildJournalPrompt({
@@ -49,7 +49,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ period, ...range, prompt });
   } catch (error: unknown) {
-    console.error('[GET /api/prompts/journal]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'GET /api/prompts/journal');
   }
 }

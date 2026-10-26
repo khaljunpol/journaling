@@ -19,7 +19,7 @@ describe('getSessionUserKey', () => {
 
 describe('buildSheetContext', () => {
   it('returns 401 when there is no signed-in email', () => {
-    assert.deepEqual(buildSheetContext(null, 'sheet_123', 'Alex'), {
+    assert.deepEqual(buildSheetContext(null, 'sheet_123'), {
       ok: false,
       status: 401,
       message: 'Unauthorized',
@@ -27,22 +27,17 @@ describe('buildSheetContext', () => {
   });
 
   it('returns 403 when signed in but no sheet is connected', () => {
-    assert.deepEqual(buildSheetContext('a@b.com', null, null), {
+    assert.deepEqual(buildSheetContext('a@b.com', null), {
       ok: false,
       status: 403,
       message: 'Setup required',
     });
   });
 
-  it('builds the context from the email + connection cookie values', () => {
-    assert.deepEqual(buildSheetContext('a@b.com', 'sheet_123', 'Alex'), {
+  it('builds the context from the email and trimmed sheet id', () => {
+    assert.deepEqual(buildSheetContext('a@b.c', ' id1 '), {
       ok: true,
-      context: { sheetAuth: { spreadsheetId: 'sheet_123' }, account: 'Alex' },
+      context: { sheetAuth: { spreadsheetId: 'id1' } },
     });
-  });
-
-  it('falls back to the default account when none is set', () => {
-    const result = buildSheetContext('a@b.com', 'sheet_123', null);
-    assert.equal(result.ok && result.context.account, 'default');
   });
 });

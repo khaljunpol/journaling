@@ -45,3 +45,18 @@ export async function cacheFirst<T>(opts: {
     // swallow; caller can decide how to handle loading state
   }
 }
+
+// Remove every localStorage key except `keep`. Used on sign-out so the next person
+// on this browser sees none of the previous user's cached data. Never throws.
+export function clearLocalCache(keep: string[] = ['theme']): void {
+  try {
+    const storage = (globalThis as { localStorage?: Storage }).localStorage;
+    if (!storage) return;
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k !== null && !keep.includes(k)) keys.push(k);
+    }
+    for (const k of keys) storage.removeItem(k);
+  } catch { /* localStorage unavailable */ }
+}

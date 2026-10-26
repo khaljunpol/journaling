@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import {
   getSidequest, updateSidequest, deleteSidequest,
   listSidequestLogs, addSidequestLog, deleteSidequestLog,
@@ -12,14 +12,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if ('status' in ctx) return ctx;
     const { id } = await params;
     const [sq, logs] = await Promise.all([
-      getSidequest(ctx.sheetAuth, ctx.account, id),
-      listSidequestLogs(ctx.sheetAuth, ctx.account, id),
+      getSidequest(ctx.sheetAuth, id),
+      listSidequestLogs(ctx.sheetAuth, id),
     ]);
     if (!sq) return apiError('Not found', 404);
     return NextResponse.json({ ...sq, logs });
   } catch (error: unknown) {
-    console.error('[GET /api/sidequests/[id]]', getErrorMessage(error));
-    return apiError('Failed to fetch sidequest', 503);
+    return apiFailure(error, 'GET /api/sidequests/[id]');
   }
 }
 
@@ -32,12 +31,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Strip non-patchable fields
     const { id: _id, createdAt: _c, ...patch } = body;
     void _id; void _c;
-    const updated = await updateSidequest(ctx.sheetAuth, ctx.account, id, patch);
+    const updated = await updateSidequest(ctx.sheetAuth, id, patch);
     if (!updated) return apiError('Not found', 404);
     return NextResponse.json(updated);
   } catch (error: unknown) {
-    console.error('[PATCH /api/sidequests/[id]]', getErrorMessage(error));
-    return apiError('Failed to update sidequest', 503);
+    return apiFailure(error, 'PATCH /api/sidequests/[id]');
   }
 }
 
@@ -46,11 +44,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     const { id } = await params;
-    await deleteSidequest(ctx.sheetAuth, ctx.account, id);
+    await deleteSidequest(ctx.sheetAuth, id);
     return NextResponse.json({ id });
   } catch (error: unknown) {
-    console.error('[DELETE /api/sidequests/[id]]', getErrorMessage(error));
-    return apiError('Failed to delete sidequest', 503);
+    return apiFailure(error, 'DELETE /api/sidequests/[id]');
   }
 }
 
@@ -67,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (action === 'log') {
       const body = await req.json();
       const today = new Date().toISOString().slice(0, 10);
-      const log = await addSidequestLog(ctx.sheetAuth, ctx.account, {
+      const log = await addSidequestLog(ctx.sheetAuth, {
         sidequestId: id,
         date: String(body.date || today),
         value: body.value != null ? parseFloat(String(body.value)) : undefined,
@@ -88,19 +85,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           );
           const allDone = milestones.every((m) => m.completedAt);
           const alreadyCompleted: boolean = !!body.sqCompletedAt;
-          await updateSidequest(ctx.sheetAuth, ctx.account, id, {
+          await updateSidequest(ctx.sheetAuth, id, {
             milestones,
             ...(allDone && !alreadyCompleted ? { completedAt: log.date } : {}),
           });
         } else {
           // Fallback: read from sheet
-          const sq = await getSidequest(ctx.sheetAuth, ctx.account, id);
+          const sq = await getSidequest(ctx.sheetAuth, id);
           if (sq?.milestones) {
             const milestones = sq.milestones.map((m, i) =>
               i === idx ? { ...m, completedAt: log.date } : m
             );
             const allDone = milestones.every((m) => m.completedAt);
-            await updateSidequest(ctx.sheetAuth, ctx.account, id, {
+            await updateSidequest(ctx.sheetAuth, id, {
               milestones,
               ...(allDone && !sq.completedAt ? { completedAt: log.date } : {}),
             });
@@ -110,7 +107,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       // If oneoff: mark completed
       if (action === 'log' && body.complete === true) {
-        await updateSidequest(ctx.sheetAuth, ctx.account, id, {
+        await updateSidequest(ctx.sheetAuth, id, {
           completedAt: String(body.date || today),
         });
       }
@@ -120,8 +117,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return apiError('Unknown action', 400);
   } catch (error: unknown) {
-    console.error('[POST /api/sidequests/[id]]', getErrorMessage(error));
-    return apiError('Failed to log entry', 503);
+    return apiFailure(error, 'POST /api/sidequests/[id]');
   }
 }
 
@@ -134,10 +130,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const logId = searchParams.get('logId');
     void params;
     if (!logId) return apiError('logId required', 400);
-    await deleteSidequestLog(ctx.sheetAuth, ctx.account, logId);
+    await deleteSidequestLog(ctx.sheetAuth, logId);
     return NextResponse.json({ logId });
   } catch (error: unknown) {
-    console.error('[PUT /api/sidequests/[id]]', getErrorMessage(error));
-    return apiError('Failed to delete log', 503);
+    return apiFailure(error, 'PUT /api/sidequests/[id]');
   }
 }

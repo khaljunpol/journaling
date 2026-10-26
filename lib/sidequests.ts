@@ -1,49 +1,10 @@
 import { getServiceSheets } from '@/lib/googleSheets';
 import type { SheetAuth } from '@/lib/googleSheets';
+import { range, TABS } from '@/lib/sheetLayout';
 import type { Sidequest, SidequestLog, SidequestMilestone, SidequestType } from '@/lib/types';
 
-// Sheet access uses the shared service account; `sa` only carries the spreadsheetId.
-function getSheets(_sa: SheetAuth) {
-  return getServiceSheets();
-}
-
-// ── Sheet helpers ────────────────────────────────────────────
-
-// Cache confirmed-existing sheets so ensureSheet only hits the API once per process
-const _sheetExistsCache = new Set<string>();
-
-async function ensureSheet(sa: SheetAuth, title: string, headers: string[]) {
-  const cacheKey = `${sa.spreadsheetId}::${title}`;
-  if (_sheetExistsCache.has(cacheKey)) return;
-
-  const sheets = getSheets(sa);
-  const { spreadsheetId } = sa;
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
-  const existing = (meta.data.sheets || []).map((s) => s.properties?.title);
-
-  // Mark all known sheets as confirmed — avoid future checks for sibling sheets too
-  for (const t of existing) { if (t) _sheetExistsCache.add(`${spreadsheetId}::${t}`); }
-
-  if (!existing.includes(title)) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: [{ addSheet: { properties: { title } } }] },
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId, range: `${title}!A1`, valueInputOption: 'RAW',
-      requestBody: { values: [headers] },
-    });
-  }
-  _sheetExistsCache.add(cacheKey);
-}
-
 // ── Sidequests CRUD ──────────────────────────────────────────
-
-const SQ_HEADERS = ['id', 'title', 'type', 'year', 'unit', 'target', 'milestones', 'description', 'createdAt', 'completedAt'];
-const SQ_LOG_HEADERS = ['id', 'sidequestId', 'date', 'value', 'value2', 'note', 'milestoneIndex'];
-
-function sqTitle(account: string) { return `Sidequests_${account}`; }
-function sqLogTitle(account: string) { return `SidequestLogs_${account}`; }
+// Tab names come from lib/sheetLayout.ts; the tabs are created by ensureCoreTabs.
 
 function rowToSq(row: string[]): Sidequest {
   const [id, title, type, year, unit, target, milestonesJson, description, createdAt, completedAt] = row;
@@ -77,35 +38,25 @@ function rowToLog(row: string[]): SidequestLog {
   };
 }
 
-/** Ensures both sidequest sheets exist. Call once before parallel reads to avoid a race. */
-export async function warmupSidequestSheets(sa: SheetAuth, account: string): Promise<void> {
-  // A single spreadsheets.get populates the cache for all tabs at once.
-  // Running ensureSheet for the first tab covers the second too (see cache logic above).
-  await ensureSheet(sa, sqTitle(account), SQ_HEADERS);
-  await ensureSheet(sa, sqLogTitle(account), SQ_LOG_HEADERS);
-}
-
-export async function listSidequests(sa: SheetAuth, account: string, year?: number): Promise<Sidequest[]> {
-  const sheets = getSheets(sa);
+export async function listSidequests(sa: SheetAuth, year?: number): Promise<Sidequest[]> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqTitle(account);
-  await ensureSheet(sa, title, SQ_HEADERS);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:J` });
+  const title = TABS.sidequests;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:J') });
   const rows = (res.data.values || []).filter((r) => r && r[0]);
   const all = rows.map((r) => rowToSq(r.map(String)));
   return year ? all.filter((sq) => sq.year === year) : all;
 }
 
-export async function getSidequest(sa: SheetAuth, account: string, id: string): Promise<Sidequest | null> {
-  const all = await listSidequests(sa, account);
+export async function getSidequest(sa: SheetAuth, id: string): Promise<Sidequest | null> {
+  const all = await listSidequests(sa);
   return all.find((sq) => sq.id === id) || null;
 }
 
-export async function createSidequest(sa: SheetAuth, account: string, data: Omit<Sidequest, 'id' | 'createdAt'>): Promise<Sidequest> {
-  const sheets = getSheets(sa);
+export async function createSidequest(sa: SheetAuth, data: Omit<Sidequest, 'id' | 'createdAt'>): Promise<Sidequest> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqTitle(account);
-  await ensureSheet(sa, title, SQ_HEADERS);
+  const title = TABS.sidequests;
   const id = String(Date.now());
   const createdAt = new Date().toISOString().slice(0, 10);
   const row = [
@@ -115,17 +66,17 @@ export async function createSidequest(sa: SheetAuth, account: string, data: Omit
     data.description || '', createdAt, data.completedAt || '',
   ];
   await sheets.spreadsheets.values.append({
-    spreadsheetId, range: `${title}!A1:J`, valueInputOption: 'RAW',
+    spreadsheetId, range: range(title, 'A1:J'), valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
   return { ...data, id, createdAt };
 }
 
-export async function updateSidequest(sa: SheetAuth, account: string, id: string, patch: Partial<Sidequest>): Promise<Sidequest | null> {
-  const sheets = getSheets(sa);
+export async function updateSidequest(sa: SheetAuth, id: string, patch: Partial<Sidequest>): Promise<Sidequest | null> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqTitle(account);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:J` });
+  const title = TABS.sidequests;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:J') });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
@@ -141,17 +92,17 @@ export async function updateSidequest(sa: SheetAuth, account: string, id: string
     updated.description || '', updated.createdAt, updated.completedAt || '',
   ];
   await sheets.spreadsheets.values.update({
-    spreadsheetId, range: `${title}!A${rowIndex}:J${rowIndex}`, valueInputOption: 'RAW',
+    spreadsheetId, range: range(title, `A${rowIndex}:J${rowIndex}`), valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
   return updated;
 }
 
-export async function deleteSidequest(sa: SheetAuth, account: string, id: string): Promise<void> {
-  const sheets = getSheets(sa);
+export async function deleteSidequest(sa: SheetAuth, id: string): Promise<void> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqTitle(account);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:J` });
+  const title = TABS.sidequests;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:J') });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
@@ -167,28 +118,26 @@ export async function deleteSidequest(sa: SheetAuth, account: string, id: string
       requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] },
     });
   } else {
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:J${rowIndex}` });
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:J${rowIndex}`) });
   }
 }
 
 // ── Sidequest Logs ───────────────────────────────────────────
 
-export async function listSidequestLogs(sa: SheetAuth, account: string, sidequestId?: string): Promise<SidequestLog[]> {
-  const sheets = getSheets(sa);
+export async function listSidequestLogs(sa: SheetAuth, sidequestId?: string): Promise<SidequestLog[]> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqLogTitle(account);
-  await ensureSheet(sa, title, SQ_LOG_HEADERS);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:G` });
+  const title = TABS.sidequestLogs;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:G') });
   const rows = (res.data.values || []).filter((r) => r && r[0]);
   const all = rows.map((r) => rowToLog(r.map(String)));
   return sidequestId ? all.filter((l) => l.sidequestId === sidequestId) : all;
 }
 
-export async function addSidequestLog(sa: SheetAuth, account: string, entry: Omit<SidequestLog, 'id'>): Promise<SidequestLog> {
-  const sheets = getSheets(sa);
+export async function addSidequestLog(sa: SheetAuth, entry: Omit<SidequestLog, 'id'>): Promise<SidequestLog> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqLogTitle(account);
-  await ensureSheet(sa, title, SQ_LOG_HEADERS);
+  const title = TABS.sidequestLogs;
   const id = String(Date.now());
   const row = [
     id, entry.sidequestId, entry.date,
@@ -198,17 +147,17 @@ export async function addSidequestLog(sa: SheetAuth, account: string, entry: Omi
     entry.milestoneIndex != null ? String(entry.milestoneIndex) : '',
   ];
   await sheets.spreadsheets.values.append({
-    spreadsheetId, range: `${title}!A1:G`, valueInputOption: 'RAW',
+    spreadsheetId, range: range(title, 'A1:G'), valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
   return { ...entry, id };
 }
 
-export async function deleteSidequestLog(sa: SheetAuth, account: string, logId: string): Promise<void> {
-  const sheets = getSheets(sa);
+export async function deleteSidequestLog(sa: SheetAuth, logId: string): Promise<void> {
+  const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
-  const title = sqLogTitle(account);
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:G` });
+  const title = TABS.sidequestLogs;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:G') });
   const values = res.data.values || [];
   let rowIndex = -1;
   for (let i = 0; i < values.length; i++) {
@@ -224,6 +173,6 @@ export async function deleteSidequestLog(sa: SheetAuth, account: string, logId: 
       requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] },
     });
   } else {
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${title}!A${rowIndex}:G${rowIndex}` });
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:G${rowIndex}`) });
   }
 }

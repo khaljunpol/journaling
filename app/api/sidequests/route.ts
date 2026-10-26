@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
-import { listSidequests, createSidequest, listSidequestLogs, warmupSidequestSheets } from '@/lib/sidequests';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { listSidequests, createSidequest, listSidequestLogs } from '@/lib/sidequests';
 import type { SidequestType } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -13,11 +13,9 @@ export async function GET(req: Request) {
     const includeLogs = searchParams.get('logs') === 'true';
 
     if (includeLogs) {
-      // Warm up both sheets first so the parallel reads don't race on ensureSheet
-      await warmupSidequestSheets(ctx.sheetAuth, ctx.account);
       const [sqs, allLogs] = await Promise.all([
-        listSidequests(ctx.sheetAuth, ctx.account, year),
-        listSidequestLogs(ctx.sheetAuth, ctx.account),
+        listSidequests(ctx.sheetAuth, year),
+        listSidequestLogs(ctx.sheetAuth),
       ]);
       return NextResponse.json(sqs.map((sq) => ({
         ...sq,
@@ -25,11 +23,10 @@ export async function GET(req: Request) {
       })));
     }
 
-    const data = await listSidequests(ctx.sheetAuth, ctx.account, year);
+    const data = await listSidequests(ctx.sheetAuth, year);
     return NextResponse.json(data);
   } catch (error: unknown) {
-    console.error('[GET /api/sidequests]', getErrorMessage(error));
-    return apiError('Failed to fetch sidequests', 503);
+    return apiFailure(error, 'GET /api/sidequests');
   }
 }
 
@@ -43,7 +40,7 @@ export async function POST(req: Request) {
     const type: SidequestType = ['milestone', 'pb', 'timed', 'count', 'oneoff'].includes(body.type)
       ? body.type : 'oneoff';
     const year = parseInt(String(body.year || new Date().getFullYear()), 10) || new Date().getFullYear();
-    const data = await createSidequest(ctx.sheetAuth, ctx.account, {
+    const data = await createSidequest(ctx.sheetAuth, {
       title, type, year,
       unit: body.unit ? String(body.unit).slice(0, 32) : undefined,
       target: body.target != null ? parseFloat(String(body.target)) : undefined,
@@ -52,7 +49,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(data, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/sidequests]', getErrorMessage(error));
-    return apiError('Failed to create sidequest', 503);
+    return apiFailure(error, 'POST /api/sidequests');
   }
 }

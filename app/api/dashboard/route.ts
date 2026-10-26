@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { apiErrorBody } from '@/lib/server/apiError';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { localISO, weekStartLocal } from '@/lib/date';
 import {
@@ -20,7 +21,7 @@ export async function GET() {
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
-    const { sheetAuth, account } = ctx;
+    const { sheetAuth } = ctx;
 
     const today = new Date();
     const todayISO = localISO(today);
@@ -45,29 +46,28 @@ export async function GET() {
     const twelveWeeksAgoISO = localISO(twelveWeeksAgo);
 
     const safe = <T>(p: Promise<T>, fallback: T): Promise<T> =>
-      p.catch((err) => { console.error('[dashboard]', getErrorMessage(err)); return fallback; });
+      p.catch((err) => { apiErrorBody(err, 'GET /api/dashboard (partial)'); return fallback; });
 
     const [activities, logs30, weights8w, highlights30] = await Promise.all([
-      safe(listActivities(sheetAuth, account), []),
-      safe(getLogsBetween(sheetAuth, account, from30ISO, todayISO), []),
-      safe(getWeightsBetween(sheetAuth, account, eightWeeksAgoISO, todayISO), []),
-      safe(getHighlightsBetween(sheetAuth, account, from30ISO, todayISO), []),
+      safe(listActivities(sheetAuth), []),
+      safe(getLogsBetween(sheetAuth, from30ISO, todayISO), []),
+      safe(getWeightsBetween(sheetAuth, eightWeeksAgoISO, todayISO), []),
+      safe(getHighlightsBetween(sheetAuth, from30ISO, todayISO), []),
     ]);
 
     const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY, sidequests] = await Promise.all([
-      safe(getMoodsBetween(sheetAuth, account, from7ISO, todayISO), []),
-      safe(getMoodsBetween(sheetAuth, account, prevWeekFromISO, prevWeekToISO), []),
-      safe(getConsistencyMetrics(sheetAuth, account), null),
-      safe(listTimeCategories(sheetAuth, account), []),
-      safe(listHourLogs(sheetAuth, account, yStartISO, yEndISO), []),
-      safe(listClimbLogs(sheetAuth, account, from30ISO, todayISO), []),
-      safe(listClimbGoals(sheetAuth, account), []),
-      safe(listClimbLogs(sheetAuth, account, yStartISO, yEndISO), []),
-      safe(listSidequests(sheetAuth, account, y), []),
+      safe(getMoodsBetween(sheetAuth, from7ISO, todayISO), []),
+      safe(getMoodsBetween(sheetAuth, prevWeekFromISO, prevWeekToISO), []),
+      safe(getConsistencyMetrics(sheetAuth), null),
+      safe(listTimeCategories(sheetAuth), []),
+      safe(listHourLogs(sheetAuth, yStartISO, yEndISO), []),
+      safe(listClimbLogs(sheetAuth, from30ISO, todayISO), []),
+      safe(listClimbGoals(sheetAuth), []),
+      safe(listClimbLogs(sheetAuth, yStartISO, yEndISO), []),
+      safe(listSidequests(sheetAuth, y), []),
     ]);
 
     return NextResponse.json({
-      account,
       dates: { todayISO, from7ISO, from30ISO, weekFromISO, weekToISO, prevWeekFromISO, prevWeekToISO, yStartISO, yEndISO, eightWeeksAgoISO, twelveWeeksAgoISO },
       activities: Array.isArray(activities) ? activities : [],
       logs30: Array.isArray(logs30) ? logs30 : [],
@@ -84,7 +84,6 @@ export async function GET() {
       sidequests: Array.isArray(sidequests) ? sidequests : [],
     });
   } catch (error: unknown) {
-    console.error('[GET /api/dashboard]', getErrorMessage(error));
-    return NextResponse.json({ error: 'Failed to aggregate dashboard data' }, { status: 500 });
+    return apiFailure(error, 'GET /api/dashboard');
   }
 }

@@ -1,10 +1,12 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 
-const allowedEmails = (process.env.ALLOWED_EMAILS || '')
-  .split(',')
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+import { isEmailAllowed, parseAllowlist } from '@/lib/allowlist';
+
+export const allowedEmails = parseAllowlist(process.env.ALLOWED_EMAILS);
+if (!allowedEmails.length) {
+  console.warn('[auth] ALLOWED_EMAILS is empty: nobody can sign in');
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -22,13 +24,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ profile }) {
-      if (!allowedEmails.length) return true;
-      const email = profile?.email?.toLowerCase() || '';
-      return allowedEmails.includes(email);
+      return isEmailAllowed(profile?.email, allowedEmails);
     },
-    // Login is identity only. The connected sheet + active sub-account are persisted in a
+    // Login is identity only. The connected sheet is persisted in a
     // durable server cookie (see lib/server/sheetConnection.ts), not in the JWT — relying
-    // on session.update() to persist them proved unreliable on next-auth v5 beta.
+    // on session.update() to persist it proved unreliable on next-auth v5 beta.
   },
   pages: {
     signIn: '/login',

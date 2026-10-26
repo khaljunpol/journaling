@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSheets';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { createApiCache, cacheKey } from '@/lib/apiCache';
 import { parseTimeEntry } from '@/lib/time';
 
 const cache = createApiCache(60_000);
-const getKey = (spreadsheetId: string, account: string, date?: string | null, from?: string | null, to?: string | null) => {
+const getKey = (spreadsheetId: string, date?: string | null, from?: string | null, to?: string | null) => {
   const scope = from && to ? `range:${from}-${to}` : (date ? `date:${date}` : 'all');
-  return cacheKey(spreadsheetId, 'hours', account, scope);
+  return cacheKey(spreadsheetId, 'hours', scope);
 };
 
 export async function GET(req: Request) {
@@ -19,25 +19,24 @@ export async function GET(req: Request) {
     const date = url.searchParams.get('date');
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
-    const key = getKey(ctx.sheetAuth.spreadsheetId, ctx.account, date, from, to);
+    const key = getKey(ctx.sheetAuth.spreadsheetId, date, from, to);
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
     if (date) {
-      const items = await listHourLogs(ctx.sheetAuth, ctx.account, date, date);
+      const items = await listHourLogs(ctx.sheetAuth, date, date);
       cache.set(key, items);
       return NextResponse.json(items);
     }
     if (from && to) {
-      const items = await listHourLogs(ctx.sheetAuth, ctx.account, from, to);
+      const items = await listHourLogs(ctx.sheetAuth, from, to);
       cache.set(key, items);
       return NextResponse.json(items);
     }
-    const items = await listHourLogs(ctx.sheetAuth, ctx.account);
+    const items = await listHourLogs(ctx.sheetAuth);
     cache.set(key, items);
     return NextResponse.json(items);
   } catch (error: unknown) {
-    console.error('[GET /api/time]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'GET /api/time');
   }
 }
 
@@ -56,18 +55,17 @@ export async function POST(req: Request) {
         if (!parsed.ok) return apiError(parsed.message, 400);
         entries.push(parsed.entry);
       }
-      const saved = await upsertHourLogsBatch(ctx.sheetAuth, ctx.account, { date, entries });
+      const saved = await upsertHourLogsBatch(ctx.sheetAuth, { date, entries });
       cache.invalidate();
       return NextResponse.json(saved, { status: 201 });
     }
 
     const parsed = parseTimeEntry({ hour: body?.hour, category: body?.category });
     if (!parsed.ok) return apiError(parsed.message, 400);
-    const saved = await upsertHourLog(ctx.sheetAuth, ctx.account, { date, ...parsed.entry });
+    const saved = await upsertHourLog(ctx.sheetAuth, { date, ...parsed.entry });
     cache.invalidate();
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/time]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'POST /api/time');
   }
 }

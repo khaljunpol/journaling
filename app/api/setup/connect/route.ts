@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { getSessionUserKey } from '@/lib/server/sheetContext';
 import { writeSheetConnection } from '@/lib/server/sheetConnection';
 import { parseSpreadsheetId } from '@/lib/setup';
-import { getServiceSheets } from '@/lib/googleSheets';
+import { getServiceSheets, serviceTabsClient } from '@/lib/googleSheets';
+import { ensureCoreTabs } from '@/lib/sheetTabs';
 
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 
@@ -14,11 +15,9 @@ export async function POST(req: Request) {
     const userKey = getSessionUserKey(session);
     if (!userKey || !session?.user?.email) return apiError('Unauthorized', 401);
 
-    const { spreadsheetId: rawSpreadsheetId, subAccountName } = await req.json();
+    const { spreadsheetId: rawSpreadsheetId } = await req.json();
     const spreadsheetId = parseSpreadsheetId(String(rawSpreadsheetId || ''));
-    const name = String(subAccountName || '').trim();
     if (!spreadsheetId) return apiError('spreadsheetId required', 400);
-    if (!name) return apiError('subAccountName required', 400);
 
     // Verify the shared service account can actually reach this sheet.
     try {
@@ -36,12 +35,14 @@ export async function POST(req: Request) {
       throw error;
     }
 
-    // Persist the connection in a durable httpOnly cookie (survives reloads/cold starts).
-    await writeSheetConnection(spreadsheetId, name);
+    // Create any missing core tabs (never overwrites existing ones).
+    await ensureCoreTabs(serviceTabsClient(), spreadsheetId);
 
-    return NextResponse.json({ spreadsheetId, subAccountName: name });
+    // Persist the connection in a durable httpOnly cookie (survives reloads/cold starts).
+    await writeSheetConnection(spreadsheetId, session.user.email);
+
+    return NextResponse.json({ spreadsheetId });
   } catch (error: unknown) {
-    console.error('[POST /api/setup/connect]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'POST /api/setup/connect');
   }
 }

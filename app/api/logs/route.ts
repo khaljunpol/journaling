@@ -1,6 +1,6 @@
 import { appendLog, getLogsBetween, getLogsForDate } from '@/lib/googleSheets';
 import { NextResponse } from 'next/server';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
 export const dynamic = 'force-dynamic';
@@ -24,17 +24,16 @@ export async function GET(req: Request) {
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
     if (date) {
-      const logs = await getLogsForDate(ctx.sheetAuth, ctx.account, date);
+      const logs = await getLogsForDate(ctx.sheetAuth, date);
       return NextResponse.json(logs, { status: 200 });
     }
     if (from && to) {
-      const logs = await getLogsBetween(ctx.sheetAuth, ctx.account, from, to);
+      const logs = await getLogsBetween(ctx.sheetAuth, from, to);
       return NextResponse.json(logs, { status: 200 });
     }
     return apiError('date or from+to required', 400);
   } catch (error: unknown) {
-    console.error('[GET /api/logs]', getErrorMessage(error));
-    return apiError('Failed to fetch logs', 503);
+    return apiFailure(error, 'GET /api/logs');
   }
 }
 
@@ -47,10 +46,9 @@ export async function POST(req: Request) {
     const activityId = String(body?.activityId || '');
     const completed = Boolean(body?.completed);
     if (!date || !activityId) return apiError('date and activityId required', 400);
-    await appendLog(ctx.sheetAuth, ctx.account, date, activityId, completed);
+    await appendLog(ctx.sheetAuth, date, activityId, completed);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/logs]', getErrorMessage(error));
-    return apiError(getErrorMessage(error) || 'Unknown error', 500);
+    return apiFailure(error, 'POST /api/logs');
   }
 }

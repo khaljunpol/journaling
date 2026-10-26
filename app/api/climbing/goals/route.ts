@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listClimbGoals, upsertClimbGoal, deleteClimbGoal } from '@/lib/googleSheets';
-import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { createApiCache, cacheKey } from '@/lib/apiCache';
 
@@ -10,15 +10,14 @@ export async function GET() {
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
-    const key = cacheKey(ctx.sheetAuth.spreadsheetId, 'goals', ctx.account);
+    const key = cacheKey(ctx.sheetAuth.spreadsheetId, 'goals');
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
-    const items = await listClimbGoals(ctx.sheetAuth, ctx.account);
+    const items = await listClimbGoals(ctx.sheetAuth);
     cache.set(key, items);
     return NextResponse.json(items);
   } catch (error: unknown) {
-    console.error('[GET /api/climbing/goals]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'GET /api/climbing/goals');
   }
 }
 
@@ -33,12 +32,11 @@ export async function POST(req: Request) {
     const target = parseInt(String(body?.target ?? '0'), 10) || 0;
     if (!grade || !target) return apiError('grade and target required', 400);
     if (grade.length > MAX_LEN.grade) return apiError(`grade must be ≤${MAX_LEN.grade} characters`, 400);
-    const saved = await upsertClimbGoal(ctx.sheetAuth, ctx.account, { year, type, grade, target });
+    const saved = await upsertClimbGoal(ctx.sheetAuth, { year, type, grade, target });
     cache.invalidate();
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/climbing/goals]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'POST /api/climbing/goals');
   }
 }
 
@@ -49,11 +47,10 @@ export async function DELETE(req: Request) {
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
     if (!id) return apiError('id required', 400);
-    const out = await deleteClimbGoal(ctx.sheetAuth, ctx.account, id);
+    const out = await deleteClimbGoal(ctx.sheetAuth, id);
     cache.invalidate();
     return NextResponse.json(out);
   } catch (error: unknown) {
-    console.error('[DELETE /api/climbing/goals]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'DELETE /api/climbing/goals');
   }
 }

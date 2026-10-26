@@ -1,6 +1,5 @@
 "use client";
 
-import AccountSwitcher from '@/components/AccountSwitcher';
 import LogoutButton from '@/components/LogoutButton';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -114,8 +113,6 @@ export default function AppHeader() {
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-xl font-semibold sm:text-2xl">Journaling</h1>
             <div className="flex items-center gap-2">
-              <AccountSwitcher />
-
               {/* Theme toggle */}
               <button
                 onClick={toggleTheme}

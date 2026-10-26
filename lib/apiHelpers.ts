@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiErrorBody, apiErrorStatus } from '@/lib/server/apiError';
 
 /**
  * Returns a consistent JSON error response.
@@ -35,8 +36,9 @@ export const MAX_LEN = {
 } as const;
 
 /**
- * Extracts a human-readable message from an unknown catch error.
+ * Safe JSON failure response: logs the redacted error server-side and returns
+ * a fixed message. Use in every catch block instead of sending error text.
  */
-export function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+export function apiFailure(err: unknown, context: string): NextResponse {
+  return NextResponse.json(apiErrorBody(err, context), { status: apiErrorStatus(err) });
 }

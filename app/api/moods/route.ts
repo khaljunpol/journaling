@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMood, setMood, getMoodsBetween } from '@/lib/googleSheets';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
 export async function GET(req: Request) {
@@ -12,15 +12,14 @@ export async function GET(req: Request) {
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
     if (from && to) {
-      const items = await getMoodsBetween(ctx.sheetAuth, ctx.account, from, to);
+      const items = await getMoodsBetween(ctx.sheetAuth, from, to);
       return NextResponse.json(items);
     }
     if (!date) return apiError('date required', 400);
-    const score = await getMood(ctx.sheetAuth, ctx.account, date);
+    const score = await getMood(ctx.sheetAuth, date);
     return NextResponse.json({ score });
   } catch (error: unknown) {
-    console.error('[GET /api/moods]', getErrorMessage(error));
-    return apiError('Failed to fetch moods', 503);
+    return apiFailure(error, 'GET /api/moods');
   }
 }
 
@@ -34,10 +33,9 @@ export async function POST(req: Request) {
     const score = typeof scoreRaw === 'number' ? scoreRaw : parseInt(String(scoreRaw ?? ''), 10);
     if (!date) return apiError('date required', 400);
     if (!Number.isFinite(score) || score < 0 || score > 10) return apiError('score must be 0..10', 400);
-    await setMood(ctx.sheetAuth, ctx.account, date, score);
+    await setMood(ctx.sheetAuth, date, score);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/moods]', getErrorMessage(error));
-    return apiError(getErrorMessage(error) || 'Unknown error', 500);
+    return apiFailure(error, 'POST /api/moods');
   }
 }

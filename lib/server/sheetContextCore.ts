@@ -5,7 +5,6 @@ export type SheetAuthContext = {
   sheetAuth: {
     spreadsheetId: string;
   };
-  account: string;
 };
 
 export type SessionLike = {
@@ -30,7 +29,6 @@ export function getSessionUserKey(session: SessionLike): string | null {
 export function buildSheetContext(
   email: string | null,
   spreadsheetId: string | null,
-  account: string | null,
 ): StoredSheetContextResult {
   if (!email) return { ok: false, status: 401, message: 'Unauthorized' };
   const id = spreadsheetId?.trim();
@@ -39,7 +37,6 @@ export function buildSheetContext(
     ok: true,
     context: {
       sheetAuth: { spreadsheetId: id },
-      account: account?.trim() || 'default',
     },
   };
 }

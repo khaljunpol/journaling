@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createActivity, listActivities } from '@/lib/googleSheets';
-import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
+import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
 export async function GET() {
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
-    const data = await listActivities(ctx.sheetAuth, ctx.account);
+    const data = await listActivities(ctx.sheetAuth);
     return NextResponse.json(data);
   } catch (error: unknown) {
-    console.error('[GET /api/activities]', getErrorMessage(error));
-    return apiError('Failed to fetch activities', 503);
+    return apiFailure(error, 'GET /api/activities');
   }
 }
 
@@ -24,10 +23,9 @@ export async function POST(req: Request) {
     const status = String(body?.status || 'active').trim() as 'active' | 'stopped';
     if (!name) return apiError('name required', 400);
     if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
-    const created = await createActivity(ctx.sheetAuth, ctx.account, name, { status: status === 'stopped' ? 'stopped' : 'active' });
+    const created = await createActivity(ctx.sheetAuth, name, { status: status === 'stopped' ? 'stopped' : 'active' });
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {
-    console.error('[POST /api/activities]', getErrorMessage(error));
-    return apiError(getErrorMessage(error) || 'Unknown error', 500);
+    return apiFailure(error, 'POST /api/activities');
   }
 }

@@ -8,13 +8,10 @@ const serviceAccountEmail = process.env.NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL || '';
 
 export default function SetupPage() {
   const { data: session } = useSession();
-  const [name, setName] = useState('');
   const [existingId, setExistingId] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const defaultName = session?.user?.name?.split(' ')[0] || '';
 
   async function copyEmail() {
     try {
@@ -28,9 +25,6 @@ export default function SetupPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const subAccountName = (name.trim() || defaultName).trim();
-    if (!subAccountName) { setError('Please enter a name'); setLoading(false); return; }
-
     const id = parseSpreadsheetId(existingId);
     if (!id) { setError('Please enter a spreadsheet URL or ID'); setLoading(false); return; }
 
@@ -38,7 +32,7 @@ export default function SetupPage() {
       const res = await fetch('/api/setup/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spreadsheetId: id, subAccountName }),
+        body: JSON.stringify({ spreadsheetId: id }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -110,24 +104,10 @@ export default function SetupPage() {
       )}
 
       <p className="text-sm" style={{ color: 'var(--text)' }}>
-        3. Paste the sheet link below and pick a name.
+        3. Paste the sheet link below.
       </p>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium">Your name for this account</label>
-          <input
-            type="text"
-            className="w-full input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={defaultName || 'e.g. Alex'}
-          />
-          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            Used to label your data tabs (e.g. Climbs_Alex).
-          </p>
-        </div>
-
         <div className="space-y-1.5">
           <label className="block text-sm font-medium">Spreadsheet URL or ID</label>
           <input

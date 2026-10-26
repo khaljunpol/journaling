@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError, getErrorMessage } from '@/lib/apiHelpers';
+import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { localTodayISO } from '@/lib/date';
 import {
   buildTimePrompt,
@@ -24,8 +24,8 @@ export async function GET(req: Request) {
     const range = getPromptPeriod(anchor, period);
 
     const [categories, entries] = await Promise.all([
-      listTimeCategories(ctx.sheetAuth, ctx.account),
-      listHourLogs(ctx.sheetAuth, ctx.account, range.fromISO, range.toISO),
+      listTimeCategories(ctx.sheetAuth),
+      listHourLogs(ctx.sheetAuth, range.fromISO, range.toISO),
     ]);
 
     const prompt = buildTimePrompt({
@@ -37,7 +37,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ period, ...range, prompt });
   } catch (error: unknown) {
-    console.error('[GET /api/prompts/time]', error);
-    return apiError(getErrorMessage(error), 500);
+    return apiFailure(error, 'GET /api/prompts/time');
   }
 }

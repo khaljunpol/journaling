@@ -6,8 +6,8 @@ import { cacheKey, createApiCache } from '../lib/apiCache.ts';
 describe('cacheKey', () => {
   it('differs for different spreadsheet ids', () => {
     assert.notEqual(
-      cacheKey('A', 'hours', 'default', '2026-10-01'),
-      cacheKey('B', 'hours', 'default', '2026-10-01'),
+      cacheKey('A', 'hours', '2026-10-01'),
+      cacheKey('B', 'hours', '2026-10-01'),
     );
   });
 

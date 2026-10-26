@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth';
-import { readSheetConnection } from './sheetConnection.ts';
+import { readSheetConnection, writeSheetConnection } from './sheetConnection.ts';
 import { buildSheetContext, getSessionUserKey } from './sheetContextCore.ts';
 
 export type {
@@ -17,6 +17,14 @@ export { buildSheetContext, getSessionUserKey } from './sheetContextCore.ts';
 export async function getSheetContext() {
   const session = await auth();
   const email = getSessionUserKey(session);
-  const { spreadsheetId, account } = await readSheetConnection();
-  return buildSheetContext(email, spreadsheetId, account);
+  if (!email) return buildSheetContext(null, null);
+  const { spreadsheetId, legacy } = await readSheetConnection(email);
+  if (legacy && spreadsheetId) {
+    // Upgrade the old bare-id cookie. Cookies are read-only outside route handlers,
+    // so a failed rewrite is fine: the bare id keeps working until the next write.
+    try {
+      await writeSheetConnection(spreadsheetId, email);
+    } catch { /* read-only cookie store */ }
+  }
+  return buildSheetContext(email, spreadsheetId);
 }
