@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeConnection, decodeConnection, connectionFor } from '../lib/server/connectionValue.ts';
+import { encodeConnection, decodeConnection, connectionFor } from '../src/lib/server/connectionValue.ts';
 
 test('round trip lowercases the email', () => {
   const raw = encodeConnection({ id: 'abc_123', mode: 'robot', email: 'A@B.C' });

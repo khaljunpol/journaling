@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseTimeEntry } from '../lib/time.ts';
+import { parseTimeEntry } from '../src/lib/time.ts';
 
 describe('time entry validation', () => {
   it('accepts timestamp-style category IDs created by custom time categories', () => {

@@ -6,7 +6,7 @@ import {
   safeMessage,
   apiErrorBody,
   apiErrorStatus,
-} from '../lib/server/apiError.ts';
+} from '../src/lib/server/apiError.ts';
 
 const SHEET_ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 

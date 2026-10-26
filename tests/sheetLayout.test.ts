@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TABS, HEADERS, range } from '../lib/sheetLayout.ts';
+import { TABS, HEADERS, range } from '../src/lib/sheetLayout.ts';
 
 test('range quotes the tab name', () => {
   assert.equal(range('Logs', 'A2:C'), "'Logs'!A2:C");

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildJournalPrompt, buildTimePrompt, getPromptPeriod } from '../lib/promptBuilder.ts';
+import { buildJournalPrompt, buildTimePrompt, getPromptPeriod } from '../src/lib/promptBuilder.ts';
 
 describe('summary prompt builder', () => {
   it('builds Monday-start weekly and calendar-month ranges', () => {

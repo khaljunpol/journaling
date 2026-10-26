@@ -13,7 +13,7 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-const files = sourceFiles('app/api');
+const files = sourceFiles('src/app/api');
 
 describe('API files never send raw error text', () => {
   it('finds the api files', () => {

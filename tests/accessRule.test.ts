@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideAccess } from '../lib/accessRule.ts';
+import { decideAccess } from '../src/lib/accessRule.ts';
 
 const allowed = ['alex@x.com'];
 

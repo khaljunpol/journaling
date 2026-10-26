@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clearLocalCache } from '../lib/cache.ts';
+import { clearLocalCache } from '../src/lib/cache.ts';
 
 function fakeStorage(initial: Record<string, string>) {
   const data = new Map(Object.entries(initial));

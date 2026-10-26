@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import {
   buildSheetContext,
   getSessionUserKey,
-} from '../lib/server/sheetContextCore.ts';
+} from '../src/lib/server/sheetContextCore.ts';
 
 describe('getSessionUserKey', () => {
   it('lowercases and trims the email', () => {

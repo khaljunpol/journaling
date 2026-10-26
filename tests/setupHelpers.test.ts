@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseSpreadsheetId } from '../lib/setup.ts';
+import { parseSpreadsheetId } from '../src/lib/setup.ts';
 
 describe('setup helpers', () => {
   it('extracts spreadsheet IDs from full Google Sheets URLs', () => {

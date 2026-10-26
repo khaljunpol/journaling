@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { cacheKey, createApiCache } from '../lib/apiCache.ts';
+import { cacheKey, createApiCache } from '../src/lib/apiCache.ts';
 
 describe('cacheKey', () => {
   it('differs for different spreadsheet ids', () => {

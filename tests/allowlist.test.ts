@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isEmailAllowed, parseAllowlist } from '../lib/allowlist.ts';
+import { isEmailAllowed, parseAllowlist } from '../src/lib/allowlist.ts';
 
 test('empty list lets nobody in', () => {
   assert.equal(isEmailAllowed('a@b.c', []), false);
