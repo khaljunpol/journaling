@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { listTimeCategories, upsertTimeCategory, deleteTimeCategory } from '@/lib/googleSheets';
 import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { createApiCache } from '@/lib/apiCache';
+import { createApiCache, cacheKey } from '@/lib/apiCache';
 
 const cache = createApiCache(120_000);
 
@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
-    const key = `timeCats:${ctx.account}`;
+    const key = cacheKey(ctx.sheetAuth.spreadsheetId, 'timeCats', ctx.account);
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
     const items = await listTimeCategories(ctx.sheetAuth, ctx.account);

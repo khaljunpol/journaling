@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSheets';
 import { apiError, getErrorMessage } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { createApiCache } from '@/lib/apiCache';
+import { createApiCache, cacheKey } from '@/lib/apiCache';
 import { parseTimeEntry } from '@/lib/time';
 
 const cache = createApiCache(60_000);
-const getKey = (account: string, date?: string | null, from?: string | null, to?: string | null) => {
+const getKey = (spreadsheetId: string, account: string, date?: string | null, from?: string | null, to?: string | null) => {
   const scope = from && to ? `range:${from}-${to}` : (date ? `date:${date}` : 'all');
-  return `hours:${account}|${scope}`;
+  return cacheKey(spreadsheetId, 'hours', account, scope);
 };
 
 export async function GET(req: Request) {
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const date = url.searchParams.get('date');
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
-    const key = getKey(ctx.account, date, from, to);
+    const key = getKey(ctx.sheetAuth.spreadsheetId, ctx.account, date, from, to);
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
     if (date) {

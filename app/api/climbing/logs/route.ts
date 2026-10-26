@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { listClimbLogs, addClimbLog, deleteClimbLog } from '@/lib/googleSheets';
 import { apiError, getErrorMessage, MAX_LEN } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { createApiCache } from '@/lib/apiCache';
+import { createApiCache, cacheKey } from '@/lib/apiCache';
 
 const cache = createApiCache(60_000);
-const getKey = (account: string, date?: string | null, from?: string | null, to?: string | null, paged?: string | null) => {
+const getKey = (spreadsheetId: string, account: string, date?: string | null, from?: string | null, to?: string | null, paged?: string | null) => {
   const scope = from && to ? `range:${from}-${to}` : (date ? `date:${date}` : 'all');
-  return `climbLogs:${account}|${scope}${paged ? `|p:${paged}` : ''}`;
+  return cacheKey(spreadsheetId, 'climbLogs', account, scope, paged ? `p:${paged}` : null);
 };
 
 export async function GET(req: Request) {
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const to = url.searchParams.get('to');
     const limitParam = url.searchParams.get('limit');
     const pageParam = url.searchParams.get('page');
-    const key = getKey(ctx.account, date, from, to, limitParam ? `${limitParam}:${pageParam || '1'}` : null);
+    const key = getKey(ctx.sheetAuth.spreadsheetId, ctx.account, date, from, to, limitParam ? `${limitParam}:${pageParam || '1'}` : null);
     const cached = cache.get(key);
     if (cached) return NextResponse.json(cached);
     if (from && to) {

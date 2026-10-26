@@ -2,6 +2,14 @@
  * Factory for creating in-memory TTL caches used by API route handlers
  * to reduce Google Sheets read requests.
  */
+/** Build a cache key. The spreadsheet id always comes first so sheets never share entries. */
+export function cacheKey(
+  spreadsheetId: string,
+  ...parts: Array<string | number | null | undefined>
+): string {
+  return [spreadsheetId, ...parts.map((p) => (p == null ? '' : String(p)))].join('|');
+}
+
 export function createApiCache<T = unknown>(ttlMs = 60_000) {
   const cache = new Map<string, { ts: number; data: T }>();
 
