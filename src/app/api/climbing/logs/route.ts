@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { listClimbLogs, addClimbLog, deleteClimbLog } from '@/lib/googleSheets';
+import { listClimbLogs, addClimbLog, updateClimbLog, deleteClimbLog } from '@/lib/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
+import { parseClimbLogBody } from '@/lib/climbLogInput';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
 export async function GET(req: Request) {
@@ -45,21 +46,29 @@ export async function POST(req: Request) {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     const body = await req.json();
-    const date = String(body?.date || '').slice(0, 10);
-    const session = parseInt(String(body?.session ?? '0'), 10) || 0;
-    const type = (String(body?.type || 'boulder').toLowerCase() === 'rope' ? 'rope' : 'boulder') as 'boulder' | 'rope';
-    const grade = String(body?.grade || '').trim();
-    const attempts = parseInt(String(body?.attempts ?? '0'), 10) || 0;
-    const location = String(body?.location || '').trim();
-    const notes = String(body?.notes || '').trim();
-    if (!date) return apiError('date required', 400);
-    if (grade.length > MAX_LEN.grade) return apiError(`grade must be ≤${MAX_LEN.grade} characters`, 400);
-    if (location.length > MAX_LEN.location) return apiError(`location must be ≤${MAX_LEN.location} characters`, 400);
-    if (notes.length > MAX_LEN.notes) return apiError(`notes must be ≤${MAX_LEN.notes} characters`, 400);
-    const saved = await addClimbLog(ctx.sheetAuth, { date, session, type, grade, attempts, location, notes });
+    const parsed = parseClimbLogBody(body, MAX_LEN);
+    if (!parsed.ok) return apiError(parsed.error, 400);
+    const saved = await addClimbLog(ctx.sheetAuth, parsed.value);
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/climbing/logs');
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const ctx = await requireSheetContext();
+    if ('status' in ctx) return ctx;
+    const body = await req.json();
+    const id = String(body?.id || '').trim();
+    if (!id) return apiError('id required', 400);
+    const parsed = parseClimbLogBody(body, MAX_LEN);
+    if (!parsed.ok) return apiError(parsed.error, 400);
+    const saved = await updateClimbLog(ctx.sheetAuth, id, parsed.value);
+    if (!saved) return apiError('log not found', 404);
+    return NextResponse.json(saved);
+  } catch (error: unknown) {
+    return apiFailure(error, 'PUT /api/climbing/logs');
   }
 }
 

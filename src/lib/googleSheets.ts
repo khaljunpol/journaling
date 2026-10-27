@@ -601,6 +601,30 @@ export async function addClimbLog(sa: SheetAuth, entry: { date: string; session:
   });
 }
 
+export async function updateClimbLog(sa: SheetAuth, id: string, entry: { date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }): Promise<ClimbLog | null> {
+  const sheets = getServiceSheets();
+  const { spreadsheetId } = sa;
+  const title = TABS.climbs;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:H') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (String(values[i][0]).trim() === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) return null;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: range(title, `B${rowIndex}:H${rowIndex}`), valueInputOption: 'RAW',
+        requestBody: { values: [[entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')]] },
+      });
+      return { id, ...entry } as ClimbLog;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'climbs');
+    }
+  });
+}
+
 export async function deleteClimbLog(sa: SheetAuth, id: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
