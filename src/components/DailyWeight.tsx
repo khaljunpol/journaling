@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Button from '@/components/ui/Button';
+import { fieldBase } from '@/components/ui/Input';
 import { getCache, setCache } from '@/lib/cache';
 
 export default function DailyWeight({ dateISO }: { dateISO: string }) {
@@ -56,40 +58,30 @@ export default function DailyWeight({ dateISO }: { dateISO: string }) {
   }
 
   return (
-    <div className="flex items-center justify-between w-full">
+    <div className="flex w-full items-center justify-between gap-3">
+      <label htmlFor="trend-weight" className="text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>
+        Weight today
+      </label>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Weight</span>
-        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>kg</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {saved && <span className="text-xs" style={{ color: '#22c55e' }}>✓</span>}
-        <div
-          className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
+        {saved && <span className="text-[13px]" style={{ color: 'var(--ok)' }} role="status">Saved</span>}
+        <div className="relative">
           <input
+            id="trend-weight"
             type="number"
             step="0.1"
             inputMode="decimal"
-            className="w-14 bg-transparent text-sm outline-none text-right"
-            style={{ color: 'var(--text)' }}
+            className={`${fieldBase} num min-h-11 w-28 pl-3 pr-9 text-right`}
             placeholder={loading ? '…' : '0.0'}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading}
           />
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>kg</span>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: 'var(--text-3)' }}>kg</span>
         </div>
-        <button
-          className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40"
-          style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
-          onClick={save}
-          disabled={saving || loading || !weight}
-        >
+        <Button onClick={save} disabled={saving || loading || !weight}>
           {saving ? '…' : 'Save'}
-        </button>
+        </Button>
       </div>
     </div>
   );

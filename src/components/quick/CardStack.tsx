@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, X } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import { adoptSheetEntry } from '@/components/ui/Sheet';
 import { dayStatus } from '@/lib/quickDay';
 import type { CatchUpStep } from '@/lib/quickWeek';
 import { SLIDE_MS, canAdvance, cardsLeft, dotState, nextStep } from '@/lib/cardStack';
@@ -55,7 +58,9 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
   // One history entry, so the phone's back button closes the stack and not the page.
   useEffect(() => {
     if (!(window.history.state && window.history.state.quickStack)) {
-      window.history.pushState({ ...(window.history.state ?? {}), quickStack: true }, '');
+      // Opened in the same tap that closed a Sheet: reuse its entry, so there is one entry and no stray back().
+      if (adoptSheetEntry()) window.history.replaceState({ ...(window.history.state ?? {}), sheet: false, quickStack: true }, '');
+      else window.history.pushState({ ...(window.history.state ?? {}), quickStack: true }, '');
     }
     const onPop = () => onCloseRef.current();
     window.addEventListener('popstate', onPop);
@@ -146,7 +151,7 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
       aria-label={weekRun ? 'Catch up this week' : `Fill missing, ${dayLabel}`}
       tabIndex={-1}
       className="fixed inset-0 z-50 flex flex-col outline-none"
-      style={{ background: 'var(--surface)' }}
+      style={{ background: 'var(--bg)' }}
     >
       {finished ? (
         <button
@@ -155,23 +160,23 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
           className="quick-card-in flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
           aria-label={weekRun ? 'Week caught up. Tap to go back' : 'Day complete. Tap to go back'}
         >
-          <span className="text-4xl" aria-hidden="true" style={{ color: 'var(--ok)' }}>
-            ✓
+          <span className="ring-pop flex h-16 w-16 items-center justify-center rounded-full" aria-hidden="true" style={{ background: 'var(--reward)', color: 'var(--on-reward)' }}>
+            <Check size={32} />
           </span>
-          <span className="text-lg font-semibold">{weekRun ? 'Week caught up' : 'Day complete'}</span>
-          <span className="subtle">{weekRun ? 'Everything you picked is filled.' : `${labelFor(steps[0]?.date ?? '')} is all filled.`}</span>
+          <span className="text-[20px] font-semibold" style={{ color: 'var(--reward-text)' }}>{weekRun ? 'Week caught up' : 'Day complete'}</span>
+          <span className="text-[14px]" style={{ color: 'var(--text-2)' }}>{weekRun ? 'Everything you picked is filled.' : `${labelFor(steps[0]?.date ?? '')} is all filled.`}</span>
         </button>
       ) : (
         <>
-          <header className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 pt-3">
+          <header className="mx-auto flex w-full max-w-lg items-center justify-between gap-3 px-4 pt-3">
             {total > 8 ? (
               <div
                 className="h-2 flex-1 overflow-hidden rounded-full"
-                style={{ background: 'var(--border)' }}
+                style={{ background: 'var(--surface-3)' }}
                 role="img"
                 aria-label={`Card ${index + 1} of ${total}`}
               >
-                <div className="h-full rounded-full transition-[width] duration-150 ease-out motion-reduce:transition-none" style={{ width: `${(index / total) * 100}%`, background: 'var(--ok)' }} />
+                <div className="h-full rounded-full transition-[width] duration-150 ease-out motion-reduce:transition-none" style={{ width: `${(index / total) * 100}%`, background: 'var(--accent)' }} />
               </div>
             ) : (
             <div className="flex items-center gap-1.5" role="img" aria-label={`Card ${index + 1} of ${total}`}>
@@ -183,28 +188,28 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
                     className="h-2 rounded-full"
                     style={{
                       width: s === 'current' ? '1.25rem' : '0.5rem',
-                      background: s === 'todo' ? 'var(--border)' : 'var(--ok)',
+                      background: s === 'todo' ? 'var(--surface-3)' : 'var(--accent)',
                     }}
                   />
                 );
               })}
             </div>
             )}
-            <span className="text-sm muted" aria-live="polite">
+            <span className="num text-[13px]" style={{ color: 'var(--text-2)' }} aria-live="polite">
               {cardsLeft(index, total)} left
             </span>
-            <button type="button" onClick={close} aria-label="Close" className="btn-outline min-h-11 min-w-11 rounded-full">
-              ✕
+            <button type="button" onClick={close} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-2)]" style={{ color: 'var(--text-2)' }}>
+              <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <div className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 pb-4 pt-4">
+          <div className="mx-auto w-full max-w-lg flex-1 overflow-y-auto px-4 pb-4 pt-4">
             <div
               key={`${key}:${index}`}
               className="quick-card-in quick-card-body"
               style={sliding ? { pointerEvents: 'none' } : undefined}
             >
-              <h2 className="text-xl font-semibold">{TITLES[key]}</h2>
-              <p className="subtle mb-4">{dayLabel}</p>
+              <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>{TITLES[key]}</h2>
+              <p className="mb-4 text-[13px]" style={{ color: 'var(--text-2)' }}>{dayLabel}</p>
               {key === 'mood' && <MoodEditor {...common} />}
               {key === 'habits' && <HabitsEditor {...common} />}
               {key === 'weight' && <WeightEditor {...common} />}
@@ -213,10 +218,10 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
               {key === 'hours' && <HoursEditor {...common} categories={categories} submitLabel="✓ Looks right" />}
             </div>
           </div>
-          <footer className="mx-auto w-full max-w-md px-4 pb-4">
-            <button type="button" onClick={advance} className="btn-outline min-h-11 w-full">
+          <footer className="mx-auto w-full max-w-lg px-4 pt-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+            <Button variant="ghost" onClick={advance} className="w-full">
               Skip for now
-            </button>
+            </Button>
           </footer>
         </>
       )}

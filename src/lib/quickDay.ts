@@ -34,7 +34,6 @@ export function dayStatus(
   const quests = ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === ctx.year,
   );
-  const logged = new Set(day.logs.map((l) => l.activityId));
   const questLogged = new Set(day.sidequestLogIds);
   const valid = new Set(ctx.categoryIds);
 
@@ -44,7 +43,7 @@ export function dayStatus(
     {
       key: 'habits',
       shown: habitsApplicable,
-      filled: active.length > 0 && active.every((a) => logged.has(a.id)),
+      filled: day.logs.length > 0,
       counts: active.length > 0,
     },
     { key: 'weight', shown: true, filled: day.weight !== null, counts: true },

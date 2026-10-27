@@ -164,7 +164,7 @@ export function computeAttentionSignals({
   const behind = goalStats.filter(g => g.onTrack === 'behind');
   if (behind.length > 0) {
     const label = behind.map(g => g.label).join(', ');
-    signals.push({ type: 'warning', message: `Behind pace on ${label}.` });
+    signals.push({ type: 'warning', message: `${label}: a little behind pace.` });
   }
 
   return signals.slice(0, 3);

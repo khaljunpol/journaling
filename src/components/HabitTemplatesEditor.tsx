@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Button from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import Chip from '@/components/ui/Chip';
 type Activity = { id: string; name: string; status?: string };
 
 type Kind = 'weekday' | 'weekend';
@@ -73,19 +76,19 @@ export default function HabitTemplatesEditor() {
     const dirty = !sameIds(ids, saved[kind]);
     const status = dirty ? 'Unsaved changes' : loaded && !loadFailed ? 'Saved' : '';
     return (
-      <div className="card p-4 sm:p-5 space-y-3" key={kind}>
+      <Card className="space-y-3" key={kind}>
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
-          <span className="font-medium text-sm">{title}</span>
-          <span className="text-xs rounded-full px-2 py-0.5 tabular-nums" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>{ids.length}/{acts.length}</span>
+          <span className="text-[14px] font-medium">{title}</span>
+          <Chip>{ids.length}/{acts.length}</Chip>
           {status && (
-            <span className="text-xs ml-auto" style={{ color: dirty ? 'var(--accent)' : 'var(--muted-foreground)' }}>{status}</span>
+            <span className="text-xs ml-auto" style={{ color: dirty ? 'var(--accent)' : 'var(--text-2)' }}>{status}</span>
           )}
         </div>
         {loadFailed ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Couldn&apos;t load your habits just now. Reload to try again.</p>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Couldn&apos;t load your habits just now. Reload to try again.</p>
         ) : acts.length === 0 && loaded ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Add a habit first, then pick your usual ones here.</p>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Add a habit first, then pick your usual ones here.</p>
         ) : (
           <ul className="space-y-2">
             {acts.map((a) => {
@@ -97,14 +100,14 @@ export default function HabitTemplatesEditor() {
                     role="switch"
                     aria-checked={on}
                     onClick={() => toggle(kind, a.id)}
-                    className="quick-tile flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-sm"
+                    className="quick-tile flex min-h-12 w-full items-center justify-between rounded-[10px] px-4 text-left text-[14px]"
                     style={{
-                      background: on ? 'var(--ok-soft)' : 'var(--surface-alt)',
+                      background: on ? 'var(--ok-soft)' : 'var(--surface-2)',
                       boxShadow: on ? '0 0 0 1.5px var(--ok)' : undefined,
                     }}
                   >
                     <span>{a.name}</span>
-                    <span aria-hidden="true" style={{ color: on ? 'var(--ok)' : 'var(--muted-foreground)' }}>{on ? '✓' : '○'}</span>
+                    <span aria-hidden="true" style={{ color: on ? 'var(--ok)' : 'var(--text-2)' }}>{on ? '✓' : '○'}</span>
                   </button>
                 </li>
               );
@@ -112,22 +115,22 @@ export default function HabitTemplatesEditor() {
           </ul>
         )}
         <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-xs" role="status" style={{ color: 'var(--muted-foreground)' }}>
+          <span className="text-xs" role="status" style={{ color: 'var(--text-2)' }}>
             {message?.kind === kind ? message.text : ''}
           </span>
-          <button className="btn h-11 shrink-0" onClick={() => save(kind)} disabled={loadFailed || !dirty || saving !== null}>
+          <Button className="shrink-0" onClick={() => save(kind)} disabled={loadFailed || !dirty || saving !== null}>
             {saving === kind ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">Usual habits</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+        <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Usual habits</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>
           Tick the habits you normally do. Quick check-in starts from these on an empty day.
         </p>
       </div>

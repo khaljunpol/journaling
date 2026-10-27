@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from 'react';
+import Button from '@/components/ui/Button';
+import { fieldBase, fieldClass } from '@/components/ui/Input';
 import type { Sidequest, SidequestMilestone, SidequestType } from '@/lib/types';
 
 const TYPE_OPTIONS: { value: SidequestType; label: string; desc: string }[] = [
@@ -69,17 +71,16 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
     }
   }
 
-  const labelCls = 'block text-xs font-medium mb-1' ;
-  const inputCls = 'w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 transition';
+  const labelCls = 'block text-[12px] font-medium mb-1 uppercase tracking-[0.04em]';
+  const inputCls = fieldClass;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Title */}
       <div>
-        <label className={labelCls} style={{ color: 'var(--text)' }}>Title *</label>
+        <label className={labelCls} style={{ color: 'var(--text-3)' }}>Title *</label>
         <input
           className={inputCls}
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Weighted pull-ups, Run 5K sub-25min…"
@@ -90,11 +91,10 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
 
       {/* Year */}
       <div>
-        <label className={labelCls} style={{ color: 'var(--text)' }}>Year</label>
+        <label className={labelCls} style={{ color: 'var(--text-3)' }}>Year</label>
         <input
           type="number"
           className={inputCls}
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
           value={year}
           onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
           min={2020} max={2035}
@@ -103,18 +103,18 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
 
       {/* Type */}
       <div>
-        <label className={labelCls} style={{ color: 'var(--text)' }}>Type</label>
+        <label className={labelCls} style={{ color: 'var(--text-3)' }}>Type</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => setType(opt.value)}
-              className="rounded-md border px-3 py-2 text-left transition"
+              className="min-h-11 rounded-[10px] border px-3 py-2 text-left"
               style={{
                 borderColor: type === opt.value ? 'var(--accent)' : 'var(--border)',
-                background: type === opt.value ? 'color-mix(in oklab, var(--accent) 12%, transparent)' : 'var(--surface)',
-                color: type === opt.value ? 'var(--accent)' : 'var(--text)',
+                background: type === opt.value ? 'color-mix(in oklab, var(--accent) 12%, transparent)' : 'var(--surface-2)',
+                color: type === opt.value ? 'var(--accent)' : 'var(--text-1)',
               }}
             >
               <div className="text-xs font-semibold">{opt.label}</div>
@@ -127,14 +127,13 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
       {/* Milestones */}
       {type === 'milestone' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--text)' }}>Milestones (in order)</label>
+          <label className={labelCls} style={{ color: 'var(--text-3)' }}>Milestones (in order)</label>
           <div className="space-y-2">
             {milestones.map((m, i) => (
               <div key={i} className="flex gap-2 items-center">
-                <span className="text-xs tabular-nums w-5 text-right" style={{ color: 'var(--muted-foreground)' }}>{i + 1}.</span>
+                <span className="text-xs tabular-nums w-5 text-right" style={{ color: 'var(--text-2)' }}>{i + 1}.</span>
                 <input
                   className={inputCls + ' flex-1'}
-                  style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
                   value={m.label}
                   onChange={(e) => updateMilestone(i, e.target.value)}
                   placeholder={`Milestone ${i + 1}`}
@@ -144,8 +143,9 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
                   <button
                     type="button"
                     onClick={() => removeMilestone(i)}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ color: 'var(--muted-foreground)' }}
+                    aria-label={`Remove milestone ${i + 1}`}
+                    className="flex h-11 w-11 items-center justify-center rounded-[10px] text-xs hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-2)' }}
                   >✕</button>
                 )}
               </div>
@@ -153,7 +153,7 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
             <button
               type="button"
               onClick={addMilestone}
-              className="text-xs px-3 py-1.5 rounded-md border transition"
+              className="min-h-11 rounded-[10px] border px-3 text-xs hover:bg-[var(--surface-2)]"
               style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
             >+ Add milestone</button>
           </div>
@@ -164,10 +164,9 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
       {(type === 'pb' || type === 'count') && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls} style={{ color: 'var(--text)' }}>Unit</label>
+            <label className={labelCls} style={{ color: 'var(--text-3)' }}>Unit</label>
             <input
               className={inputCls}
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
               placeholder={type === 'pb' ? 'kg, reps, m…' : 'sessions, pages…'}
@@ -175,11 +174,10 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls} style={{ color: 'var(--text)' }}>Target {unit ? `(${unit})` : ''}</label>
+            <label className={labelCls} style={{ color: 'var(--text-3)' }}>Target {unit ? `(${unit})` : ''}</label>
             <input
               type="number"
               className={inputCls}
-              style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
               value={target}
               onChange={(e) => setTarget(e.target.value)}
               placeholder="Optional goal"
@@ -192,11 +190,10 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
       {/* Target time for timed */}
       {type === 'timed' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--text)' }}>Target time (seconds, optional)</label>
+          <label className={labelCls} style={{ color: 'var(--text-3)' }}>Target time (seconds, optional)</label>
           <input
             type="number"
             className={inputCls}
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             placeholder="e.g. 300 for 5 min"
@@ -207,10 +204,9 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
 
       {/* Description */}
       <div>
-        <label className={labelCls} style={{ color: 'var(--text)' }}>Notes / description</label>
+        <label className={labelCls} style={{ color: 'var(--text-3)' }}>Notes / description</label>
         <textarea
-          className={inputCls + ' resize-none'}
-          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          className={`${fieldBase} w-full resize-none px-3 py-2`}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Any extra context…"
@@ -219,24 +215,11 @@ export default function SidequestForm({ initial, onSubmit, onCancel }: Props) {
         />
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-[13px]" style={{ color: 'var(--warn)' }}>{error}</p>}
 
       <div className="flex gap-2 justify-end pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-outline px-4 py-2 text-sm"
-          disabled={saving}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="btn px-4 py-2 text-sm"
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : (initial?.id ? 'Save changes' : 'Create sidequest')}
-        </button>
+        <Button variant="outline" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : (initial?.id ? 'Save changes' : 'Create sidequest')}</Button>
       </div>
     </form>
   );

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { ListChecks } from 'lucide-react';
 import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
+import { syncState, type SyncState } from '@/lib/quickSync';
 import { applyQueue, applyQueueItem, pruneDays } from '@/lib/quickApply';
 import type { CatchUpStep } from '@/lib/quickWeek';
 import type { QuickPayload } from '@/lib/quickPayload';
@@ -15,8 +17,12 @@ import { useWeek } from './useWeek';
 import { useCatchUp } from './useCatchUp';
 import WeekPanel from './WeekPanel';
 import WeekStrip, { type StripDay } from './WeekStrip';
-import DaySection from './DaySection';
-import ReminderToggle from './ReminderToggle';
+import DaySection, { SkeletonDay } from './DaySection';
+import Ring from '@/components/overview/Ring';
+import PageHeader from '@/components/ui/PageHeader';
+import Button from '@/components/ui/Button';
+import Sheet from '@/components/ui/Sheet';
+import Skeleton from '@/components/ui/Skeleton';
 import CardStack from './CardStack';
 import ItemSheet, { type SheetTarget } from './ItemSheet';
 import type { QuestInfo, SaveSpec } from './editors/types';
@@ -59,6 +65,7 @@ export default function QuickBoard() {
   const [today, setToday] = useState<string | null>(null);
   const [payload, setPayload] = useState<QuickPayload | null>(null);
   const [stale, setStale] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
   const [stack, setStack] = useState<{ steps: CatchUpStep[]; weekRun: boolean } | null>(null);
   const fillButton = useRef<HTMLElement | null>(null);
@@ -174,6 +181,15 @@ export default function QuickBoard() {
   }, [email]);
 
   const week = useWeek(today, confirmed, fetchRange);
+
+  // Overview links here with ?date=YYYY-MM-DD: open that day once. Read-only, saves nothing.
+  const dateParamDone = useRef(false);
+  useEffect(() => {
+    if (!today || dateParamDone.current) return;
+    dateParamDone.current = true;
+    const d = new URLSearchParams(window.location.search).get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) week.goTo(d);
+  }, [today, week]);
   const yesterday = today ? addDays(today, -1) : null;
   // Current week: the tapped day replaces Yesterday. Past week: the tapped day, else that Monday.
   const other = week.isCurrent ? (week.tapped && week.tapped !== today ? week.tapped : yesterday) : (week.tapped ?? week.shown);
@@ -247,72 +263,149 @@ export default function QuickBoard() {
     if (email) setSheet({ date, key });
   };
 
+  // The Catch up Sheet is phone-only: close it if the window grows to the desktop layout.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => { if (mq.matches) setMenu(false); };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const todayStatus = today && payload?.days[today] ? dayStatus(payload.days[today], payload.ctx) : null;
+  const closed = !!todayStatus && todayStatus.total > 0 && todayStatus.filled >= todayStatus.total;
+  const sync = syncState(queue, persistOk);
+  const dateLine = today ? parseLocalDate(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+
+  const panel = payload && week.shown && (
+    <WeekPanel
+      key={week.shown}
+      isCurrent={week.isCurrent}
+      summary={cu.summary()}
+      choice={cu.choice}
+      chosen={cu.chosen}
+      stepsLeft={cu.stepsFor(cu.choice).length}
+      loaded={cu.loaded}
+      message={cu.message}
+      habitMessage={cu.habitMessage}
+      onSaveChoice={cu.saveChoice}
+      onCatchUp={(kinds) => {
+        setMenu(false);
+        openStack(cu.stepsFor(kinds), true);
+      }}
+      onFillHours={cu.fillHours}
+      onFillHabits={cu.fillHabits}
+      onToday={() => {
+        setMenu(false);
+        week.toToday();
+      }}
+    />
+  );
+
   return (
-    <main className="mx-auto w-full max-w-md space-y-3 pb-8">
-      <WeekStrip
-        days={stripDays}
-        today={today}
-        selected={other}
-        onSelect={selectDay}
-        weekLabel={week.shown ? weekTitle(week.shown, week.isCurrent, today) : ''}
-        canNext={week.canNext}
-        onPrev={week.prev}
-        onNext={week.next}
+    <div className="w-full space-y-4">
+      <PageHeader
+        title="Today"
+        context={dateLine}
+        actions={
+          <>
+            <SyncDot state={sync} />
+            <Button variant="ghost" small className="lg:hidden" onClick={() => setMenu(true)} disabled={!payload}>
+              <ListChecks size={16} aria-hidden="true" />
+              Catch up
+            </Button>
+          </>
+        }
       />
 
       {!persistOk && (
-        <p className="rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--surface-alt)' }} role="status">
-          Saving on this device is off — keep this page open until the dots clear.
+        <p className="rounded-[10px] border px-3 py-2 text-[13px]" style={{ borderColor: 'var(--warn)', color: 'var(--text-1)' }} role="status">
+          Saving on this device is off. Keep this page open until the dots clear.
         </p>
       )}
       {stale && payload && (
-        <p className="text-center text-xs muted" role="status">
+        <p className="text-center text-[13px]" style={{ color: 'var(--text-2)' }} role="status">
           Could not refresh. Showing what is saved on this phone.
         </p>
       )}
 
-      {today && other && (
-        <>
-          {payload ? (
-            <>
-              <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} only={onlyOf(other)} />
-              {week.isCurrent && <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} />}
-            </>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-5">
+        <div className="min-w-0 space-y-4">
+          <section className="card p-4 sm:p-5" aria-label="Today progress">
+            <div className="flex items-center gap-4">
+              <div className="relative shrink-0">
+                {todayStatus ? (
+                  <>
+                    <Ring filled={todayStatus.filled} total={todayStatus.total} size={96} />
+                    <span
+                      aria-hidden="true"
+                      className="num pointer-events-none absolute inset-0 flex items-center justify-center text-[24px] font-semibold"
+                      style={{ color: closed ? 'var(--reward-text)' : 'var(--text-1)' }}
+                    >
+                      {todayStatus.filled}/{todayStatus.total}
+                    </span>
+                  </>
+                ) : (
+                  <Skeleton className="h-24 w-24 !rounded-full" />
+                )}
+              </div>
+              <div className="min-w-0">
+                {closed ? (
+                  <p className="text-[20px] font-semibold" style={{ color: 'var(--reward-text)' }}>Day complete</p>
+                ) : (
+                  <p className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>
+                    {todayStatus ? `${todayStatus.total - todayStatus.filled} to go` : 'Loading'}
+                  </p>
+                )}
+                <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+                  {closed ? 'Everything is in. Nice.' : 'Tap a tile, or fill what is missing.'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <WeekStrip
+                days={stripDays}
+                today={today}
+                selected={other}
+                onSelect={selectDay}
+                weekLabel={week.shown ? weekTitle(week.shown, week.isCurrent, today) : ''}
+                canNext={week.canNext}
+                onPrev={week.prev}
+                onNext={week.next}
+              />
+            </div>
+          </section>
+
+          {today && other ? (
+            payload ? (
+              <>
+                {week.isCurrent && <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} primary />}
+                <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} only={onlyOf(other)} primary={!week.isCurrent} />
+              </>
+            ) : (
+              <>
+                {week.isCurrent && <SkeletonDay label="Today" />}
+                <SkeletonDay label={dayLabel(other, yesterday ?? '')} />
+              </>
+            )
           ) : (
             <>
-              <SkeletonDay label={dayLabel(other, yesterday ?? '')} />
-              {week.isCurrent && <SkeletonDay label="Today" />}
+              <SkeletonDay label="Today" />
+              <SkeletonDay label="Yesterday" />
             </>
           )}
-        </>
-      )}
-      {(!today || !other) && (
-        <>
-          <SkeletonDay label="Yesterday" />
-          <SkeletonDay label="Today" />
-        </>
-      )}
+        </div>
 
-      {payload && week.shown && (
-        <WeekPanel
-          key={week.shown}
-          isCurrent={week.isCurrent}
-          summary={cu.summary()}
-          choice={cu.choice}
-          chosen={cu.chosen}
-          stepsLeft={cu.stepsFor(cu.choice).length}
-          loaded={cu.loaded}
-          message={cu.message}
-          habitMessage={cu.habitMessage}
-          onSaveChoice={cu.saveChoice}
-          onCatchUp={(kinds) => openStack(cu.stepsFor(kinds), true)}
-          onFillHours={cu.fillHours}
-          onFillHabits={cu.fillHabits}
-          onToday={week.toToday}
-        />
-      )}
+        {panel && (
+          <aside className="card hidden space-y-3 p-5 lg:sticky lg:top-6 lg:block">
+            <h2 className="text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>Catch up</h2>
+            {panel}
+          </aside>
+        )}
+      </div>
 
-      {payload && <ReminderToggle initial={payload.reminderEnabled} disabled={!confirmed} />}
+      <Sheet open={menu} onClose={() => setMenu(false)} title="Catch up">
+        {panel}
+      </Sheet>
 
       {stack && payload && (
         <CardStack
@@ -342,19 +435,22 @@ export default function QuickBoard() {
           onClose={() => setSheet(null)}
         />
       )}
-    </main>
+    </div>
   );
 }
 
-function SkeletonDay({ label }: { label: string }) {
+const SYNC: Record<SyncState, { color: string; label: string }> = {
+  saved: { color: 'var(--ok)', label: 'Saved' },
+  saving: { color: 'var(--sync)', label: 'Saving' },
+  failed: { color: 'var(--warn)', label: 'Not saved' },
+};
+
+function SyncDot({ state }: { state: SyncState }) {
+  const s = SYNC[state];
   return (
-    <section className="card p-3" aria-label={label}>
-      <h2 className="text-sm font-semibold">{label}</h2>
-      <div className="mt-3 grid grid-cols-3 gap-2" aria-hidden="true">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="min-h-[4.75rem] rounded-xl" style={{ background: 'var(--surface-alt)' }} />
-        ))}
-      </div>
-    </section>
+    <span className="inline-flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-2)' }} role="status">
+      <span aria-hidden="true" className={`h-2 w-2 rounded-full ${state === 'saving' ? 'sync-pulse' : ''}`} style={{ background: s.color }} />
+      {s.label}
+    </span>
   );
 }

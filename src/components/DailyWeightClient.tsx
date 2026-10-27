@@ -1,15 +1,11 @@
 "use client";
 
 import dynamic from 'next/dynamic';
+import Skeleton from '@/components/ui/Skeleton';
 
 const DailyWeight = dynamic(() => import('@/components/DailyWeight'), {
-    ssr: false,
-    loading: () => (
-        <div className="card p-4 animate-pulse">
-            <div className="h-5 w-28 bg-neutral-200 dark:bg-neutral-800 rounded" />
-            <div className="mt-3 h-20 w-full bg-neutral-200 dark:bg-neutral-800 rounded" />
-        </div>
-    ),
+  ssr: false,
+  loading: () => <Skeleton className="h-11 w-full" />,
 });
 
 export default DailyWeight;

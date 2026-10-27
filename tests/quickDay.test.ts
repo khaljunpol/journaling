@@ -55,14 +55,17 @@ test('no activities and no quests gives total 4', () => {
   );
 });
 
-test('habits need a row (true or false) for every active activity', () => {
-  const some = dayStatus(emptyDay({ logs: [{ activityId: 'a1', completed: true }] }), ctx());
-  assert.equal(item(some, 'habits').filled, false);
-  const all = dayStatus(
-    emptyDay({ logs: [{ activityId: 'a1', completed: true }, { activityId: 'a2', completed: false }] }),
-    ctx(),
+test('habits filled when the day has at least one log row (true or false)', () => {
+  const acts = Array.from({ length: 20 }, (_, i) => ({ id: `x${i}`, name: `X${i}` }));
+  const three = dayStatus(
+    emptyDay({ logs: ['x0', 'x1', 'x2'].map((activityId) => ({ activityId, completed: true })) }),
+    ctx({ activities: acts }),
   );
-  assert.equal(item(all, 'habits').filled, true);
+  assert.equal(item(three, 'habits').filled, true);
+  const falseOnly = dayStatus(emptyDay({ logs: [{ activityId: 'a1', completed: false }] }), ctx());
+  assert.equal(item(falseOnly, 'habits').filled, true);
+  const none = dayStatus(emptyDay(), ctx());
+  assert.equal(item(none, 'habits').filled, false);
 });
 
 test('stopped activity with a row is not required', () => {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CATCHUP_KINDS, toggleKind } from '@/lib/quickWeek';
 import type { ItemKey } from '@/lib/quickDay';
+import Button from '@/components/ui/Button';
 
 const NAMES: Partial<Record<ItemKey, string>> = {
   mood: 'Mood',
@@ -69,39 +70,39 @@ export default function WeekPanel({
   }
 
   return (
-    <section className="card space-y-3 p-3" aria-label="This week">
+    <section className="space-y-3" aria-label="This week">
       {!isCurrent && (
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-semibold">Week summary</p>
-          <p className="text-sm muted">{summary ?? 'Loading the week…'}</p>
+          <p className="text-[14px] font-semibold" style={{ color: 'var(--text-1)' }}>Week summary</p>
+          <p className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{summary ?? 'Loading the week…'}</p>
         </div>
       )}
 
       {!isCurrent && editing === null && loaded && (
         <div className="space-y-1">
           {stepsLeft > 0 ? (
-            <button type="button" onClick={pressCatchUp} className="btn min-h-11 w-full font-semibold">
-              Catch up this week ▶
-            </button>
+            <Button variant="outline" onClick={pressCatchUp} className="w-full font-semibold">
+              Catch up this week
+            </Button>
           ) : (
-            <p className="text-center text-sm muted">Nothing left to catch up here. Nice.</p>
+            <p className="text-center text-[13px]" style={{ color: 'var(--text-2)' }}>Nothing left to catch up here. Nice.</p>
           )}
           {chosen && (
-            <button type="button" onClick={() => openEditor('change')} className="min-h-11 w-full text-xs underline muted">
+            <Button variant="ghost" small onClick={() => openEditor('change')} className="w-full">
               Change what to catch up
-            </button>
+            </Button>
           )}
         </div>
       )}
 
       {!isCurrent && editing !== null && (
         <fieldset className="space-y-1">
-          <legend className="text-sm">Which parts do you want to fill in?</legend>
+          <legend className="text-[14px]" style={{ color: 'var(--text-1)' }}>Which parts do you want to fill in?</legend>
           {CATCHUP_KINDS.map((k) => (
-            <label key={k} className="flex min-h-11 items-center gap-3 text-sm">
+            <label key={k} className="flex min-h-11 items-center gap-3 text-[14px]" style={{ color: 'var(--text-1)' }}>
               <input
                 type="checkbox"
-                className="h-5 w-5"
+                className="h-5 w-5 accent-[var(--accent-fill)]"
                 checked={draft.includes(k)}
                 onChange={() => setDraft((d) => toggleKind(d, k))}
               />
@@ -109,37 +110,37 @@ export default function WeekPanel({
             </label>
           ))}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={confirm} disabled={draft.length === 0} className="btn min-h-11 flex-1 font-semibold">
+            <Button variant="outline" onClick={confirm} disabled={draft.length === 0} className="flex-1 font-semibold">
               {editing === 'start' ? 'Start' : 'Save'}
-            </button>
-            <button type="button" onClick={() => setEditing(null)} className="btn-outline min-h-11 flex-1">
+            </Button>
+            <Button variant="outline" onClick={() => setEditing(null)} className="flex-1">
               Cancel
-            </button>
+            </Button>
           </div>
         </fieldset>
       )}
 
-      <button type="button" onClick={onFillHours} className="btn-outline min-h-11 w-full" disabled={!loaded}>
+      <Button variant="outline" onClick={onFillHours} className="w-full" disabled={!loaded}>
         Fill empty hours from templates
-      </button>
+      </Button>
       {message && (
-        <p className="text-center text-xs muted" role="status">
+        <p className="text-center text-[13px]" style={{ color: 'var(--text-2)' }} role="status">
           {message}
         </p>
       )}
-      <button type="button" onClick={onFillHabits} className="btn-outline min-h-11 w-full" disabled={!loaded}>
+      <Button variant="outline" onClick={onFillHabits} className="w-full" disabled={!loaded}>
         Fill empty habits from usual lists
-      </button>
+      </Button>
       {habitMessage && (
-        <p className="text-center text-xs muted" role="status">
+        <p className="text-center text-[13px]" style={{ color: 'var(--text-2)' }} role="status">
           {habitMessage}
         </p>
       )}
 
       {!isCurrent && (
-        <button type="button" onClick={onToday} className="min-h-11 w-full text-sm underline">
+        <Button variant="ghost" onClick={onToday} className="w-full">
           Back to today
-        </button>
+        </Button>
       )}
     </section>
   );

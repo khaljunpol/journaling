@@ -43,5 +43,12 @@ export function useWeek(
     next: () => move(1),
     toToday: () => setAway(null),
     pick: (date: string) => shown && setPicked({ week: shown, date }),
+    /** Jump to a day in any past or current week (used by ?date= links from Overview). */
+    goTo: (date: string) => {
+      if (!today || date > today) return;
+      const monday = mondayOf(date);
+      setAway(monday === mondayOf(today) ? null : monday);
+      setPicked({ week: monday, date });
+    },
   };
 }

@@ -1,608 +1,214 @@
 "use client";
 
-import SummaryPromptPanel from '@/components/SummaryPromptPanel';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import Donut from '@/components/overview/Donut';
+import { timeBalance } from '@/components/overview/derive';
+import { Card, CardHeader } from '@/components/ui/Card';
+import Skeleton from '@/components/ui/Skeleton';
 import { getCache, setCache } from '@/lib/cache';
-import { pad, localTodayISO, parseLocalDate, localISO } from '@/lib/date';
+import { AXIS_TICK, CHART_SERIES, TOOLTIP_STYLE } from '@/lib/chartTheme';
+import { localISO, localTodayISO, pad } from '@/lib/date';
+import { timeSplit } from '@/lib/overview';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-
-type CatItem = TimeCategory;
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+const iconBtn = 'flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-2)] disabled:opacity-40';
+
+/** Time charts for Trends: last 7 days, weekly balance and the category split. The day editor lives on Today. */
 export default function TimeTrackerView() {
-  const [date] = useState<string>(localTodayISO());
-  const [hours, setHours] = useState<Array<number | null>>(Array.from({ length: 24 }, () => null));
-  const [yearLogs, setYearLogs] = useState<Array<TimeEntry>>([]);
-  const [selectedCategory, setSelectedCategory] = useState<number>(1);
-  const [isPainting, setIsPainting] = useState<boolean>(false);
+  const [yearLogs, setYearLogs] = useState<TimeEntry[] | null>(() => getCache<TimeEntry[]>(`time:year:${new Date().getFullYear()}`)?.data ?? null);
+  const [cats, setCats] = useState<TimeCategory[]>(() => getCache<TimeCategory[]>('time:cats')?.data ?? []);
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [viewYear, setViewYear] = useState<number>(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(new Date().getMonth());
-  const [draft, setDraft] = useState<Record<string, Record<number, number>>>({});
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [cats, setCats] = useState<CatItem[]>([]);
-  const ctrlRef = useRef<AbortController | null>(null);
 
-  const unsavedCount = useMemo(
-    () => Object.values(draft).reduce((sum, hm) => sum + Object.keys(hm).length, 0),
-    [draft],
-  );
-
-  async function refresh() {
-    try {
-      if (ctrlRef.current) ctrlRef.current.abort();
-      ctrlRef.current = new AbortController();
-
-      const dayKey = `time:day:${date}`;
-      const cachedDay = getCache<Array<TimeEntry>>(dayKey);
-      if (cachedDay) {
-        const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
-        for (const it of Array.isArray(cachedDay.data) ? cachedDay.data : []) {
-          if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null;
-        }
-        setHours(arr);
-      }
-      const res = await fetch(`/api/time?date=${date}`, { signal: ctrlRef.current.signal });
-      const items: Array<TimeEntry> = (res.ok ? await res.json() : []) || [];
-      const arr = Array.from({ length: 24 }, () => null) as Array<number | null>;
-      for (const it of items) { if (it && typeof it.hour === 'number') arr[it.hour] = it.category ?? null; }
-      setHours(arr);
-      try { setCache(dayKey, items); } catch {}
-
-      const yFrom = `${viewYear}-01-01`;
-      const yTo = `${viewYear}-12-31`;
-      const yearKey = `time:year:${viewYear}`;
-      const cachedYear = getCache<Array<TimeEntry>>(yearKey);
-      if (cachedYear) setYearLogs(Array.isArray(cachedYear.data) ? cachedYear.data : []);
-      const yRes = await fetch(`/api/time?from=${yFrom}&to=${yTo}`);
-      const yItems: Array<TimeEntry> = yRes.ok ? await yRes.json() : [];
-      setYearLogs(Array.isArray(yItems) ? yItems : []);
-      try { setCache(yearKey, Array.isArray(yItems) ? yItems : []); } catch {}
-
-      const catsKey = 'time:cats';
-      const cachedCats = getCache<CatItem[]>(catsKey);
-      if (cachedCats) setCats(Array.isArray(cachedCats.data) ? cachedCats.data : []);
-      const cRes = await fetch('/api/time/categories');
-      const list: CatItem[] = cRes.ok ? await cRes.json() : [];
-      setCats(Array.isArray(list) ? list : []);
-      try { setCache(catsKey, Array.isArray(list) ? list : []); } catch {}
-    } catch {
-      setHours(Array.from({ length: 24 }, () => null));
-    }
-  }
-
-  useEffect(() => { refresh(); }, [viewYear]);
-
-  async function saveBatchForDate(iso: string, items: Array<{ h: number; category: number }>) {
-    if (!items.length) return false;
-    const res = await fetch('/api/time', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: iso, entries: items.map((it) => ({ hour: it.h, category: it.category })) }),
-    });
-    if (res.ok && iso === localTodayISO()) {
-      const next = hours.slice();
-      for (const it of items) next[it.h] = it.category;
-      setHours(next);
-    }
-    return res.ok;
-  }
-
-  async function flushDraft() {
-    const byIso: Record<string, Array<{ h: number; category: number }>> = {};
-    for (const iso of Object.keys(draft)) {
-      const arr: Array<{ h: number; category: number }> = [];
-      for (const k of Object.keys(draft[iso] || {})) {
-        const h = parseInt(k, 10);
-        const category = draft[iso][h];
-        if (Number.isFinite(h) && Number.isFinite(category)) arr.push({ h, category });
-      }
-      if (arr.length) byIso[iso] = arr.sort((a, b) => a.h - b.h);
-    }
-    if (!Object.keys(byIso).length) return;
-    setIsSaving(true);
-    try {
-      for (const iso of Object.keys(byIso)) {
-        // eslint-disable-next-line no-await-in-loop
-        await saveBatchForDate(iso, byIso[iso]);
-      }
-      setDraft({});
-      await refresh();
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function onPointerUp() { setIsPainting(false); }
   useEffect(() => {
-    window.addEventListener('pointerup', onPointerUp);
-    return () => window.removeEventListener('pointerup', onPointerUp);
-  }, []);
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const yRes = await fetch(`/api/time?from=${viewYear}-01-01&to=${viewYear}-12-31`, { signal: ctrl.signal });
+        const yItems: TimeEntry[] = yRes.ok ? await yRes.json() : [];
+        if (!ctrl.signal.aborted) {
+          setYearLogs(Array.isArray(yItems) ? yItems : []);
+          try { setCache(`time:year:${viewYear}`, Array.isArray(yItems) ? yItems : []); } catch { /* cache is optional */ }
+        }
+        const cRes = await fetch('/api/time/categories', { signal: ctrl.signal });
+        const list: TimeCategory[] = cRes.ok ? await cRes.json() : [];
+        if (!ctrl.signal.aborted) {
+          setCats(Array.isArray(list) ? list : []);
+          try { setCache('time:cats', Array.isArray(list) ? list : []); } catch { /* cache is optional */ }
+        }
+      } catch {
+        if (!ctrl.signal.aborted) setYearLogs((prev) => prev ?? []);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [viewYear]);
 
   const catsSorted = useMemo(() => [...cats].sort((a, b) => a.order - b.order), [cats]);
+  const logs = useMemo(() => yearLogs ?? [], [yearLogs]);
 
-  function getColor(idNum: number) {
-    return cats.find((c) => parseInt(c.id, 10) === idNum)?.color || 'transparent';
-  }
-  function getName(idNum: number) {
-    return cats.find((c) => parseInt(c.id, 10) === idNum)?.name || String(idNum);
-  }
-
-  function buildDist(items: Array<{ date: string; hour: number; category: number }>) {
-    const counts: Record<number, number> = {};
-    for (const it of items) { if (typeof it.category === 'number') counts[it.category] = (counts[it.category] || 0) + 1; }
-    return catsSorted.map((c) => {
-      const idNum = parseInt(c.id, 10);
-      return { name: c.name, value: counts[idNum] || 0, index: idNum };
+  // Last 7 days, stacked by category.
+  const week = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const iso = localISO(d);
+      const row: Record<string, number | string> = { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), total: 0 };
+      for (const l of logs) {
+        if (l.date !== iso) continue;
+        const k = `c${l.category}`;
+        row[k] = ((row[k] as number) || 0) + 1;
+        row.total = (row.total as number) + 1;
+      }
+      return row;
     });
+  }, [logs]);
+  const weekTotal = week.reduce((a, d) => a + (d.total as number), 0);
+
+  const balance = useMemo(() => {
+    const from = week[0].iso as string;
+    return timeBalance(logs.filter((l) => l.date >= from && l.date <= localTodayISO()), cats);
+  }, [logs, cats, week]);
+  const balanceTotal = balance.productive + balance.rest + balance.sleep;
+
+  const range = useMemo(() => {
+    if (viewMode === 'year') return { from: `${viewYear}-01-01`, to: `${viewYear}-12-31` };
+    const last = new Date(viewYear, viewMonth + 1, 0).getDate();
+    return { from: `${viewYear}-${pad(viewMonth + 1)}-01`, to: `${viewYear}-${pad(viewMonth + 1)}-${pad(last)}` };
+  }, [viewMode, viewYear, viewMonth]);
+  const split = useMemo(() => timeSplit(logs, cats, range.from, range.to, 6), [logs, cats, range]);
+
+  function step(dir: 1 | -1) {
+    if (viewMode === 'year') { setViewYear((v) => v + dir); return; }
+    const m = viewMonth + dir;
+    if (m < 0) { setViewYear((v) => v - 1); setViewMonth(11); }
+    else if (m > 11) { setViewYear((v) => v + 1); setViewMonth(0); }
+    else setViewMonth(m);
   }
+  const periodLabel = viewMode === 'month' ? `${MONTH_NAMES[viewMonth]} ${viewYear}` : String(viewYear);
+  const loading = yearLogs === null;
 
-  const yearDist = useMemo(() => buildDist(yearLogs), [yearLogs, catsSorted]);
-  const monthDist = useMemo(() => buildDist(
-    yearLogs.filter((it) => {
-      const d = parseLocalDate(it.date);
-      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    })
-  ), [yearLogs, viewYear, viewMonth, catsSorted]);
-
-  const weeklyHours = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    return { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), hours: yearLogs.filter(l => l.date === iso).length };
-  }), [yearLogs]);
-
-  const weeklyTotal = weeklyHours.reduce((a, d) => a + d.hours, 0);
-
-  const currentDist = viewMode === 'month' ? monthDist : yearDist;
-  const distTotal = currentDist.reduce((s, d) => s + d.value, 0);
-  const distFiltered = [...currentDist].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
-
-  function prevPeriod() {
-    if (viewMode === 'month') {
-      if (viewMonth === 0) { setViewYear(v => v - 1); setViewMonth(11); }
-      else setViewMonth(m => m - 1);
-    } else {
-      setViewYear(v => v - 1);
-    }
-  }
-  function nextPeriod() {
-    if (viewMode === 'month') {
-      if (viewMonth === 11) { setViewYear(v => v + 1); setViewMonth(0); }
-      else setViewMonth(m => m + 1);
-    } else {
-      setViewYear(v => v + 1);
-    }
-  }
-
-  const periodLabel = viewMode === 'month'
-    ? `${MONTH_NAMES[viewMonth]} ${viewYear}`
-    : String(viewYear);
-  const promptAnchorISO = useMemo(() => {
-    const today = new Date();
-    const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const day = today.getFullYear() === viewYear && today.getMonth() === viewMonth
-      ? Math.min(today.getDate(), lastDay)
-      : 1;
-    return localISO(new Date(viewYear, viewMonth, day));
-  }, [viewMonth, viewYear]);
+  const balanceParts = [
+    { label: 'Productive', hours: balance.productive, color: CHART_SERIES[0] },
+    { label: 'Rest', hours: balance.rest, color: CHART_SERIES[1] },
+    { label: 'Sleep', hours: balance.sleep, color: CHART_SERIES[2] },
+  ];
 
   return (
-    <section className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
+      <Card>
+        <CardHeader title="Last 7 days" meta={<span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{weekTotal}h logged</span>} />
+        {loading ? (
+          <Skeleton className="h-36 w-full" />
+        ) : (
+          <div className="h-36 w-full" role="img" aria-label={`Stacked bars of hours per category for the last 7 days, ${weekTotal} hours in total`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={week} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  content={({ payload, label }) => {
+                    if (!payload?.length) return null;
+                    const row = payload[0].payload as Record<string, number | string>;
+                    return (
+                      <div className="rounded-[10px] border px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', borderColor: 'var(--border-strong)', color: 'var(--text-1)' }}>
+                        <div className="num font-medium">{label} · {row.total as number}h</div>
+                        {catsSorted.filter((c) => row[`c${c.id}`]).map((c) => (
+                          <div key={c.id} className="flex items-center gap-2">
+                            <span aria-hidden="true" className="h-2 w-2 rounded-[2px]" style={{ background: c.color }} />
+                            <span style={{ color: 'var(--text-2)' }}>{c.name}</span>
+                            <span className="num ml-auto">{row[`c${c.id}`] as number}h</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+                {catsSorted.map((c) => (
+                  <Bar key={c.id} dataKey={`c${c.id}`} stackId="t" fill={c.color} isAnimationActive={false} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
 
-      {/* ── LAST 7 DAYS ──────────────────────────────────────── */}
-      <div
-        className="rounded-2xl p-5 space-y-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-base font-semibold">Last 7 days</h2>
-          <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>
-            {weeklyTotal}h
-          </span>
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>logged</span>
-        </div>
-        <div className="h-32 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyHours} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: 'var(--surface-alt)' }}
-                content={({ payload, label }) => {
-                  if (!payload?.length) return null;
-                  return (
-                    <div
-                      className="rounded-xl px-3 py-1.5 text-xs shadow-lg"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-                    >
-                      <span className="font-medium">{label}</span> · {payload[0]?.value}h
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="hours" fill="var(--accent)" opacity={0.85} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* ── DISTRIBUTION ─────────────────────────────────────── */}
-      <div
-        className="rounded-2xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        {/* Header + period nav */}
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Distribution</h2>
-            {/* Month / Year pill toggle */}
+      <Card>
+        <CardHeader title="Weekly balance" meta={<span className="text-[13px]" style={{ color: 'var(--text-2)' }}>Productive, rest, sleep</span>} />
+        {loading ? (
+          <Skeleton className="h-14 w-full" />
+        ) : balanceTotal === 0 ? (
+          <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No hours in these groups this week.</p>
+        ) : (
+          <>
             <div
-              className="flex rounded-full p-0.5 text-xs"
-              style={{ background: 'var(--surface-alt)' }}
+              className="flex h-3 w-full overflow-hidden rounded-full"
+              style={{ background: 'var(--surface-3)' }}
+              role="img"
+              aria-label={balanceParts.map((p) => `${p.label} ${p.hours} hours`).join(', ')}
             >
+              {balanceParts.map((p) => (
+                <div key={p.label} style={{ width: `${(p.hours / balanceTotal) * 100}%`, background: p.color }} />
+              ))}
+            </div>
+            <ul className="mt-3 grid grid-cols-3 gap-2">
+              {balanceParts.map((p) => (
+                <li key={p.label} className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[12px] uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>
+                    <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
+                    <span className="truncate">{p.label}</span>
+                  </div>
+                  <div className="num text-[20px]" style={{ color: 'var(--text-1)' }}>
+                    {p.hours}h <span className="text-[13px]" style={{ color: 'var(--text-2)' }}>{Math.round((p.hours / balanceTotal) * 100)}%</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Time split"
+          actions={
+            <div className="flex rounded-full p-0.5" role="group" aria-label="Period" style={{ background: 'var(--surface-2)' }}>
               {(['month', 'year'] as const).map((mode) => (
                 <button
                   key={mode}
+                  type="button"
+                  aria-pressed={viewMode === mode}
                   onClick={() => setViewMode(mode)}
-                  className="rounded-full px-3 py-1.5 font-medium transition-all capitalize"
-                  style={viewMode === mode
-                    ? { background: 'var(--accent)', color: 'var(--accent-foreground)' }
-                    : { color: 'var(--muted-foreground)' }
-                  }
+                  className="min-h-11 rounded-full px-4 text-[13px] font-medium capitalize"
+                  style={viewMode === mode ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : { color: 'var(--text-2)' }}
                 >
                   {mode}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              aria-label="Previous period"
-              onClick={prevPeriod}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-            >←</button>
-            <span className="text-sm min-w-[110px] text-center font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              {periodLabel}
-            </span>
-            <button
-              aria-label="Next period"
-              onClick={nextPeriod}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-            >→</button>
-          </div>
-        </div>
-
-        {cats.length === 0 ? (
-          <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            Loading…
-          </div>
-        ) : distFiltered.length === 0 ? (
-          <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            No data logged for this {viewMode}.
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            {/* Donut chart */}
-            <div className="relative shrink-0" style={{ width: 180, height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={distFiltered}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={58}
-                    outerRadius={82}
-                    strokeWidth={0}
-                    paddingAngle={2}
-                  >
-                    {distFiltered.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getColor(entry.index)} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    wrapperStyle={{ zIndex: 50 }}
-                    content={({ payload }) => {
-                      if (!payload?.length) return null;
-                      const d = payload[0];
-                      return (
-                        <div
-                          className="rounded-xl px-3 py-1.5 text-xs shadow-lg"
-                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-                        >
-                          <span className="font-medium">{d.name}</span> · {d.value}h
-                        </div>
-                      );
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center label */}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-semibold">{distTotal}</span>
-                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>hours</span>
-              </div>
-            </div>
-
-            {/* Distribution list with mini bars */}
-            <ul className="flex-1 w-full space-y-2">
-              {distFiltered.map((d) => {
-                const pct = distTotal > 0 ? Math.round((d.value / distTotal) * 100) : 0;
-                const color = getColor(d.index);
-                return (
-                  <li key={d.index}>
-                    <div className="flex items-center justify-between mb-1 text-sm">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full shrink-0"
-                          style={{ background: color }}
-                        />
-                        {d.name}
-                      </span>
-                      <span className="tabular-nums text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                        {d.value}h · {pct}%
-                      </span>
-                    </div>
-                    <div className="h-1 w-full rounded-full overflow-hidden" style={{ background: 'var(--surface-alt)' }}>
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, background: color }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* ── TIME TRACKER GRID ────────────────────────────────── */}
-      <div
-        className="rounded-2xl p-3 sm:p-5 space-y-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold">Time tracker</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-              {viewMode === 'month' ? periodLabel : `${periodLabel} · all months`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              aria-label="Previous period"
-              onClick={prevPeriod}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-            >←</button>
-            <button
-              aria-label="Next period"
-              onClick={nextPeriod}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-            >→</button>
-          </div>
-        </div>
-
-        {/* Category picker */}
-        <div>
-          <p className="text-xs mb-2 font-medium" style={{ color: 'var(--muted-foreground)' }}>Painting with</p>
-          <div className="flex flex-wrap gap-2">
-            {catsSorted.map((c) => {
-              const i = parseInt(c.id, 10);
-              const isSelected = selectedCategory === i;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedCategory(i)}
-                  title={c.name}
-                  className="flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-all active:scale-95"
-                  style={isSelected
-                    ? { background: `${c.color}22`, color: c.color, boxShadow: `0 0 0 1.5px ${c.color}` }
-                    : { background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }
-                  }
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ background: c.color }}
-                  />
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Grid */}
-        <DaysRows
-          viewYear={viewYear}
-          viewMode={viewMode}
-          viewMonth={viewMonth}
-          yearLogs={yearLogs}
-          draft={draft}
-          getColor={getColor}
-          paint={{
-            isPainting,
-            start: () => setIsPainting(true),
-            paint: (iso: string, h: number) => {
-              setDraft((prev) => {
-                const next = { ...prev };
-                const hm = { ...(next[iso] || {}) };
-                hm[h] = selectedCategory;
-                next[iso] = hm;
-                return next;
-              });
-            },
-          }}
+          }
         />
-
-        {/* Save */}
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            {unsavedCount > 0 ? `${unsavedCount} unsaved cell${unsavedCount > 1 ? 's' : ''}` : ''}
-          </span>
-          <button
-            className="rounded-xl px-4 py-2 text-sm font-medium transition-all disabled:opacity-40"
-            style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
-            onClick={flushDraft}
-            disabled={isSaving || unsavedCount === 0}
-          >
-            {isSaving ? '…' : 'Save'}
+        <div className="mb-3 flex items-center justify-center gap-2">
+          <button type="button" aria-label="Previous period" onClick={() => step(-1)} className={iconBtn} style={{ color: 'var(--text-1)' }}>
+            <ChevronLeft size={20} aria-hidden="true" />
+          </button>
+          <span className="num min-w-36 text-center text-[14px] font-medium" style={{ color: 'var(--text-2)' }}>{periodLabel}</span>
+          <button type="button" aria-label="Next period" onClick={() => step(1)} className={iconBtn} style={{ color: 'var(--text-1)' }}>
+            <ChevronRight size={20} aria-hidden="true" />
           </button>
         </div>
-      </div>
-
-      <SummaryPromptPanel
-        title="Time AI prompt"
-        endpoint="/api/prompts/time"
-        anchorISO={promptAnchorISO}
-      />
-    </section>
-  );
-}
-
-function HourHeader() {
-  return (
-    <div className="flex items-center gap-1 mb-1">
-      <div className="w-7 shrink-0" />
-      <div className="flex-1 grid grid-cols-24">
-        {Array.from({ length: 24 }, (_, i) => {
-          const h = (i + 1) % 24; // display order: 1,2,...,23,0
-          return (
-            <div
-              key={i}
-              className="text-center select-none overflow-hidden"
-              style={{ fontSize: 8, color: 'var(--muted-foreground)', lineHeight: 1 }}
-            >
-              {i % 6 === 0 ? (h === 0 ? '24' : h) : ''}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function DaysRows({
-  viewYear, viewMode, viewMonth, yearLogs, draft, getColor, paint,
-}: {
-  viewYear: number;
-  viewMode: 'month' | 'year';
-  viewMonth: number;
-  yearLogs: Array<{ date: string; hour: number; category: number }>;
-  draft: Record<string, Record<number, number>>;
-  getColor: (id: number) => string;
-  paint: { isPainting: boolean; start: () => void; paint: (iso: string, h: number) => void };
-}) {
-  const byDate = new Map<string, Array<{ hour: number; category: number }>>();
-  for (const it of yearLogs) {
-    const arr = byDate.get(it.date) || [];
-    arr.push({ hour: it.hour, category: it.category });
-    byDate.set(it.date, arr);
-  }
-
-  const rows: Array<ReactNode> = [];
-  const months = viewMode === 'year' ? Array.from({ length: 12 }, (_, i) => i) : [viewMonth];
-  const todayISO = localTodayISO();
-
-  for (const m of months) {
-    if (viewMode === 'year') {
-      rows.push(
-        <div key={`divider-${viewYear}-${m}`} className="flex items-center gap-1 mt-4 mb-1">
-          <span className="text-[10px] font-medium w-7 shrink-0" style={{ color: 'var(--muted-foreground)' }}>
-            {MONTH_SHORT[m]}
-          </span>
-          <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
-        </div>
-      );
-    }
-
-    const days = new Date(viewYear, m + 1, 0).getDate();
-    for (let di = 1; di <= days; di++) {
-      const iso = `${viewYear}-${pad(m + 1)}-${pad(di)}`;
-      const isToday = iso === todayISO;
-
-      rows.push(
-        <div
-          key={iso}
-          className="flex items-center gap-1"
-          style={isToday ? { borderRadius: 6, outline: `1.5px solid var(--accent)`, outlineOffset: 1 } : undefined}
-        >
-          {/* Date label — compact */}
-          <div
-            className="flex h-6 w-7 shrink-0 flex-col items-center justify-center text-center sm:h-7"
-            style={{ color: isToday ? 'var(--accent)' : 'var(--muted-foreground)' }}
-          >
-            <span
-              className="font-semibold uppercase opacity-55"
-              style={{ fontSize: 6, lineHeight: '6px' }}
-            >
-              {WEEKDAY_INITIALS[new Date(viewYear, m, di).getDay()]}
-            </span>
-            <span
-              className="mt-px font-semibold"
-              style={{ fontSize: 11, lineHeight: '11px' }}
-            >
-              {di}
-            </span>
-          </div>
-
-          {/* 24 hour cells — starting at 1 AM, midnight last */}
-          <div className="flex-1 grid grid-cols-24">
-            {Array.from({ length: 24 }, (_, i) => {
-              const h = (i + 1) % 24; // 1,2,...,23,0
-              const logs = byDate.get(iso) || [];
-              const hit = logs.find((x) => x.hour === h);
-              const draftCat = (draft[iso] && typeof draft[iso][h] === 'number') ? draft[iso][h] : null;
-              const bgCategory = draftCat !== null ? draftCat : (hit ? hit.category : null);
-              const filled = bgCategory !== null && bgCategory !== undefined;
-              const cellBg = filled ? getColor(bgCategory as number) : undefined;
-              const label = h === 0 ? '24' : h;
-
-              return (
-                <div
-                  key={h}
-                  className="h-6 sm:h-7 select-none cursor-crosshair flex items-center justify-center overflow-hidden"
-                  style={{
-                    background: filled ? cellBg : 'var(--border)',
-                    fontSize: 7,
-                    color: filled ? 'rgba(0,0,0,0.45)' : 'var(--muted-foreground)',
-                    lineHeight: 1,
-                    borderRight: i < 23 ? '0.5px solid var(--surface)' : undefined,
-                  }}
-                  onPointerDown={(e) => { e.preventDefault(); paint.start(); paint.paint(iso, h); }}
-                  onPointerEnter={() => { if (paint.isPainting) paint.paint(iso, h); }}
-                  title={`${iso} ${pad(h)}:00`}
-                >
-                  {label}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-  }
-
-  return (
-    <div className="space-y-px">
-      <HourHeader />
-      {rows}
+        {loading || cats.length === 0 ? (
+          <Skeleton className="h-28 w-full" />
+        ) : split.total === 0 ? (
+          <p className="py-6 text-center text-[14px]" style={{ color: 'var(--text-2)' }}>No hours logged for this {viewMode}.</p>
+        ) : (
+          <Donut slices={split.slices} total={split.total} />
+        )}
+      </Card>
     </div>
   );
 }

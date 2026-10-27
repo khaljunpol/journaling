@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 import { range, TABS } from '@/lib/sheetLayout';
+import { localISO } from '@/lib/date';
 import { withLock } from '@/lib/keyedLock';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
@@ -549,11 +550,12 @@ function computeExpectedDaysInWeek(start?: Date, end?: Date) {
 
 function computeCurrentStreakDays(completedDates: Set<string>) {
   let streak = 0;
-  const toISO = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10);
-  let cursor = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
-  while (completedDates.has(toISO(cursor))) {
+  // Local calendar dates, so the streak ends on the local today.
+  const cursor = new Date();
+  cursor.setHours(12, 0, 0, 0);
+  while (completedDates.has(localISO(cursor))) {
     streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
 }

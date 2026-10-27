@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Chip from '@/components/ui/Chip';
 import type { Sidequest, SidequestLog } from '@/lib/types';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -56,7 +57,7 @@ function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
             style={{ width: `${pct}%`, background: 'var(--accent)' }}
           />
         </div>
-        <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+        <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--text-2)' }}>
           {progress}/{milestones.length}
         </span>
       </div>
@@ -70,12 +71,12 @@ function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
               key={i}
               onClick={() => !done && checkMilestone(i)}
               disabled={done}
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              className="flex items-center gap-1.5 min-h-11 rounded-full px-4 text-xs font-medium transition-all"
               style={done
                 ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.9 }
                 : isNext
-                  ? { background: 'var(--surface-alt)', color: 'var(--text)', boxShadow: '0 0 0 1.5px var(--accent)' }
-                  : { background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }
+                  ? { background: 'var(--surface-2)', color: 'var(--text)', boxShadow: '0 0 0 1.5px var(--accent)' }
+                  : { background: 'var(--surface-2)', color: 'var(--text-2)' }
               }
             >
               {done ? '✓' : isNext ? '○' : '·'}
@@ -123,7 +124,7 @@ function PBCard({ sq, logs, onLog }: {
     <div className="space-y-3">
       <div className="flex items-end gap-4">
         <div>
-          <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Best</div>
+          <div className="text-xs mb-0.5" style={{ color: 'var(--text-2)' }}>Best</div>
           <div className="text-2xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
             {best != null ? fmtVal(best, sq.unit) : '—'}
           </div>
@@ -143,8 +144,8 @@ function PBCard({ sq, logs, onLog }: {
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
-          style={{ background: showForm ? 'var(--accent)' : 'var(--surface-alt)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
+          className="min-h-11 rounded-full px-4 text-xs font-medium transition-all"
+          style={{ background: showForm ? 'var(--accent)' : 'var(--surface-2)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
         >
           + Log
         </button>
@@ -155,7 +156,7 @@ function PBCard({ sq, logs, onLog }: {
           <input
             type="number"
             step="any"
-            className="input flex-1 py-1.5 text-sm"
+            className="input flex-1 min-h-11 text-sm"
             placeholder={sq.unit ? `Value (${sq.unit})` : 'Value'}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
@@ -164,12 +165,12 @@ function PBCard({ sq, logs, onLog }: {
           />
           <input
             type="text"
-            className="input w-24 py-1.5 text-sm"
+            className="input w-24 min-h-11 text-sm"
             placeholder="Note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <button className="btn py-1.5 text-sm" onClick={submit} disabled={saving || !inputVal}>
+          <button className="btn min-h-11 text-sm" onClick={submit} disabled={saving || !inputVal}>
             {saving ? '…' : 'Save'}
           </button>
         </div>
@@ -179,9 +180,9 @@ function PBCard({ sq, logs, onLog }: {
         <div className="space-y-0.5">
           {[...entries].reverse().slice(0, 5).map((e) => (
             <div key={e.id} className="flex items-center justify-between text-xs py-0.5">
-              <span style={{ color: 'var(--muted-foreground)' }}>{fmtDate(e.date)}</span>
+              <span style={{ color: 'var(--text-2)' }}>{fmtDate(e.date)}</span>
               <span className="font-medium tabular-nums">{fmtVal(e.value!, sq.unit)}</span>
-              {e.note && <span style={{ color: 'var(--muted-foreground)' }}>{e.note}</span>}
+              {e.note && <span style={{ color: 'var(--text-2)' }}>{e.note}</span>}
             </div>
           ))}
         </div>
@@ -240,18 +241,18 @@ function TimedCard({ sq, logs, onLog }: {
     <div className="space-y-3">
       <div className="flex items-end gap-4">
         <div>
-          <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Best</div>
+          <div className="text-xs mb-0.5" style={{ color: 'var(--text-2)' }}>Best</div>
           <div className="text-2xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
             {best ? fmtVal(best.value!, 'sec') : '—'}
           </div>
           {best?.value2 && (
-            <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{best.value2} km</div>
+            <div className="text-xs" style={{ color: 'var(--text-2)' }}>{best.value2} km</div>
           )}
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="ml-auto rounded-full px-3 py-1.5 text-xs font-medium transition-all"
-          style={{ background: showForm ? 'var(--accent)' : 'var(--surface-alt)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
+          className="ml-auto min-h-11 rounded-full px-4 text-xs font-medium transition-all"
+          style={{ background: showForm ? 'var(--accent)' : 'var(--surface-2)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
         >
           + Log run
         </button>
@@ -261,7 +262,7 @@ function TimedCard({ sq, logs, onLog }: {
         <div className="flex gap-2 flex-wrap">
           <input
             type="text"
-            className="input w-24 py-1.5 text-sm"
+            className="input w-24 min-h-11 text-sm"
             placeholder="Time (m:ss)"
             value={inputTime}
             onChange={(e) => setInputTime(e.target.value)}
@@ -271,19 +272,19 @@ function TimedCard({ sq, logs, onLog }: {
           <input
             type="number"
             step="0.01"
-            className="input w-20 py-1.5 text-sm"
+            className="input w-20 min-h-11 text-sm"
             placeholder="km"
             value={inputDist}
             onChange={(e) => setInputDist(e.target.value)}
           />
           <input
             type="text"
-            className="input flex-1 py-1.5 text-sm"
+            className="input flex-1 min-h-11 text-sm"
             placeholder="Note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <button className="btn py-1.5 text-sm" onClick={submit} disabled={saving || !inputTime}>
+          <button className="btn min-h-11 text-sm" onClick={submit} disabled={saving || !inputTime}>
             {saving ? '…' : 'Save'}
           </button>
         </div>
@@ -293,10 +294,10 @@ function TimedCard({ sq, logs, onLog }: {
         <div className="space-y-0.5">
           {[...entries].reverse().slice(0, 5).map((e) => (
             <div key={e.id} className="flex items-center gap-3 text-xs py-0.5">
-              <span style={{ color: 'var(--muted-foreground)' }}>{fmtDate(e.date)}</span>
+              <span style={{ color: 'var(--text-2)' }}>{fmtDate(e.date)}</span>
               <span className="font-medium tabular-nums">{fmtVal(e.value!, 'sec')}</span>
-              {e.value2 && <span style={{ color: 'var(--muted-foreground)' }}>{e.value2} km</span>}
-              {e.note && <span style={{ color: 'var(--muted-foreground)' }}>{e.note}</span>}
+              {e.value2 && <span style={{ color: 'var(--text-2)' }}>{e.value2} km</span>}
+              {e.note && <span style={{ color: 'var(--text-2)' }}>{e.note}</span>}
             </div>
           ))}
         </div>
@@ -328,13 +329,13 @@ function CountCard({ sq, logs, onLog }: {
         <div className="flex-1">
           <div className="flex items-baseline gap-1.5 mb-1.5">
             <span className="text-2xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>{total}</span>
-            {target > 0 && <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>/ {target} {sq.unit || 'times'}</span>}
+            {target > 0 && <span className="text-sm" style={{ color: 'var(--text-2)' }}>/ {target} {sq.unit || 'times'}</span>}
           </div>
           {target > 0 && (
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${pct}%`, background: pct >= 100 ? '#22c55e' : 'var(--accent)' }}
+                style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--ok)' : 'var(--accent)' }}
               />
             </div>
           )}
@@ -342,7 +343,7 @@ function CountCard({ sq, logs, onLog }: {
         <button
           onClick={logOne}
           disabled={saving}
-          className="rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95"
+          className="min-h-11 min-w-11 rounded-full px-4 text-sm font-medium transition-all active:scale-95"
           style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
         >
           {saving ? '…' : '+ 1'}
@@ -371,10 +372,10 @@ function OneoffCard({ sq, onLog, onToggleComplete }: {
       <button
         onClick={toggle}
         disabled={saving}
-        className="h-8 w-8 rounded-full flex items-center justify-center text-lg transition-all active:scale-90 shrink-0"
+        className="h-11 w-11 rounded-full flex items-center justify-center text-lg transition-all active:scale-90 shrink-0"
         style={done
           ? { background: 'var(--accent)', color: 'var(--accent-foreground)' }
-          : { background: 'var(--surface-alt)', border: '2px solid var(--border)', color: 'transparent' }
+          : { background: 'var(--surface-2)', border: '2px solid var(--border)', color: 'transparent' }
         }
       >
         {done ? '✓' : ''}
@@ -382,7 +383,7 @@ function OneoffCard({ sq, onLog, onToggleComplete }: {
       <div>
         {done
           ? <span className="text-sm" style={{ color: 'var(--accent)' }}>Done · {fmtDate(sq.completedAt!)}</span>
-          : <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Not done yet — tap to complete</span>
+          : <span className="text-sm" style={{ color: 'var(--text-2)' }}>Not done yet — tap to complete</span>
         }
       </div>
     </div>
@@ -400,11 +401,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  milestone: '#8b5cf6',
-  pb: '#f59e0b',
-  timed: '#3b82f6',
-  count: '#10b981',
-  oneoff: '#6b7280',
+  milestone: 'var(--accent)',
+  pb: 'var(--reward-text)',
+  timed: 'var(--sync)',
+  count: 'var(--ok)',
+  oneoff: 'var(--text-3)',
 };
 
 // ── Main Card ─────────────────────────────────────────────────
@@ -441,10 +442,7 @@ export default function SidequestCard({
   }
 
   return (
-    <div
-      className="card p-4 sm:p-5 space-y-3 relative"
-      style={{ borderLeft: `3px solid ${color}` }}
-    >
+    <div className="card relative space-y-3 p-4 sm:p-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -452,15 +450,10 @@ export default function SidequestCard({
             <h3 className={`font-semibold ${compact ? 'text-sm' : 'text-base'} truncate`}>
               {sq.title}
             </h3>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium shrink-0"
-              style={{ background: `${color}18`, color }}
-            >
-              {TYPE_LABEL[sq.type]}
-            </span>
+            <Chip color={color}>{TYPE_LABEL[sq.type]}</Chip>
           </div>
           {sq.description && !compact && (
-            <p className="text-sm mt-0.5 line-clamp-1" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="text-sm mt-0.5 line-clamp-1" style={{ color: 'var(--text-2)' }}>
               {sq.description}
             </p>
           )}
@@ -470,19 +463,21 @@ export default function SidequestCard({
           <div className="relative shrink-0">
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="h-7 w-7 flex items-center justify-center rounded-md text-sm"
-              style={{ color: 'var(--muted-foreground)' }}
+              aria-label={`Options for ${sq.title}`}
+              aria-expanded={menuOpen}
+              className="-mr-2 -mt-2 flex h-11 w-11 items-center justify-center rounded-[10px] text-sm hover:bg-[var(--surface-2)]"
+              style={{ color: 'var(--text-2)' }}
             >
               ···
             </button>
             {menuOpen && (
               <div
-                className="absolute right-0 mt-1 w-36 card p-1 z-20 shadow-lg space-y-0.5"
-                style={{ borderColor: 'var(--border)' }}
+                className="card absolute right-0 z-20 w-36 space-y-0.5 p-1"
+                style={{ borderColor: 'var(--border)', boxShadow: 'var(--shadow-pop)' }}
               >
                 {onEdit && (
                   <button
-                    className="w-full text-left rounded px-2 py-1.5 text-sm transition hover:bg-[var(--surface-alt)]"
+                    className="min-h-11 w-full rounded-[10px] px-3 text-left text-[14px] hover:bg-[var(--surface-2)]"
                     onClick={() => { setMenuOpen(false); onEdit(); }}
                     style={{ color: 'var(--text)' }}
                   >
@@ -490,9 +485,9 @@ export default function SidequestCard({
                   </button>
                 )}
                 <button
-                  className="w-full text-left rounded px-2 py-1.5 text-sm transition hover:bg-[var(--surface-alt)]"
+                  className="min-h-11 w-full rounded-[10px] px-3 text-left text-[14px] hover:bg-[var(--surface-2)]"
                   onClick={() => { setMenuOpen(false); onDelete(); }}
-                  style={{ color: 'var(--muted-foreground)' }}
+                  style={{ color: 'var(--text-2)' }}
                 >
                   Delete
                 </button>
@@ -541,7 +536,7 @@ function CompactBody({ sq, logs, color }: { sq: Sidequest; logs: SidequestLog[];
         <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
         </div>
-        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{done}/{milestones.length} checkpoints</div>
+        <div className="text-xs" style={{ color: 'var(--text-2)' }}>{done}/{milestones.length} checkpoints</div>
       </div>
     );
   }
@@ -559,13 +554,13 @@ function CompactBody({ sq, logs, color }: { sq: Sidequest; logs: SidequestLog[];
     const pct = target > 0 ? Math.min(100, Math.round((total / target) * 100)) : 0;
     return (
       <div className="space-y-1">
-        <div className="text-sm font-medium tabular-nums">{total}{target > 0 ? ` / ${target}` : ''} <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>{sq.unit || 'times'}</span></div>
+        <div className="text-sm font-medium tabular-nums">{total}{target > 0 ? ` / ${target}` : ''} <span className="text-xs font-normal" style={{ color: 'var(--text-2)' }}>{sq.unit || 'times'}</span></div>
         {target > 0 && <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} /></div>}
       </div>
     );
   }
   return (
-    <div className="text-sm" style={{ color: sq.completedAt ? color : 'var(--muted-foreground)' }}>
+    <div className="text-sm" style={{ color: sq.completedAt ? color : 'var(--text-2)' }}>
       {sq.completedAt ? `Done · ${fmtDate(sq.completedAt)}` : 'Not done yet'}
     </div>
   );

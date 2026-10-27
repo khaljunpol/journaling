@@ -8,6 +8,14 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { vScaleToNumber, BOULDER_GRADES, FRENCH_GRADES, frenchToIndex, normalizeGrade } from '@/lib/climbing';
 import { COLORS } from '@/lib/colors';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import Donut from '@/components/overview/Donut';
+import Button from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
+import Chip from '@/components/ui/Chip';
+import Skeleton from '@/components/ui/Skeleton';
+import { CHART_SERIES, TOOLTIP_STYLE, seriesColor } from '@/lib/chartTheme';
 
 const GoalOverlay = dynamic(() => import('./GoalOverlay'), { ssr: false });
 const YearSummaryChart = dynamic(() => import('./YearSummaryChart'), { ssr: false });
@@ -25,6 +33,7 @@ export default function ClimbingView() {
   const yearCacheRef = useRef<Map<string, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>(new Map());
   const [isYearSwitchPending, startYearSwitchTransition] = useTransition();
   const [updatedMs, setUpdatedMs] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   async function refresh() {
     try {
@@ -61,12 +70,13 @@ export default function ClimbingView() {
       setLogs(Array.isArray(dayItems) ? dayItems : []);
       setGoals(Array.isArray(gs) ? gs : []);
       setRangeLogs(Array.isArray(rangeItems) ? rangeItems : []);
+      setLoaded(true);
       try { setCache(dayKey, Array.isArray(dayItems) ? dayItems : []); } catch { }
       try { setCache(goalsKey, Array.isArray(gs) ? gs : []); } catch { }
       try { setCache(rangeKey, Array.isArray(rangeItems) ? rangeItems : []); } catch { }
       setUpdatedMs((prev) => Math.max(prev ?? 0, Date.now()));
       // Fetch logs per goal year for accurate progress (use simple client cache to avoid repeat calls)
-      const gYears = Array.isArray(gs) ? Array.from(new Set(gs.map((g) => g.year))) : [];
+      const gYears = Array.from(new Set([...(Array.isArray(gs) ? gs.map((g) => g.year) : []), new Date().getFullYear()]));
       if (gYears.length) {
         const YEAR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes freshness window
         const entries = await Promise.all(gYears.map(async (yr: number) => {
@@ -539,270 +549,246 @@ export default function ClimbingView() {
 
   const todayFlashes = useMemo(() => logs.filter(l => l.attempts === 0).length, [logs]);
 
+  // ── KPI numbers ──
+  const sessions30 = useMemo(() => new Set(logs30.map((l) => l.date.slice(0, 10))).size, [logs30]);
+
+  const topGrade30 = useMemo(() => {
+    const v = logs30.filter((l) => l.type === 'boulder').map((l) => vScaleToNumber(l.grade)).filter((n): n is number => n != null);
+    const r = logs30.filter((l) => l.type === 'rope').map((l) => frenchToIndex(l.grade)).filter((n): n is number => n != null);
+    const parts: string[] = [];
+    if (v.length) parts.push(`V${Math.max(...v)}`);
+    if (r.length) parts.push(FRENCH_GRADES[Math.max(...r)]);
+    return parts.length ? parts.join(' · ') : '–';
+  }, [logs30]);
+
+  // Goal pace: what all of this year's open goals need per week, using the same maths as each goal card.
+  const goalPace = useMemo(() => {
+    const open = goalsProgress.filter((g) => g.year === thisYear);
+    if (open.length === 0) return { value: '–', sub: 'no goals this year' };
+    const weeksLeft = Math.max(1, Math.ceil(daysUntilYearEnd(thisYear) / 7));
+    const need = open.reduce((s, g) => s + Math.max(0, g.target - g.done) / weeksLeft, 0);
+    if (need === 0) return { value: '0', sub: 'all goals done' };
+    return { value: String(Math.round(need * 10) / 10), sub: 'sends a week needed' };
+  }, [goalsProgress, thisYear]);
+
+  const weeksThisYear = useMemo(() => {
+    const ylogs = yearLogsByYear[thisYear] || [];
+    return new Set(ylogs.map((l) => toLocalISO(weekStartLocal(parseLocalDate(l.date))))).size;
+  }, [yearLogsByYear, thisYear]);
+
+  const gradeSlices = useMemo(() => {
+    const top = byGrade30.slice(0, 5);
+    const rest = byGrade30.slice(5);
+    const slices = top.map((r, i) => ({ id: `${r.type}|${r.grade}`, name: `${r.grade.toUpperCase()} ${r.type}`, color: seriesColor(i), hours: r.count }));
+    const meta: Record<string, string> = {};
+    for (const r of top) meta[`${r.type}|${r.grade}`] = `${r.flashRate}% flash · ${r.avgAttempts} att`;
+    const restCount = rest.reduce((a, r) => a + r.count, 0);
+    if (restCount > 0) slices.push({ id: 'other', name: 'Other', color: seriesColor(5), hours: restCount });
+    return { slices, meta, total: slices.reduce((a, s) => a + s.hours, 0) };
+  }, [byGrade30]);
+
+  const loading = !loaded;
+  const iconBtn = 'flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-2)] disabled:opacity-40';
+
   return (
-    <section className="space-y-5">
-
-      {/* Page header with log button */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Climbing</h2>
-        <a href="/climbing-log" className="btn text-sm px-4 py-2">+ Log Climb</a>
+    <section className="space-y-3 sm:space-y-4">
+      {/* ── KPIs ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+        <Kpi label="Sessions, 30d" value={String(sessions30)} sub="days on the wall" loading={loading} />
+        <Kpi label="Sends, 30d" value={String(stats.total)} sub={`${weekly.avg} sessions a week`} loading={loading} />
+        <Kpi label="Top grade, 30d" value={topGrade30} loading={loading} />
+        <Kpi label="Goal pace" value={goalPace.value} unit={goalPace.value === '–' ? undefined : '/wk'} sub={goalPace.sub} loading={loading} />
       </div>
-
-      {/* ── TODAY'S SESSION ────────────────────────────────────── */}
-      {logs.length > 0 && (
-        <div className="card overflow-hidden">
-          {/* Hero header with accent background */}
-          <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}>
-            <div>
-              <div className="text-sm font-medium opacity-80">Today&apos;s Session</div>
-              <div className="text-lg font-bold">
-                {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-              </div>
+      <Card className="!p-3 sm:!p-4">
+        <dl className="grid grid-cols-4 gap-2 text-center">
+          {[
+            { label: 'Flash rate', value: `${stats.flashRate}%` },
+            { label: 'Avg attempts', value: String(stats.avgAttempts) },
+            { label: `Weeks in ${thisYear}`, value: String(weeksThisYear) },
+            { label: 'Weekly avg', value: String(weekly.avg) },
+          ].map((s) => (
+            <div key={s.label} className="min-w-0">
+              <dd className="num text-[20px] font-medium leading-tight" style={{ color: 'var(--text-1)' }}>{loading ? '–' : s.value}</dd>
+              <dt className="text-[12px] leading-tight" style={{ color: 'var(--text-3)' }}>{s.label}</dt>
             </div>
-            <a href="/climbing-log" className="text-xs font-medium px-3 py-1.5 rounded-full active:scale-95" style={{ background: 'rgba(255,255,255,0.2)', color: 'inherit' }}>
-              Full log →
-            </a>
-          </div>
+          ))}
+        </dl>
+      </Card>
 
-          {/* Quick stats strip */}
-          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
-            {[
-              { label: 'Sends', value: logs.length },
-              { label: 'Sessions', value: sessionsToday },
-              { label: 'Flashes', value: todayFlashes },
-              { label: 'Best', value: todayBestGrade, accent: true },
-            ].map(({ label, value, accent }) => (
-              <div key={label} className="py-3 text-center" style={{ borderColor: 'var(--border)' }}>
-                <div className="text-xl font-bold" style={accent ? { color: 'var(--accent)' } : undefined}>{value}</div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Log entries */}
-          <div className="px-4 py-3 space-y-1.5">
-            {logs.map(l => (
-              <div key={l.id} className="flex items-center gap-3 text-sm py-1.5">
-                <span className="font-bold text-base" style={{ color: 'var(--accent)', minWidth: 32 }}>{l.grade}</span>
-                <span style={{ color: 'var(--muted-foreground)' }}>
-                  {l.type} · S{l.session} · {l.attempts === 0 ? 'flash ⚡' : `${l.attempts} att`}
+      {/* ── Today's session ────────────────────────────────── */}
+      {logs.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Today's session"
+            meta={<span className="text-[13px]" style={{ color: 'var(--text-2)' }}>{new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}</span>}
+            actions={<Link href="/climbing?tab=log" className="flex min-h-11 items-center px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }}>Full log</Link>}
+          />
+          <p className="num mb-2 text-[13px]" style={{ color: 'var(--text-2)' }}>
+            {logs.length} sends · {sessionsToday} session{sessionsToday === 1 ? '' : 's'} · {todayFlashes} flash{todayFlashes === 1 ? '' : 'es'} · best {todayBestGrade}
+          </p>
+          <ul className="space-y-1">
+            {logs.map((l) => (
+              <li key={l.id} className="flex items-center gap-3 text-[14px]">
+                <span className="num min-w-10 font-semibold" style={{ color: 'var(--accent)' }}>{l.grade}</span>
+                <span style={{ color: 'var(--text-2)' }}>
+                  {l.type} · S{l.session} · {l.attempts === 0 ? 'flash' : `${l.attempts} att`}
                   {l.location ? ` · ${l.location}` : ''}
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
 
-      {/* ── GOALS ─────────────────────────────────────────────── */}
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Goals</h2>
-          <div className="flex items-center gap-1">
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-              disabled={!goalsYears.length || goalsYear === goalsYears[0] || isYearSwitchPending}
-              onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx > 0) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx - 1])); }}
-            >←</button>
-            <span className="text-sm font-medium min-w-[48px] text-center">{goalsYear}</span>
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors active:scale-95"
-              style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}
-              disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length - 1] || isYearSwitchPending}
-              onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx >= 0 && idx < goalsYears.length - 1) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx + 1])); }}
-            >→</button>
-          </div>
-        </div>
-
-        {goalsForSelectedYear.length ? (
-          <div className="space-y-2">
-            {goalsForSelectedYear.map((g) => (
+      {/* ── Goals ──────────────────────────────────────────── */}
+      <Card>
+        <CardHeader
+          title="Goals"
+          actions={
+            <div className="flex items-center">
               <button
-                key={g.id}
-                className="w-full text-left rounded-xl p-3 transition-colors active:scale-[0.99]"
-                style={{ background: 'var(--surface-alt)' }}
-                onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}
+                type="button"
+                aria-label="Previous year"
+                className={iconBtn}
+                style={{ color: 'var(--text-1)' }}
+                disabled={!goalsYears.length || goalsYear === goalsYears[0] || isYearSwitchPending}
+                onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx > 0) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx - 1])); }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: `var(--accent)22`, color: 'var(--accent)' }}>
-                      {g.type}
-                    </span>
-                    <span className="font-semibold">{g.grade}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{g.done}<span className="font-normal" style={{ color: 'var(--muted-foreground)' }}>/{g.target}</span></span>
-                    <span className="text-xs">{goalStatusText(g.year, g.done, g.target)}</span>
-                  </div>
-                </div>
-                <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                  <div className="h-2 rounded-full transition-all" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? COLORS.success : 'var(--accent)' }} />
-                </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{g.pct}% complete</span>
-                  <GoalPaceLine year={g.year} done={g.done} target={g.target} />
-                </div>
+                <ChevronLeft size={20} aria-hidden="true" />
               </button>
-            ))}
-          </div>
-        ) : <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No goals for {goalsYear}</p>}
-      </div>
-
-      {/* ── YEAR ACTIVITY ─────────────────────────────────────── */}
-      <div className="card p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">{goalsYear} Activity</h2>
-          {yearSummary.total ? (
-            <div className="flex items-center gap-2">
-              <button className="btn-outline px-3 py-1.5 text-xs active:scale-95" onClick={generateYearSummaryOverlay}>Share</button>
-              {goalsForSelectedYear.length ? (
-                <button className="btn-outline px-3 py-1.5 text-xs active:scale-95" onClick={generateGoalsYearOverlay}>Goals</button>
-              ) : null}
+              <span className="num min-w-12 text-center text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>{goalsYear}</span>
+              <button
+                type="button"
+                aria-label="Next year"
+                className={iconBtn}
+                style={{ color: 'var(--text-1)' }}
+                disabled={!goalsYears.length || goalsYear === goalsYears[goalsYears.length - 1] || isYearSwitchPending}
+                onClick={() => { const idx = goalsYears.indexOf(goalsYear); if (idx >= 0 && idx < goalsYears.length - 1) startYearSwitchTransition(() => setGoalsYear(goalsYears[idx + 1])); }}
+              >
+                <ChevronRight size={20} aria-hidden="true" />
+              </button>
             </div>
-          ) : null}
-        </div>
+          }
+        />
+        {goalsForSelectedYear.length ? (
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {goalsForSelectedYear.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  className="block min-h-11 w-full rounded-[10px] p-3 text-left hover:brightness-110"
+                  style={{ background: 'var(--surface-2)' }}
+                  onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}
+                  aria-label={`${g.grade} ${g.type} goal, ${g.done} of ${g.target}. Open details`}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Chip tone="accent">{g.type}</Chip>
+                      <span className="num text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>{g.grade}</span>
+                    </div>
+                    <span className="num text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>
+                      {g.done}<span className="text-[13px] font-normal" style={{ color: 'var(--text-2)' }}>/{g.target}</span>
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--surface-3)' }}>
+                    <div className="h-2 rounded-full" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? 'var(--ok)' : 'var(--accent)' }} />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-[13px]" style={{ color: 'var(--text-2)' }}>
+                    <span className="num">{g.pct}% · {goalStatusText(g.year, g.done, g.target)}</span>
+                    <GoalPaceLine year={g.year} done={g.done} target={g.target} />
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No goals for {goalsYear}. Add one in the Log tab.</p>
+        )}
+      </Card>
 
+      {/* ── Year activity ──────────────────────────────────── */}
+      <Card>
+        <CardHeader
+          title={`${goalsYear} activity`}
+          actions={
+            yearSummary.total ? (
+              <>
+                <Button small variant="outline" onClick={generateYearSummaryOverlay}>Share</Button>
+                {goalsForSelectedYear.length ? <Button small variant="outline" onClick={generateGoalsYearOverlay}>Goals</Button> : null}
+              </>
+            ) : null
+          }
+        />
         {yearSummary.total ? (
           <>
-            {/* Weekly sends chart — green = above avg, gray = below */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Weekly sends</span>
-                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: COLORS.success }} />above avg
-                  <span className="inline-block w-2 h-2 rounded-full ml-2 mr-1" style={{ background: 'var(--border)' }} />below
-                </span>
-              </div>
-              <YearSummaryChart series={yearSummary.series} weeklyAvg={yearSummary.weeklyAvg} goalsYear={goalsYear} />
+            <div className="mb-1 flex items-center justify-between text-[13px]" style={{ color: 'var(--text-2)' }}>
+              <span>Weekly sends</span>
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: 'var(--accent)' }} />above avg</span>
+                <span className="flex items-center gap-1"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: 'var(--border-strong)' }} />below</span>
+              </span>
             </div>
-
-            {/* Stat chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <YearSummaryChart series={yearSummary.series} weeklyAvg={yearSummary.weeklyAvg} goalsYear={goalsYear} />
+            <dl className="mt-3 grid grid-cols-4 gap-2">
               {[
-                { label: 'Total sends', value: String(yearSummary.total) },
-                { label: 'Flash rate', value: `${yearSummary.flashRate}%` },
-                { label: 'Days climbed', value: String(yearSummary.days) },
-                { label: 'Active weeks', value: String(yearSummary.weeks) },
-                { label: 'Weekly avg', value: String(yearSummary.weeklyAvg) },
+                { label: 'Sends', value: String(yearSummary.total) },
+                { label: 'Days', value: String(yearSummary.days) },
                 { label: 'Best week', value: String(yearSummary.bestWeek) },
-                { label: 'Best boulder', value: yearSummary.bestBoulder || '—', accent: true },
-                { label: 'Best rope', value: yearSummary.bestRope || '—', accent: true },
-              ].map(({ label, value, accent }) => (
-                <div key={label} className="rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-alt)' }}>
-                  <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>{label}</div>
-                  <div className="text-lg font-bold mt-0.5" style={accent ? { color: 'var(--accent)' } : undefined}>{value}</div>
+                { label: 'Best', value: [yearSummary.bestBoulder, yearSummary.bestRope].filter(Boolean).join(' · ') || '–' },
+              ].map((s) => (
+                <div key={s.label} className="min-w-0 rounded-[10px] px-2 py-2 text-center" style={{ background: 'var(--surface-2)' }}>
+                  <dd className="num truncate text-[16px] font-medium" style={{ color: 'var(--text-1)' }}>{s.value}</dd>
+                  <dt className="text-[12px]" style={{ color: 'var(--text-3)' }}>{s.label}</dt>
                 </div>
               ))}
-            </div>
+            </dl>
           </>
         ) : (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No climbing data for {goalsYear}.</p>
+          <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No climbing data for {goalsYear}.</p>
         )}
-      </div>
+      </Card>
 
-      {/* ── 30-DAY TRENDS ─────────────────────────────────────── */}
-      <div className="card p-4 space-y-4">
-        <h2 className="text-base font-semibold">Last 30 Days</h2>
-
-        {/* Headline stats */}
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <span className="text-3xl font-bold">{stats.total}</span>
-          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>sends</span>
-          {stats.flashRate > 0 && (
-            <span className="text-sm font-medium px-2 py-0.5 rounded-full" style={{ background: `${COLORS.success}22`, color: COLORS.success }}>
-              {stats.flashRate}% flash
-            </span>
-          )}
-          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>avg {stats.avgAttempts} attempts</span>
-        </div>
-
-        {/* Trend indicators */}
-        <div className="flex flex-wrap gap-2">
+      {/* ── Last 30 days ───────────────────────────────────── */}
+      <Card>
+        <CardHeader title="Last 30 days" meta={<span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{stats.total} sends</span>} />
+        <div className="mb-3 flex flex-wrap gap-2">
           {[
             { label: 'Boulder', value: stats.vTrend, suffix: ' grades' },
             { label: 'Rope', value: stats.ropeTrend, suffix: ' grades' },
             { label: 'Attempts', value: -stats.attemptsTrend, suffix: '' },
-          ].map(({ label, value, suffix }) => {
-            const positive = value > 0;
-            const neutral = value === 0;
-            return (
-              <span
-                key={label}
-                className="text-xs font-medium px-2.5 py-1 rounded-full"
-                style={{
-                  background: neutral ? 'var(--surface-alt)' : positive ? `${COLORS.success}18` : `${COLORS.danger}18`,
-                  color: neutral ? 'var(--muted-foreground)' : positive ? COLORS.success : COLORS.danger,
-                }}
-              >
-                {label}: {value > 0 ? '+' : ''}{value}{suffix} {positive ? '↑' : neutral ? '—' : '↓'}
-              </span>
-            );
-          })}
+          ].map(({ label, value, suffix }) => (
+            <Chip key={label} tone={value > 0 ? 'accent' : 'neutral'}>
+              {label} {value > 0 ? '+' : ''}{value}{suffix}
+            </Chip>
+          ))}
         </div>
+        <div className="mb-1 flex items-center justify-between text-[13px]" style={{ color: 'var(--text-2)' }}>
+          <span>Sessions a week, 12 weeks</span>
+          <span className="num">active {weekly.activeWeeks}/{weekly.series.length}</span>
+        </div>
+        <div className="h-24 w-full" role="img" aria-label={`Line chart of weekly sends over 12 weeks, average ${weekly.avg}`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={weekly.series} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+              <XAxis dataKey="date" tick={false} axisLine={false} tickLine={false} />
+              <YAxis hide domain={[0, 'auto']} />
+              <Tooltip
+                {...TOOLTIP_STYLE}
+                labelFormatter={(l) => `Week of ${l}`}
+                formatter={(v) => [`${v} sends`, '']}
+              />
+              <ReferenceLine y={weekly.avg} stroke="var(--border-strong)" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="count" stroke={CHART_SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
 
-        {/* Weekly sessions mini chart */}
-        <div className="pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Weekly Sessions (12w)</span>
-            <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              <span>Avg <strong style={{ color: 'var(--accent)' }}>{weekly.avg}</strong>/wk</span>
-              <span>Active <strong style={{ color: 'var(--accent)' }}>{weekly.activeWeeks}</strong>/{weekly.series.length}w</span>
-            </div>
-          </div>
-          <div className="h-20 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weekly.series} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                <XAxis dataKey="date" tick={false} axisLine={false} />
-                <YAxis hide domain={[0, 'auto']} />
-                <Tooltip
-                  cursor={{ stroke: 'var(--border)' }}
-                  content={({ payload, label }) => {
-                    if (!payload?.length) return null;
-                    return (
-                      <div className="rounded-xl px-3 py-1.5 text-xs shadow-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}>
-                        <span className="font-medium">Week of {label}</span> · {payload[0]?.value} sends
-                      </div>
-                    );
-                  }}
-                />
-                <ReferenceLine y={weekly.avg} stroke="var(--border)" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="count" stroke={COLORS.success} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* ── BY GRADE ──────────────────────────────────────────── */}
-      {byGrade30.length > 0 && (
-        <div className="card p-4 space-y-3">
-          <h2 className="text-base font-semibold">Grade Breakdown (30d)</h2>
-          <div className="space-y-2">
-            {byGrade30.map((r) => {
-              const maxCount = byGrade30[0]?.count || 1;
-              const barPct = Math.round((r.count / maxCount) * 100);
-              return (
-                <div key={`${r.type}|${r.grade}`} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold" style={{ color: 'var(--accent)' }}>{r.grade}</span>
-                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{r.type}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      <span><strong style={{ color: 'var(--text)' }}>{r.count}</strong> sends</span>
-                      <span>{r.flashRate}% flash</span>
-                      <span>{r.avgAttempts} avg att</span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'var(--surface-alt)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, background: 'var(--accent)' }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* ── Grade breakdown ────────────────────────────────── */}
+      {gradeSlices.total > 0 && (
+        <Card>
+          <CardHeader title="Grades, 30 days" />
+          <Donut slices={gradeSlices.slices} total={gradeSlices.total} centreLabel="sends" unit="" meta={gradeSlices.meta} />
+        </Card>
       )}
 
       {selectedGoal && (
@@ -825,6 +811,23 @@ export default function ClimbingView() {
   );
 }
 
+function Kpi({ label, value, unit, sub, loading }: { label: string; value: string; unit?: string; sub?: string; loading: boolean }) {
+  return (
+    <Card className="flex min-h-[104px] flex-col gap-1">
+      <div className="text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>{label}</div>
+      {loading ? (
+        <Skeleton className="h-8 w-16" />
+      ) : (
+        <div className="num text-[28px] font-medium leading-none" style={{ color: 'var(--text-1)' }}>
+          {value}
+          {unit && <span className="ml-1 text-[13px]" style={{ color: 'var(--text-2)' }}>{unit}</span>}
+        </div>
+      )}
+      {sub && !loading && <div className="mt-auto text-[13px]" style={{ color: 'var(--text-2)' }}>{sub}</div>}
+    </Card>
+  );
+}
+
 function daysUntilYearEnd(year: number) {
   const now = new Date();
   const end = new Date(year, 11, 31);
@@ -837,18 +840,13 @@ function GoalPaceLine({ year, done, target }: { year: number; done: number; targ
   const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
   const remaining = Math.max(0, target - done);
   const perWeek = Math.round((remaining / weeksLeft) * 10) / 10;
-  if (done >= target) return <span className="text-xs" style={{ color: COLORS.success }}>Complete!</span>;
-  return <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{perWeek}/wk needed</span>;
+  if (done >= target) return <span className="text-[13px]" style={{ color: 'var(--ok)' }}>Complete</span>;
+  return <span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{perWeek}/wk needed</span>;
 }
-
-// All Logs component moved to Climbing Log page
 
 function goalStatusText(year: number, done: number, target: number) {
-  const nowYear = new Date().getFullYear();
-  const ended = nowYear > year;
-  if (done >= target) return '✅ Succeeded';
-  if (ended) return '❌ Failed';
-  return '⏳ In progress';
+  const ended = new Date().getFullYear() > year;
+  if (done >= target) return 'Succeeded';
+  if (ended) return 'Ended';
+  return 'In progress';
 }
-
-// GoalOverlay moved to components/GoalOverlay.tsx and loaded dynamically

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import SlotPainter from '@/components/quick/SlotPainter';
 import { applyTemplate } from '@/lib/quickDay';
 import type { TimeCategory } from '@/lib/types';
+import Button from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import Chip from '@/components/ui/Chip';
 
 type Slots = Array<number | null>;
 type Kind = 'weekday' | 'weekend';
@@ -76,39 +79,39 @@ export default function HourTemplatesEditor() {
     const dirty = !sameSlots(slots, saved[kind]);
     const status = dirty ? 'Unsaved changes' : complete ? 'Saved' : '';
     return (
-      <div className="card p-4 sm:p-5 space-y-3" key={kind}>
+      <Card className="space-y-3" key={kind}>
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
-          <span className="font-medium text-sm">{title}</span>
-          <span className="text-xs rounded-full px-2 py-0.5 tabular-nums" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>{filled}/24</span>
+          <span className="text-[14px] font-medium">{title}</span>
+          <Chip>{filled}/24</Chip>
           {status && (
-            <span className="text-xs ml-auto" style={{ color: dirty ? 'var(--accent)' : 'var(--muted-foreground)' }}>{status}</span>
+            <span className="text-xs ml-auto" style={{ color: dirty ? 'var(--accent)' : 'var(--text-2)' }}>{status}</span>
           )}
         </div>
         {loadFailed ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Couldn&apos;t load your categories just now. Reload to try again.</p>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Couldn&apos;t load your categories just now. Reload to try again.</p>
         ) : cats.length === 0 && loaded ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Add a category above to start.</p>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Add a category above to start.</p>
         ) : (
           <SlotPainter value={slots} categories={cats} onChange={(next) => setDraft((p) => ({ ...p, [kind]: next }))} />
         )}
         <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-xs" role="status" style={{ color: 'var(--muted-foreground)' }}>
+          <span className="text-xs" role="status" style={{ color: 'var(--text-2)' }}>
             {message?.kind === kind ? message.text : !complete ? `${24 - filled} hours left to fill` : ''}
           </span>
-          <button className="btn h-11 shrink-0" onClick={() => save(kind)} disabled={loadFailed || !complete || !dirty || saving !== null}>
+          <Button className="shrink-0" onClick={() => save(kind)} disabled={loadFailed || !complete || !dirty || saving !== null}>
             {saving === kind ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">Normal days</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+        <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Normal days</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-2)' }}>
           Pick a category, then tap or drag across the hours. Quick check-in starts from these.
         </p>
       </div>

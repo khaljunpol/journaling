@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from 'react';
+import Button from '@/components/ui/Button';
+import { fieldBase } from '@/components/ui/Input';
 
 type Period = 'week' | 'month';
 
@@ -54,62 +56,38 @@ export default function SummaryPromptPanel({ title, endpoint, anchorISO }: Props
   }
 
   return (
-    <section className="card p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">{title}</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-            Generate a prompt to paste into your AI chat.
-          </p>
-        </div>
-        {label && (
-          <span className="hidden sm:inline text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            {label}
-          </span>
-        )}
-      </div>
+    <section className="space-y-3 pb-2" aria-label={title}>
+      <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+        Make a prompt to paste into your AI chat.
+        {label && <span className="num"> {label}</span>}
+      </p>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn-outline px-3 py-1.5 text-xs"
-          disabled={loading}
-          onClick={() => generate('week')}
-        >
+        <Button variant="outline" disabled={loading} onClick={() => generate('week')} aria-pressed={prompt !== '' && period === 'week'}>
           Weekly prompt
-        </button>
-        <button
-          type="button"
-          className="btn-outline px-3 py-1.5 text-xs"
-          disabled={loading}
-          onClick={() => generate('month')}
-        >
+        </Button>
+        <Button variant="outline" disabled={loading} onClick={() => generate('month')} aria-pressed={prompt !== '' && period === 'month'}>
           Monthly prompt
-        </button>
-        <button
-          type="button"
-          className="btn px-3 py-1.5 text-xs"
-          disabled={!prompt || loading}
-          onClick={copyPrompt}
-        >
+        </Button>
+        <Button disabled={!prompt || loading} onClick={copyPrompt}>
           {copied ? 'Copied' : 'Copy'}
-        </button>
+        </Button>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && <div role="alert" className="text-[14px]" style={{ color: 'var(--warn)' }}>{error}</div>}
 
       {prompt && (
         <textarea
-          className="input min-h-56 w-full resize-y text-xs leading-relaxed"
+          className={`${fieldBase} min-h-56 w-full resize-y px-3 py-2 text-[13px] leading-relaxed`}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           spellCheck={false}
-          aria-label={`${title} prompt preview`}
+          aria-label={`${title} preview`}
         />
       )}
 
       {!prompt && !error && (
-        <div className="rounded-xl border px-3 py-3 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
+        <div className="rounded-[10px] px-3 py-3 text-[13px]" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
           Choose weekly or monthly to preview a copyable prompt.
           <span className="sr-only">{fetchUrl}</span>
         </div>

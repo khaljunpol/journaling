@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TimeCategory as Category } from '@/lib/types';
+import Button from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import Chip from '@/components/ui/Chip';
+import Input, { Label } from '@/components/ui/Input';
 
 export default function TimeCategoriesEditor() {
   const [items, setItems] = useState<Category[]>([]);
@@ -80,45 +84,52 @@ export default function TimeCategoriesEditor() {
 
   const sorted = [...items].sort((a, b) => a.order - b.order);
 
+  const bar = <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />;
+
   return (
-    <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Time Categories</h2>
-        <a href="/time" className="text-xs underline underline-offset-2" style={{ color: 'var(--muted-foreground)' }}>Back to Time</a>
-      </div>
+    <section className="space-y-4">
+      <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Time categories</h2>
 
       {/* Add */}
-      <div className="card p-4 sm:p-5 space-y-3">
+      <Card className="space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
-          <span className="font-medium text-sm">Add Category</span>
+          {bar}
+          <span className="text-[14px] font-medium">Add category</span>
         </div>
-        <div className="flex gap-2 items-end">
-          <div className="flex-1 space-y-1">
-            <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Name</label>
-            <input className="input w-full" placeholder="Category name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveNew()} />
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Label htmlFor="new-category">Name</Label>
+            <Input id="new-category" placeholder="Category name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveNew()} />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Color</label>
-            <input className="input h-10 w-12 p-1 cursor-pointer" type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+          <div>
+            <Label htmlFor="new-category-color">Color</Label>
+            <input
+              id="new-category-color"
+              className="h-11 w-12 cursor-pointer rounded-[10px] border p-1"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
           </div>
-          <button className="btn h-10" onClick={saveNew} disabled={isSaving || !name.trim()}>Add</button>
+          <Button onClick={saveNew} disabled={isSaving || !name.trim()}>Add</Button>
         </div>
-      </div>
+      </Card>
 
       {/* List */}
-      <div className="card p-4 sm:p-5 space-y-3">
+      <Card className="space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-5 w-1 rounded-full" style={{ background: 'var(--accent)' }} />
-          <span className="font-medium text-sm">Categories</span>
-          <span className="text-xs rounded-full px-2 py-0.5" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>{sorted.length}</span>
+          {bar}
+          <span className="text-[14px] font-medium">Categories</span>
+          <Chip>{sorted.length}</Chip>
         </div>
-        {sorted.length === 0 && <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No categories yet.</div>}
+        {sorted.length === 0 && <div className="text-[14px]" style={{ color: 'var(--text-2)' }}>No categories yet.</div>}
         <div className="space-y-2">
           {sorted.map((it, i) => (
-            <div key={it.id} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'var(--surface-alt)' }}>
+            <div key={it.id} className="flex flex-wrap items-center gap-2 rounded-[10px] px-3 py-2 sm:flex-nowrap sm:gap-3 sm:px-4" style={{ background: 'var(--surface-2)' }}>
               <input
-                className="h-8 w-8 rounded-lg p-0.5 cursor-pointer shrink-0"
+                aria-label={`Colour for ${it.name}`}
+                className="h-9 w-9 shrink-0 cursor-pointer rounded-[10px] p-0.5"
                 type="color"
                 value={it.color}
                 style={{ border: '2px solid var(--border)' }}
@@ -128,8 +139,9 @@ export default function TimeCategoriesEditor() {
                   if (curr) saveEdit(curr, { color: curr.color });
                 }}
               />
-              <input
-                className="input flex-1 min-w-0 text-sm font-medium"
+              <Input
+                aria-label="Category name"
+                className="min-w-0 flex-1 font-medium"
                 value={it.name}
                 onChange={(e) => updateItem(it.id, { name: e.target.value })}
                 onBlur={() => {
@@ -137,15 +149,15 @@ export default function TimeCategoriesEditor() {
                   if (curr) saveEdit(curr, { name: curr.name });
                 }}
               />
-              <div className="flex items-center gap-1 shrink-0">
-                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => move(it, -1)} disabled={i === 0}>↑</button>
-                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => move(it, 1)} disabled={i === sorted.length - 1}>↓</button>
-                <button className="btn-outline px-2 py-1.5 text-xs" onClick={() => remove(it)}>Delete</button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button variant="outline" small aria-label={`Move ${it.name} up`} onClick={() => move(it, -1)} disabled={i === 0}>↑</Button>
+                <Button variant="outline" small aria-label={`Move ${it.name} down`} onClick={() => move(it, 1)} disabled={i === sorted.length - 1}>↓</Button>
+                <Button variant="ghost" small onClick={() => remove(it)}>Delete</Button>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </section>
   );
 }

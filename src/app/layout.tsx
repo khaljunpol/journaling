@@ -1,12 +1,20 @@
-import AppHeader from '@/components/AppHeader';
 import ConnectionGate from '@/components/ConnectionGate';
-import HeaderGate from '../components/HeaderGate';
 import LayoutGate from '@/components/LayoutGate';
 import Providers from '@/components/Providers';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import type { ReactNode } from 'react';
+import { Geist, Geist_Mono, Pixelify_Sans } from 'next/font/google';
 // @ts-ignore: side-effect global CSS import for Next.js
 import './globals.css';
+
+const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans', display: 'swap' });
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono', display: 'swap' });
+const pixelify = Pixelify_Sans({ subsets: ['latin'], variable: '--font-pixel', display: 'swap' });
+
+// Runs before paint: dark unless the visitor saved 'light'.
+const themeScript = "try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')==='light'?'light':'dark')}catch(e){}";
+
+export const viewport = { viewportFit: 'cover' as const };
 
 export const metadata = {
     title: 'Journaling',
@@ -15,14 +23,14 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
     return (
-        <html lang="en">
+        <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${pixelify.variable}`}>
+            <head>
+                <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+            </head>
             <body className="min-h-dvh overflow-x-hidden">
                 <Providers>
                     <ServiceWorkerRegister />
                     <LayoutGate>
-                        <HeaderGate>
-                            <AppHeader />
-                        </HeaderGate>
                         <ConnectionGate>{children}</ConnectionGate>
                     </LayoutGate>
                 </Providers>
