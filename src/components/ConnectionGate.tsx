@@ -14,6 +14,7 @@ export default function ConnectionGate({ children }: { children: ReactNode }) {
   const skip =
     pathname?.startsWith('/login') ||
     pathname?.startsWith('/setup') ||
+    pathname?.startsWith('/quick') ||
     pathname?.startsWith('/old-page');
 
   useEffect(() => {

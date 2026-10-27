@@ -10,6 +10,8 @@ export type OutboxItem = {
   state: 'pending' | 'failed';
   /** When this body was enqueued. Used to pick the newer copy when tabs merge. */
   updatedAt: number;
+  /** Made before the session was confirmed. Never sent until the same user is confirmed. */
+  unconfirmed?: boolean;
 };
 
 export type Outcome = 'done' | 'retry' | 'failed' | 'auth';
@@ -91,4 +93,19 @@ export function mergeQueues(stored: OutboxItem[], local: OutboxItem[], base: Out
 /** The base for the next merge: the last queue that was really persisted. A failed write keeps the old base. */
 export function nextBase(prevBase: OutboxItem[], merged: OutboxItem[], persisted: boolean): OutboxItem[] {
   return persisted ? merged : prevBase;
+}
+
+/**
+ * Settle taps made before the session was confirmed.
+ * Same user confirmed: clear the flag so they can be sent. Another user confirmed: drop them (they were
+ * made by the person now signed in), keep older confirmed items.
+ */
+export function settleUnconfirmed(q: OutboxItem[], sameUser: boolean): OutboxItem[] {
+  if (!sameUser) return q.filter((x) => !x.unconfirmed);
+  return q.map((x) => {
+    if (!x.unconfirmed) return x;
+    const rest = { ...x };
+    delete rest.unconfirmed;
+    return rest;
+  });
 }

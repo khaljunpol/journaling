@@ -37,6 +37,18 @@ function write(key: string, value: unknown): boolean {
   }
 }
 
+const LAST_EMAIL = PREFIX + 'lastEmail';
+
+/** Last signed-in email, so the board can open before the session loads (or offline). */
+export function getLastEmail(): string | null {
+  const v = read<string>(LAST_EMAIL);
+  return typeof v === 'string' && v ? v : null;
+}
+
+export function setLastEmail(email: string): void {
+  write(LAST_EMAIL, email.toLowerCase());
+}
+
 export function loadSnapshot(email: string): QuickPayload | null {
   return read<QuickPayload>(snapKey(email));
 }

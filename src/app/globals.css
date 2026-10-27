@@ -149,3 +149,46 @@ select {
   .slot-cell, .slot-chip { transition: none; }
   .slot-cell:active, .slot-chip:active { transform: none; }
 }
+
+/* /quick check-in board */
+:root {
+  --ok: #16a34a;
+  --ok-soft: rgba(22, 163, 74, 0.14);
+  --sync: #ca8a04;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ok: #8bd17c;
+    --ok-soft: rgba(139, 209, 124, 0.14);
+    --sync: #e0b84e;
+  }
+}
+:root[data-theme="dark"] {
+  --ok: #8bd17c;
+  --ok-soft: rgba(139, 209, 124, 0.14);
+  --sync: #e0b84e;
+}
+
+@keyframes quick-pop {
+  0% { transform: scale(0.94); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes quick-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes quick-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.quick-pop { animation: quick-pop 150ms ease-out; }
+.quick-sheet { animation: quick-sheet-in 200ms ease-out; }
+.quick-backdrop { animation: quick-fade-in 200ms ease-out; }
+.quick-tile { transition: transform 100ms ease-out; }
+.quick-tile:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .quick-pop, .quick-sheet, .quick-backdrop { animation: none; }
+  .quick-tile { transition: none; }
+  .quick-tile:active { transform: none; }
+}

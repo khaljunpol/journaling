@@ -2,22 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { classify, due, enqueue as enqueueItem, mergeQueues, nextBase, onResult, type OutboxItem } from '@/lib/outbox';
+import { classify, due, settleUnconfirmed, enqueue as enqueueItem, mergeQueues, nextBase, onResult, type OutboxItem } from '@/lib/outbox';
 import { loadOutbox, readOutbox, saveOutbox } from '@/lib/quickStore';
 
 const TICK_MS = 15000;
 
 /** Local-first writes: enqueue saves to the phone, then the outbox sends and retries. */
-export function useOutbox(email: string) {
+export function useOutbox(email: string, canSend = true) {
   const router = useRouter();
   const [queue, setQueue] = useState<OutboxItem[]>([]);
   const qRef = useRef<OutboxItem[]>([]);
   const inflight = useRef<Set<string>>(new Set());
   const baseRef = useRef<OutboxItem[]>([]);
   const loaded = useRef(false);
+  const loadedFor = useRef(''); // the email the in-memory queue belongs to
+  const prevEmail = useRef('');
+  const canSendRef = useRef(canSend);
   const [persistOk, setPersistOk] = useState(true);
 
   const commit = useCallback((next: OutboxItem[]) => {
+    if (loadedFor.current !== email) return; // never write one user's queue under another key
     // Another tab shares this storage key: merge with what is stored so neither tab erases the other.
     // If storage cannot be read, keep local as it is. The base only moves after a successful write.
     const stored = readOutbox(email);
@@ -30,7 +34,7 @@ export function useOutbox(email: string) {
   }, [email]);
 
   const drain = useCallback(() => {
-    if (!loaded.current) return;
+    if (!loaded.current || !canSendRef.current || loadedFor.current !== email) return;
     for (const item of due(qRef.current, Date.now())) {
       if (inflight.current.has(item.key)) continue;
       inflight.current.add(item.key);
@@ -55,17 +59,38 @@ export function useOutbox(email: string) {
         if (result === 'auth') router.replace(status === 403 ? '/setup' : '/login');
       })();
     }
-  }, [commit, router]);
+  }, [commit, router, email]);
 
   const enqueue = useCallback((item: Omit<OutboxItem, 'attempts' | 'nextAt' | 'state' | 'updatedAt'>) => {
-    commit(enqueueItem(qRef.current, item, Date.now()));
+    const flagged = canSendRef.current ? item : { ...item, unconfirmed: true };
+    commit(enqueueItem(qRef.current, flagged, Date.now()));
     drain();
   }, [commit, drain]);
 
+  // Declared before the load effect so the flag is current when it drains. Nothing is sent until the session is confirmed.
   useEffect(() => {
-    qRef.current = loadOutbox(email);
+    canSendRef.current = canSend;
+    if (canSend && loadedFor.current === email) {
+      // Same user confirmed: taps made while unconfirmed may now be sent.
+      commit(settleUnconfirmed(qRef.current, true));
+      drain();
+    }
+  }, [canSend, drain, commit, email]);
+
+  useEffect(() => {
+    const prev = prevEmail.current;
+    if (canSendRef.current && prev && prev !== email) {
+      // A different user is confirmed: taps made while unconfirmed belong to them, not to the old email's sheet.
+      const stored = readOutbox(prev);
+      if (stored) saveOutbox(prev, settleUnconfirmed(stored, false));
+    }
+    prevEmail.current = email;
+    let loadedQ = loadOutbox(email);
+    if (canSendRef.current) loadedQ = settleUnconfirmed(loadedQ, true);
+    qRef.current = loadedQ;
     baseRef.current = qRef.current;
     loaded.current = true;
+    loadedFor.current = email;
     setQueue(qRef.current);
     drain();
     const onVisible = () => { if (document.visibilityState === 'visible') drain(); };
@@ -87,6 +112,10 @@ export function useOutbox(email: string) {
       window.removeEventListener('online', drain);
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(timer);
+      loaded.current = false;
+      loadedFor.current = '';
+      qRef.current = [];
+      inflight.current = new Set();
     };
   }, [email, drain]);
 

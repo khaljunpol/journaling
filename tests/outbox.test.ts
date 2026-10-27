@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { enqueue, classify, onResult, due, backoffMs } from '../src/lib/outbox.ts';
+import { settleUnconfirmed, enqueue, classify, onResult, due, backoffMs } from '../src/lib/outbox.ts';
 
 const mk = (key: string, body: unknown = {}) => ({ key, url: '/api/x', method: 'POST' as const, body });
 
@@ -137,4 +137,19 @@ test('failed write: an unsent item survives the next commit', () => {
   local = enqueue(merged, mk('y'), 2);
   merged = mergeQueues(stored, local, base);
   assert.deepEqual(merged.map((i) => i.key).sort(), ['x', 'y']);
+});
+
+test('settleUnconfirmed: same user clears the flag and keeps everything', () => {
+  let q = enqueue([], mk('mood:a'), 0);
+  q = enqueue(q, { ...mk('weight:a'), unconfirmed: true }, 0);
+  const out = settleUnconfirmed(q, true);
+  assert.equal(out.length, 2);
+  assert.ok(out.every((x) => x.unconfirmed === undefined));
+});
+
+test('settleUnconfirmed: other user drops flagged items only', () => {
+  let q = enqueue([], mk('mood:a'), 0);
+  q = enqueue(q, { ...mk('weight:a'), unconfirmed: true }, 0);
+  const out = settleUnconfirmed(q, false);
+  assert.deepEqual(out.map((x) => x.key), ['mood:a']);
 });
