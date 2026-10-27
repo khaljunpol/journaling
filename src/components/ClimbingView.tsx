@@ -804,6 +804,8 @@ export default function ClimbingView() {
           goalItems={goalLogs}
           byWeekDates={goalWeekly.byWeekDates}
           allGoalsForYear={goalsForSelectedYear}
+          storyGoals={goals}
+          storyLogs={yearLogsByYear}
           onClose={() => setSelectedGoal(null)}
         />
       )}

@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Line, LineChart, Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Modal from '@/components/Modal';
 import Button from '@/components/ui/Button';
 import { pad, parseLocalDate } from '@/lib/date';
 import { COLORS } from '@/lib/colors';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
+import ShareStorySheet from '@/components/climbing/ShareStorySheet';
+import type { StoryGoal, StoryLog } from '@/lib/climbStory';
 
 function daysUntilYearEnd(year: number) {
     const now = new Date();
@@ -14,7 +18,7 @@ function daysUntilYearEnd(year: number) {
     return Math.max(0, Math.ceil(ms / 86400000));
 }
 
-export default function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, onClose }: {
+export default function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, storyGoals, storyLogs, onClose }: {
     goal: { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
     progressSeries: Array<{ date: string; actual: number; ideal: number; recentPace: number }>;
     weeklySeries: Array<{ date: string; count: number }>;
@@ -26,8 +30,12 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
     goalItems: Array<{ id: string; date: string; session: number; attempts: number; location?: string; notes?: string }>;
     byWeekDates: Map<string, string[]>;
     allGoalsForYear: Array<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number; done: number; pct: number }>;
+    /** All goals and the loaded climbs by year, for the "Share story" sheet. */
+    storyGoals?: StoryGoal[];
+    storyLogs?: Record<number, StoryLog[]>;
     onClose: () => void;
 }) {
+    const [storyOpen, setStoryOpen] = useState(false);
     const total = flashPie.flash + flashPie.nonFlash;
     const flashRate = total ? Math.round((flashPie.flash / total) * 100) : 0;
     const daysLeft = daysUntilYearEnd(goal.year);
@@ -303,9 +311,22 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
             )}
 
             {/* Export button */}
-            <div className="mt-5 flex justify-center">
-                <Button onClick={exportGoalOverlay}>Download share image</Button>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setStoryOpen(true)}>Share story</Button>
+                <Button variant="outline" onClick={exportGoalOverlay}>Download share image</Button>
             </div>
+
+            {/* Portal: the sheet is position:fixed and must not sit inside the modal's animated box. */}
+            {createPortal(
+                <ShareStorySheet
+                    open={storyOpen}
+                    onClose={() => setStoryOpen(false)}
+                    goals={storyGoals && storyGoals.length ? storyGoals : [goal]}
+                    initialGoalId={goal.id}
+                    knownLogs={storyLogs}
+                />,
+                document.body,
+            )}
         </Modal>
     );
 }

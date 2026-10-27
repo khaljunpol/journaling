@@ -10,6 +10,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
 import Input, { Label } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import ShareStorySheet from '@/components/climbing/ShareStorySheet';
 
 type LogEntry = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string };
 type GoalEntry = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
@@ -35,6 +36,10 @@ export default function ClimbingLogView() {
   const [yearCache, setYearCache] = useState<Record<number, LogEntry[]>>({});
   const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: DEFAULT_BOULDER_GRADE, target: 100 });
   const [adding, setAdding] = useState(false);
+  // "Share story" sheet: the date it opens on (null = closed)
+  const [storyDate, setStoryDate] = useState<string | null>(null);
+  const [storyKey, setStoryKey] = useState(0);
+  const openStory = (d: string) => { setStoryKey((k) => k + 1); setStoryDate(d); };
 
   async function refresh() {
     try {
@@ -398,8 +403,11 @@ export default function ClimbingLogView() {
 
         {/* The chosen day's logs */}
         <div className="mt-4 space-y-2 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-          <div className="text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>
-            {isToday ? 'Today' : date} · {logs.length} send{logs.length === 1 ? '' : 's'}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>
+              {isToday ? 'Today' : date} · {logs.length} send{logs.length === 1 ? '' : 's'}
+            </div>
+            <Button small variant="outline" onClick={() => openStory(date)}>Share story</Button>
           </div>
           {logs.length === 0 && <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No climbs logged for this day.</p>}
           {logs.map((l) => (
@@ -476,7 +484,16 @@ export default function ClimbingLogView() {
         )}
       </Card>
 
-      {/* Share image style picker (3 styles) */}
+      {/* Instagram story: goal + that day's session + charts. The sheet remounts per open so it starts fresh. */}
+      <ShareStorySheet
+        key={storyKey}
+        open={storyDate !== null}
+        onClose={() => setStoryDate(null)}
+        goals={goals}
+        initialDate={storyDate ?? date}
+      />
+
+      {/* Share image style picker (story + 3 older styles) */}
       {overlayMenu && (
         <div
           ref={overlayMenuRef}
@@ -488,11 +505,20 @@ export default function ClimbingLogView() {
             borderColor: 'var(--border-strong)',
             boxShadow: 'var(--shadow-pop)',
             left: Math.max(8, Math.min(overlayMenu.x, window.innerWidth - 232)),
-            top: Math.max(8, Math.min(overlayMenu.y, window.innerHeight - 220)),
+            top: Math.max(8, Math.min(overlayMenu.y, window.innerHeight - 320)),
             width: 224,
           }}
         >
-          <div className="px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>Download share image</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="block min-h-11 w-full rounded-[8px] px-3 py-1.5 text-left hover:bg-[var(--surface-3)]"
+            onClick={() => { openStory(String(overlayMenu.log.date).slice(0, 10)); setOverlayMenu(null); }}
+          >
+            <div className="text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>Share story</div>
+            <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>Goal, session and charts</div>
+          </button>
+          <div className="mt-1 border-t px-3 pb-1 pt-2.5 text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)', borderColor: 'var(--border)' }}>More styles</div>
           {[
             { label: 'Centered', desc: 'Badge + meter + stats', fn: createOverlayV1 },
             { label: 'Compact', desc: 'Bottom-anchored minimal', fn: createOverlayV2 },

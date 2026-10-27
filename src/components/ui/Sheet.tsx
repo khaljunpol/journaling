@@ -67,13 +67,14 @@ export default function Sheet({ open, onClose, title, subtitle, children }: Prop
     if (panel && !panel.contains(document.activeElement)) {
       (panel.querySelector<HTMLElement>('input, textarea, select') ?? panel).focus();
     }
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
-    window.addEventListener('keydown', onKey);
+    // Capture phase + stopPropagation: Escape closes only the top layer (a Sheet over a Modal leaves the Modal open).
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); closeRef.current(); } };
+    window.addEventListener('keydown', onKey, true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const opener = openerRef.current;
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       document.body.style.overflow = prev;
       if (opener && opener.isConnected) opener.focus();
       else (document.querySelector<HTMLElement>('h1') ?? document.body).focus?.();
