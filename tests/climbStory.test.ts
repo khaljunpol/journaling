@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  attemptsBuckets, buildStory, buildYearStory, chooseGoal, formatStoryDate, goalLine, goalProgress,
-  latestSessionDate, paceText, sessionStats, weeklySends,
+  attemptsBuckets, buildClimbCard, dayGoals, buildOverlay, buildStory, buildYearStats, buildYearStory, chooseGoal, formatStoryDate, goalLine, goalProgress,
+  climbsOn, latestSessionDate, paceText, sessionStats, weeklySends,
   type StoryGoal, type StoryLog,
 } from '../src/lib/climbStory.ts';
 
@@ -105,7 +105,7 @@ describe('climb story: choices', () => {
   });
 
   it('buildStory ties it together', () => {
-    const s = buildStory(goal, [log('2026-10-27', 'V5', 0)], '2026-10-27');
+    const s = buildStory([goal], [log('2026-10-27', 'V5', 0)], '2026-10-27');
     assert.equal(s.goal.grade, 'V5');
     assert.equal(s.goal.typeLabel, 'Boulder');
     assert.equal(s.session.flashes, 1);
@@ -153,5 +153,84 @@ describe('climb story: all goals total', () => {
     assert.equal(y.total.target, 3);
     assert.equal(y.total.complete, false);
     assert.notEqual(y.total.pace, 'Goal complete');
+  });
+});
+
+describe('climb story: year in numbers', () => {
+  it('counts the year up to the date, like the activity card', () => {
+    const logs = [
+      log('2026-03-02', 'V4', 0), log('2026-03-02', 'V6', 2), log('2026-03-04', '6b', 1, 'rope'),
+      log('2026-05-11', 'V5', 3), log('2025-12-30'), log('2026-11-01', 'V9'),
+    ];
+    const y = buildYearStats(logs, 2026, '2026-10-27');
+    assert.equal(y.total, 4);
+    assert.equal(y.flashes, 1);
+    assert.equal(y.flashRate, 25);
+    assert.equal(y.avgAttempts, 1.5);
+    assert.equal(y.days, 3);
+    assert.equal(y.weeks, 2);
+    assert.equal(y.weeklyAvg, 2);
+    assert.equal(y.bestWeek, 3);
+    assert.equal(y.hardest, 'V6 · 6b');
+    assert.equal(y.weekly.total, 4);
+  });
+
+  it('is all zeros for an empty year', () => {
+    const y = buildYearStats([], 2026, '2026-10-27');
+    assert.equal(y.total, 0);
+    assert.equal(y.flashRate, 0);
+    assert.equal(y.hardest, '–');
+  });
+});
+
+describe('climb story: climbs of a day and one climb', () => {
+  it('lists the day by session, keeping log order inside a session', () => {
+    const a = log('2026-10-27', 'v4', 0, 'boulder', 2);
+    const b = log('2026-10-27', '6a', 2, 'rope', 1);
+    const c = log('2026-10-27', 'V6', 3, 'boulder', 2);
+    const list = climbsOn([a, log('2026-10-26'), b, c], '2026-10-27');
+    assert.deepEqual(list.map((x) => [x.id, x.grade, x.session]), [[b.id, '6a', 1], [a.id, 'V4', 2], [c.id, 'V6', 2]]);
+    assert.equal(buildStory([goal], [a, b, c], '2026-10-27').climbs.length, 3);
+  });
+
+  it('one climb: grade and which send of that grade it was this year', () => {
+    const early = log('2026-03-01', 'V5', 2);
+    const a = log('2026-10-27', 'V5', 0, 'boulder', 2);
+    const b = log('2026-10-27', 'v5', 1, 'boulder', 1);
+    const other = log('2026-10-27', 'V4', 0, 'boulder', 1);
+    const logs = [a, other, early, b, log('2025-05-01', 'V5')];
+    const card = buildClimbCard(a.id, [rope, goal], logs);
+    assert.deepEqual(card, { grade: 'V5', flash: true, attempts: 0, nth: 3, target: 100, complete: false });
+    assert.equal(buildClimbCard(b.id, [goal], logs)?.nth, 2);
+    assert.deepEqual(buildClimbCard(other.id, [goal], logs), { grade: 'V4', flash: true, attempts: 0, nth: 1, target: null, complete: false });
+    assert.equal(buildClimbCard(a.id, [{ ...goal, target: 3 }], logs)?.complete, true);
+    assert.equal(buildClimbCard('nope', [goal], logs), null);
+  });
+
+  it('session overlay shows every goal that got a send that day', () => {
+    const v4: StoryGoal = { id: 'g4', year: 2026, type: 'boulder', grade: 'V4', target: 50 };
+    const logs = [log('2026-10-27', 'V4'), log('2026-10-27', 'V5'), log('2026-10-27', 'V5'), log('2026-10-27', 'V6'), log('2026-10-20', 'V4')];
+    const both = buildOverlay([v4, rope, goal], logs, '2026-10-27');
+    assert.deepEqual(both.goals.map((g) => [g.id, g.today, g.done]), [['g1', 2, 2], ['g4', 1, 2]]);
+    assert.equal(both.session.sends, 4);
+    assert.equal(both.climbs.length, 4);
+    const onlyV4 = buildOverlay([v4, goal], [log('2026-10-28', 'V4')], '2026-10-28');
+    assert.deepEqual(onlyV4.goals.map((g) => g.id), ['g4']);
+    assert.equal(buildOverlay([goal], [log('2026-10-28', 'V2')], '2026-10-28').goals.length, 0);
+  });
+
+});
+
+describe('climb story: several goals on one story', () => {
+  it('uses every goal sent that day and adds their attempts', () => {
+    const v4: StoryGoal = { id: 'g4', year: 2026, type: 'boulder', grade: 'V4', target: 50 };
+    const logs = [log('2026-10-27', 'V4', 0), log('2026-10-27', 'V5', 2), log('2026-10-27', 'V5', 1), log('2026-05-01', 'V4', 3)];
+    const picked = dayGoals([v4, goal, rope], logs, '2026-10-27');
+    assert.deepEqual(picked.map((g) => g.id), ['g1', 'g4']);
+    const s = buildStory(picked, logs, '2026-10-27');
+    assert.deepEqual(s.goals.map((g) => [g.grade, g.done]), [['V5', 2], ['V4', 2]]);
+    assert.equal(s.goal.grade, 'V5');
+    assert.deepEqual(s.attempts.map((b) => b.count), [1, 1, 1, 1, 0]);
+    assert.deepEqual(dayGoals([v4], logs, '2026-10-26'), []);
   });
 });

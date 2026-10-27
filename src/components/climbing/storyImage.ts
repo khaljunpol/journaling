@@ -1,6 +1,6 @@
-// Draws the climbing images on a canvas: the story and the all-goals story (1080 x 1920),
+// Draws the climbing images on a canvas: the story, the all-goals story and the year story (1080 x 1920),
 // and a small see-through overlay card for on top of a video or photo. Data comes from src/lib/climbStory.ts.
-import type { StoryData, YearStoryData } from '@/lib/climbStory';
+import type { ClimbCardData, OverlayData, StoryData, YearStatsData, YearStoryData } from '@/lib/climbStory';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -16,6 +16,9 @@ const VIOLET = '#9B8CFF';
 const VIOLET_FILL = '#6A5AE0';
 const EMBER = '#F0A24A';
 const OK = '#34D399';
+const SKY = '#38BDF8';
+// Line colours when a story shows several goals
+const SERIES = [VIOLET, SKY, '#F472B6'];
 
 // Instagram covers the top ~220 px and bottom ~340 px with its own UI.
 const SAFE_TOP = 220;
@@ -43,8 +46,14 @@ async function loadFonts(sans: string, mono: string) {
 type TextOpts = { size: number; weight?: number; color?: string; align?: CanvasTextAlign; mono?: boolean; spacing?: number };
 type Spaced = CanvasRenderingContext2D & { letterSpacing: string };
 
-/** A canvas with the fonts loaded and small text and panel helpers. */
-async function setup(w: number, h: number) {
+/** Drawing options. `clear`: no background, so the image can sit on top of a photo or video. */
+export type RenderOpts = { clear?: boolean };
+
+// See-through panels: dark enough to read on a bright wall or chalk.
+const GLASS = 'rgba(11,13,20,0.72)';
+
+/** A canvas with the fonts loaded and small text and panel helpers. Without a background, text gets a soft shadow. */
+async function setup(w: number, h: number, clear = false) {
   const sans = fontFamily('--font-geist-sans', 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif');
   const mono = fontFamily('--font-geist-mono', 'ui-monospace, Menlo, monospace');
   await loadFonts(sans, mono);
@@ -61,14 +70,22 @@ async function setup(w: number, h: number) {
     c.textAlign = o.align ?? 'left';
     c.textBaseline = 'alphabetic';
     (c as Spaced).letterSpacing = o.spacing ? `${o.spacing}px` : '0px';
+    if (clear) {
+      c.shadowColor = 'rgba(0,0,0,0.45)';
+      c.shadowBlur = 10;
+      c.shadowOffsetY = 2;
+    }
     c.fillText(s, x, y);
+    c.shadowColor = 'transparent';
+    c.shadowBlur = 0;
+    c.shadowOffsetY = 0;
     (c as Spaced).letterSpacing = '0px';
   };
   const measure = (s: string, o: TextOpts) => {
     c.font = `${o.weight ?? 500} ${o.size}px ${o.mono ? mono : sans}`;
     return c.measureText(s).width + (o.spacing ?? 0) * s.length; // canvas measureText ignores our letter spacing
   };
-  const panel = (x: number, y: number, pw: number, ph: number, fill = SURFACE, radius = 32) => {
+  const panel = (x: number, y: number, pw: number, ph: number, fill = clear ? GLASS : SURFACE, radius = 32) => {
     c.beginPath();
     c.roundRect(x, y, pw, ph, radius);
     c.fillStyle = fill;
@@ -77,8 +94,24 @@ async function setup(w: number, h: number) {
     c.strokeStyle = LINE;
     c.stroke();
   };
-  /** Progress ring: violet gradient, ember when complete. */
-  const ring = (cx: number, cy: number, r: number, width: number, pct: number, complete: boolean) => {
+  /** Draw under what is already on the canvas. */
+  const behind = (draw: () => void) => {
+    c.globalCompositeOperation = 'destination-over';
+    draw();
+    c.globalCompositeOperation = 'source-over';
+  };
+  /** Without a background: one soft glass card behind the whole layout, so small text reads on any photo. */
+  const backdrop = (top: number, bottom: number) => {
+    if (!clear) return;
+    behind(() => {
+      c.beginPath();
+      c.roundRect(PAD - 36, top, w - (PAD - 36) * 2, bottom - top, 48);
+      c.fillStyle = 'rgba(11,13,20,0.55)';
+      c.fill();
+    });
+  };
+  /** Progress ring: violet gradient (or `color`), ember when complete. */
+  const ring = (cx: number, cy: number, r: number, width: number, pct: number, complete: boolean, color?: string) => {
     c.lineCap = 'round';
     c.lineWidth = width;
     c.strokeStyle = 'rgba(255,255,255,0.10)';
@@ -87,8 +120,8 @@ async function setup(w: number, h: number) {
     c.stroke();
     if (pct <= 0) return;
     const start = -Math.PI / 2;
-    if (complete) {
-      c.strokeStyle = EMBER;
+    if (complete || color) {
+      c.strokeStyle = complete ? EMBER : (color as string);
     } else {
       const grad = c.createLinearGradient(cx - r, cy + r, cx + r, cy - r);
       grad.addColorStop(0, VIOLET_FILL);
@@ -99,7 +132,7 @@ async function setup(w: number, h: number) {
     c.arc(cx, cy, r, start, start + Math.PI * 2 * Math.min(1, pct / 100));
     c.stroke();
   };
-  return { canvas, c, text, measure, panel, ring };
+  return { canvas, c, text, measure, panel, ring, behind, backdrop };
 }
 
 /** Deep navy with a soft violet glow at the top. */
@@ -132,22 +165,56 @@ function paintMark(c: CanvasRenderingContext2D, x: number, y: number, size = 52)
   c.stroke();
 }
 
-export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
-  const { canvas, c, text, measure, panel, ring } = await setup(STORY_W, STORY_H);
+export async function renderStory(data: StoryData, opts: RenderOpts = {}): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure, panel, ring, backdrop } = await setup(STORY_W, STORY_H, opts.clear);
 
   const g = data.goal;
   const accent = g.complete ? EMBER : VIOLET;
 
-  paintBackground(c);
+  if (!opts.clear) paintBackground(c);
 
   // ── 1. Header ──
   const headerY = SAFE_TOP + 50;
-  paintMark(c, PAD, headerY);
-  text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
-  text(data.dateLabel, STORY_W - PAD, headerY, { size: 36, weight: 500, color: TEXT2, align: 'right', mono: true });
+  if (!opts.clear) {
+    paintMark(c, PAD, headerY);
+    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
+  }
+  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, weight: 500, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
 
-  // ── 2. Goal hero ──
+  // ── 2. Goal hero: one goal big, several goals as rows ──
   const heroTop = headerY + 76;
+  let heroEnd: number;
+  if (data.goals.length > 1) {
+    const shown = data.goals.slice(0, 3);
+    // Two goals get taller rows so the story fills the same height as the one-goal layout.
+    const rowH = shown.length === 2 ? 156 : 112;
+    const k = rowH / 112;
+    shown.forEach((gv, i) => {
+      const top = heroTop + i * rowH;
+      const tone = gv.complete ? EMBER : SERIES[i % SERIES.length];
+      if (i > 0) {
+        c.fillStyle = LINE;
+        c.fillRect(PAD + 112 * k, top, STORY_W - PAD * 2 - 112 * k, 2);
+      }
+      const r = 42 * k, cx = PAD + r, cy = top + rowH / 2;
+      ring(cx, cy, r, 12 * k, gv.pct, gv.complete, i > 0 ? tone : undefined);
+      text(`${gv.pct}%`, cx, cy + 9 * k, { size: 24 * k, weight: 700, mono: true, color: tone, align: 'center' });
+      const tx = PAD + 112 * k;
+      text(gv.grade, tx, top + 58 * k, { size: 48 * k, weight: 700, color: tone });
+      text(gv.typeLabel, tx + measure(gv.grade, { size: 48 * k, weight: 700 }) + 14, top + 58 * k, { size: 32 * k, color: TEXT2 });
+      text(gv.pace, tx, top + 96 * k, { size: 28 * k, color: gv.complete ? EMBER : TEXT2 });
+      const tStr = `/${gv.target}`;
+      const tW = measure(tStr, { size: 32 * k, mono: true });
+      text(tStr, STORY_W - PAD, top + 68 * k, { size: 32 * k, mono: true, color: TEXT2, align: 'right' });
+      text(String(gv.done), STORY_W - PAD - tW - 4, top + 68 * k, { size: 72 * k, mono: true, color: gv.complete ? EMBER : TEXT1, align: 'right' });
+    });
+    heroEnd = heroTop + shown.length * rowH;
+    if (data.goals.length > shown.length) {
+      text(`+${data.goals.length - shown.length} more goals`, STORY_W - PAD, heroEnd + 24, { size: 26, color: TEXT3, align: 'right' });
+      heroEnd += 40;
+    }
+    heroEnd += 28;
+  } else {
   const badge = `${g.grade} · ${g.typeLabel.toUpperCase()}`;
   const badgeOpts: TextOpts = { size: 30, weight: 700, spacing: 2 };
   const bw = measure(badge, badgeOpts) + 56;
@@ -178,9 +245,11 @@ export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
   ring(ringCx, ringCy, ringR, 30, g.pct, g.complete);
   text(`${g.pct}%`, ringCx, ringCy + 18, { size: 76, weight: 700, mono: true, color: accent, align: 'center' });
   text(g.complete ? 'DONE' : `OF ${data.year}`, ringCx, ringCy + 64, { size: 24, weight: 600, color: TEXT3, align: 'center', spacing: 3 });
+  heroEnd = paceY + 68;
+  }
 
   // ── 3. Today's session ──
-  const sessTop = paceY + 68;
+  const sessTop = heroEnd;
   const sessH = 190;
   const innerW = STORY_W - PAD * 2;
   panel(PAD, sessTop, innerW, sessH);
@@ -215,10 +284,65 @@ export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
   const chartC = { x: PAD + chartB.w + 32, y: chartB.y, w: chartB.w, h: chartB.h };
   const label = (s: string, x: number, y: number) => text(s, x, y, { size: 26, weight: 600, color: TEXT2 });
 
-  // A: goal line (actual vs on pace)
+  // A: goal line (actual vs on pace). Several goals: % of each target, one line each.
   panel(chartA.x, chartA.y, chartA.w, chartA.h);
-  label('Goal line', chartA.x + 36, chartA.y + 56);
-  {
+  label(data.goals.length > 1 ? 'Goal lines · % of target' : 'Goal line', chartA.x + 36, chartA.y + 56);
+  if (data.goals.length > 1) {
+    const views = data.goals.slice(0, 3);
+    // legend, right to left
+    let lx = chartA.x + chartA.w - 36;
+    [...views].reverse().forEach((gv, ri) => {
+      const i = views.length - 1 - ri;
+      text(gv.grade, lx, chartA.y + 56, { size: 24, weight: 600, color: TEXT2, align: 'right' });
+      lx -= measure(gv.grade, { size: 24, weight: 600 }) + 12;
+      c.beginPath();
+      c.arc(lx - 7, chartA.y + 48, 7, 0, Math.PI * 2);
+      c.fillStyle = gv.complete ? EMBER : SERIES[i % SERIES.length];
+      c.fill();
+      lx -= 34;
+    });
+    const px = chartA.x + 40, pw = chartA.w - 80;
+    const py = chartA.y + 96, ph = chartA.h - 96 - 56;
+    const pctOf = (gv: (typeof views)[number]) => gv.line.actual.map((v) => (v == null ? null : gv.target ? (v / gv.target) * 100 : 0));
+    const series = views.map(pctOf);
+    const n = views[0].line.ideal.length;
+    const max = Math.max(100, ...series.flatMap((a) => a.filter((v): v is number => v != null)));
+    const X = (i: number) => px + (pw * i) / Math.max(1, n - 1);
+    const Y = (v: number) => py + ph - (ph * v) / max;
+    c.fillStyle = LINE;
+    c.fillRect(px, py + ph, pw, 2);
+    c.setLineDash([14, 12]);
+    c.strokeStyle = 'rgba(255,255,255,0.45)';
+    c.lineWidth = 4;
+    c.lineCap = 'butt';
+    c.beginPath();
+    c.moveTo(X(0), Y(0));
+    c.lineTo(X(n - 1), Y(100));
+    c.stroke();
+    c.setLineDash([]);
+    series.forEach((actual, si) => {
+      let last = -1;
+      for (let i = 0; i < actual.length; i++) if (actual[i] != null) last = i;
+      if (last < 0) return;
+      const tone = views[si].complete ? EMBER : SERIES[si % SERIES.length];
+      c.beginPath();
+      for (let i = 0; i <= last; i++) { const yy = Y(actual[i] as number); if (i === 0) c.moveTo(X(i), yy); else c.lineTo(X(i), yy); }
+      c.strokeStyle = tone;
+      c.lineWidth = 6;
+      c.lineJoin = 'round';
+      c.lineCap = 'round';
+      c.stroke();
+      c.beginPath();
+      c.arc(X(last), Y(actual[last] as number), 11, 0, Math.PI * 2);
+      c.fillStyle = BG;
+      c.fill();
+      c.lineWidth = 6;
+      c.stroke();
+    });
+    text('Jan', px, py + ph + 40, { size: 22, color: TEXT3 });
+    text('dashed = on pace', px + pw / 2, py + ph + 40, { size: 22, color: TEXT3, align: 'center' });
+    text('Dec', px + pw, py + ph + 40, { size: 22, color: TEXT3, align: 'right' });
+  } else {
     const lx = chartA.x + chartA.w - 36;
     text('on pace', lx, chartA.y + 56, { size: 24, color: TEXT3, align: 'right' });
     const tw = measure('on pace', { size: 24 });
@@ -238,7 +362,7 @@ export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
     c.lineTo(lx - tw - 100 - measure('actual', { size: 24 }) - 14, chartA.y + 48);
     c.stroke();
   }
-  {
+  if (data.goals.length <= 1) {
     const px = chartA.x + 40, pw = chartA.w - 80;
     const py = chartA.y + 96, ph = chartA.h - 96 - 56;
     const { actual, ideal, max } = data.line;
@@ -320,7 +444,7 @@ export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
 
   // C: attempts distribution (flash in green)
   panel(chartC.x, chartC.y, chartC.w, chartC.h);
-  label(`Attempts · ${g.grade}`, chartC.x + 36, chartC.y + 56);
+  label(`Attempts · ${data.goals.slice(0, 3).map((x) => x.grade).join(' + ')}`, chartC.x + 36, chartC.y + 56);
   {
     const px = chartC.x + 36, pw = chartC.w - 72;
     const py = chartC.y + 112, ph = chartC.h - 112 - 52;
@@ -343,50 +467,90 @@ export async function renderStory(data: StoryData): Promise<HTMLCanvasElement> {
 
   // ── 5. Footer (stays above the bottom safe zone) ──
   const footY = Math.min(SAFE_BOTTOM - 8, chartB.y + chartB.h + 40);
-  text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, weight: 500, color: TEXT3, align: 'center', spacing: 2 });
+  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, weight: 500, color: TEXT3, align: 'center', spacing: 2 });
+  backdrop(SAFE_TOP - 24, footY - 16);
 
   return canvas;
 }
 
 export const OVERLAY_W = 1000;
-export const OVERLAY_H = 450;
 
-/** The overlay card: goal ring, done/target and the day's stats. Transparent outside the card, so it can sit on a video. */
-export async function renderOverlay(data: StoryData): Promise<HTMLCanvasElement> {
-  const { canvas, c, text, measure, panel, ring } = await setup(OVERLAY_W, OVERLAY_H);
-  const g = data.goal;
-  const accent = g.complete ? EMBER : VIOLET;
+/** Copy the top-left `w` x `h` px of a canvas into a new canvas of that size. */
+function crop(src: HTMLCanvasElement, h: number, w = src.width): HTMLCanvasElement {
+  const out = document.createElement('canvas');
+  out.width = Math.ceil(w);
+  out.height = Math.ceil(h);
+  out.getContext('2d')?.drawImage(src, 0, 0);
+  return out;
+}
+
+/** The session overlay: every goal that got a send that day, the day's stats and its climbs. Transparent outside the card. */
+export async function renderOverlay(data: OverlayData): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure, ring, behind } = await setup(OVERLAY_W, 1400);
   const P = 44;
 
-  // Dark glass, solid enough to read on a bright wall or chalk.
-  panel(2, 2, OVERLAY_W - 4, OVERLAY_H - 4, 'rgba(11,13,20,0.80)', 44);
+  // Header
+  text('SESSION', P, 76, { size: 22, weight: 600, color: TEXT3, spacing: 3 });
+  text(data.dateLabel, OVERLAY_W - P, 78, { size: 28, mono: true, color: TEXT2, align: 'right' });
+  let y = 104;
 
-  // Ring with the percentage
-  const r = 78;
-  const cx = P + r + 4, cy = 160;
-  ring(cx, cy, r, 20, g.pct, g.complete);
-  text(`${g.pct}%`, cx, cy + 14, { size: 44, weight: 700, mono: true, color: accent, align: 'center' });
-
-  // Goal and pace
-  const tx = cx + r + 44;
-  text(`${g.grade} · ${g.typeLabel.toUpperCase()}`, tx, 104, { size: 28, weight: 700, spacing: 2, color: accent });
-  const targetStr = `/${g.target}`;
-  const maxW = OVERLAY_W - P - tx;
-  let size = 104;
-  while (size > 60 && measure(String(g.done), { size, mono: true }) + measure(targetStr, { size: size * 0.4, mono: true }) > maxW) size -= 6;
-  text(String(g.done), tx, 196, { size, mono: true });
-  text(targetStr, tx + measure(String(g.done), { size, mono: true }) + 4, 196, { size: size * 0.4, mono: true, color: TEXT2 });
-  text(g.pace, tx, 246, { size: 32, weight: 600, color: g.complete ? EMBER : TEXT2 });
-
-  // Date, top right
-  text(data.dateLabel, OVERLAY_W - P, 104, { size: 28, mono: true, color: TEXT2, align: 'right' });
+  const goals = data.goals;
+  if (goals.length === 1) {
+    // One goal: big ring and numbers
+    const g = goals[0];
+    const accent = g.complete ? EMBER : VIOLET;
+    const r = 78, cx = P + r + 4, cy = y + 96;
+    ring(cx, cy, r, 20, g.pct, g.complete);
+    text(`${g.pct}%`, cx, cy + 14, { size: 44, weight: 700, mono: true, color: accent, align: 'center' });
+    const tx = cx + r + 44;
+    text(`${g.grade} · ${g.typeLabel.toUpperCase()}`, tx, y + 40, { size: 28, weight: 700, spacing: 2, color: accent });
+    const targetStr = `/${g.target}`;
+    let size = 104;
+    while (size > 60 && measure(String(g.done), { size, mono: true }) + measure(targetStr, { size: size * 0.4, mono: true }) > OVERLAY_W - P - tx) size -= 6;
+    text(String(g.done), tx, y + 132, { size, mono: true });
+    text(targetStr, tx + measure(String(g.done), { size, mono: true }) + 4, y + 132, { size: size * 0.4, mono: true, color: TEXT2 });
+    text(g.pace, tx, y + 180, { size: 32, weight: 600, color: g.complete ? EMBER : TEXT2 });
+    y += 210;
+  } else if (goals.length > 1) {
+    // Several goals: one compact row each (at most 3)
+    const shown = goals.slice(0, 3);
+    shown.forEach((g, i) => {
+      const top = y + i * 108;
+      const accent = g.complete ? EMBER : VIOLET;
+      if (i > 0) {
+        c.fillStyle = LINE;
+        c.fillRect(P + 100, top, OVERLAY_W - P * 2 - 100, 2);
+      }
+      const r = 38, cx = P + r, cy = top + 54;
+      c.save();
+      ring(cx, cy, r, 11, g.pct, g.complete);
+      c.restore();
+      text(`${g.pct}%`, cx, cy + 8, { size: 22, weight: 700, mono: true, color: accent, align: 'center' });
+      const tx = P + 100;
+      text(g.grade, tx, top + 54, { size: 40, weight: 700 });
+      text(g.typeLabel, tx + measure(g.grade, { size: 40, weight: 700 }) + 12, top + 54, { size: 28, color: TEXT2 });
+      text(g.pace, tx, top + 90, { size: 24, color: g.complete ? EMBER : TEXT2 });
+      const tStr = `/${g.target}`;
+      const tW = measure(tStr, { size: 26, mono: true });
+      text(tStr, OVERLAY_W - P, top + 62, { size: 26, mono: true, color: TEXT2, align: 'right' });
+      text(String(g.done), OVERLAY_W - P - tW - 4, top + 62, { size: 56, mono: true, color: g.complete ? EMBER : TEXT1, align: 'right' });
+    });
+    y += shown.length * 108 + 4;
+    if (goals.length > shown.length) {
+      text(`+${goals.length - shown.length} more goals`, OVERLAY_W - P, y + 20, { size: 24, color: TEXT3, align: 'right' });
+      y += 36;
+    }
+  }
 
   c.fillStyle = 'rgba(255,255,255,0.12)';
-  c.fillRect(P, 292, OVERLAY_W - P * 2, 2);
+  c.fillRect(P, y + 8, OVERLAY_W - P * 2, 2);
+  y += 10;
 
+  let bottom: number;
   if (data.session.rest) {
-    text('Rest day', P, 380, { size: 52, weight: 700 });
-    text('Recovery counts too.', OVERLAY_W - P, 380, { size: 30, color: TEXT2, align: 'right' });
+    text('Rest day', P, y + 86, { size: 52, weight: 700 });
+    text('Recovery counts too.', OVERLAY_W - P, y + 86, { size: 30, color: TEXT2, align: 'right' });
+    bottom = y + 140;
   } else {
     const s = data.session;
     const cols = [
@@ -400,26 +564,100 @@ export async function renderOverlay(data: StoryData): Promise<HTMLCanvasElement>
       const x = P + colW * i + colW / 2;
       let vs = 60;
       while (vs > 30 && measure(col.v, { size: vs, mono: true }) > colW - 20) vs -= 4;
-      text(col.v, x, 374, { size: vs, mono: true, color: col.color, align: 'center' });
-      text(col.l, x, 414, { size: 22, weight: 600, color: TEXT3, align: 'center', spacing: 3 });
+      text(col.v, x, y + 82, { size: vs, mono: true, color: col.color, align: 'center' });
+      text(col.l, x, y + 122, { size: 22, weight: 600, color: TEXT3, align: 'center', spacing: 3 });
     });
+
+    // The climbs behind those numbers, as chips (green = flash), at most 3 rows
+    const sessions = new Set(data.climbs.map((x) => x.session)).size;
+    text(sessions > 1 ? `CLIMBS · ${sessions} SESSIONS` : 'CLIMBS', P, y + 194, { size: 22, weight: 600, color: TEXT3, spacing: 3 });
+    const chipH = 58, gap = 12, chipOpts: TextOpts = { size: 30, weight: 600, mono: true };
+    let x = P, cy = y + 216, row = 0, shown = 0;
+    for (const climb of data.climbs) {
+      const w = measure(climb.grade, chipOpts) + 44;
+      if (x + w > OVERLAY_W - P) { row += 1; x = P; cy += chipH + gap; }
+      if (row > 2) break;
+      const flash = climb.attempts === 0;
+      c.beginPath();
+      c.roundRect(x, cy, w, chipH, chipH / 2);
+      c.fillStyle = flash ? 'rgba(52,211,153,0.18)' : 'rgba(155,140,255,0.16)';
+      c.fill();
+      text(climb.grade, x + w / 2, cy + 40, { ...chipOpts, color: flash ? OK : TEXT1, align: 'center' });
+      x += w + gap;
+      shown += 1;
+    }
+    const more = data.climbs.length - shown;
+    if (more > 0) text(`+${more} more`, OVERLAY_W - P, cy + chipH + 34, { size: 24, color: TEXT3, align: 'right' });
+    bottom = cy + chipH + (more > 0 ? 60 : 40);
   }
-  return canvas;
+
+  // Dark glass card behind everything, solid enough to read on a bright wall or chalk.
+  behind(() => {
+    c.beginPath();
+    c.roundRect(2, 2, OVERLAY_W - 4, bottom - 4, 44);
+    c.fillStyle = 'rgba(11,13,20,0.80)';
+    c.fill();
+    c.lineWidth = 2;
+    c.strokeStyle = LINE;
+    c.stroke();
+  });
+  return crop(canvas, bottom);
+}
+
+/** One climb, Strava style: no card, small labels over big white values, and a thin goal bar. */
+export async function renderClimbCard(data: ClimbCardData): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure } = await setup(OVERLAY_W, 320, true);
+  const LABEL: TextOpts = { size: 24, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.82)' };
+  const VALUE: TextOpts = { size: 84, weight: 700, color: TEXT1 };
+  // Drawn twice so the shadow holds up on a bright wall.
+  const bold = (s: string, x: number, y: number, o: TextOpts) => { text(s, x, y, o); text(s, x, y, o); };
+
+  const stats = [
+    { label: 'GRADE', value: data.grade, color: TEXT1 },
+    { label: 'ATTEMPTS', value: data.flash ? 'Flash' : String(data.attempts), color: data.flash ? OK : TEXT1 },
+    data.target
+      ? { label: 'GOAL', value: `${data.nth}/${data.target}`, color: data.complete ? EMBER : TEXT1 }
+      : { label: 'THIS YEAR', value: `#${data.nth}`, color: TEXT1 },
+  ];
+  const X = 36, GAP = 72;
+  let x = X;
+  for (const st of stats) {
+    bold(st.label, x, 60, LABEL);
+    bold(st.value, x, 150, { ...VALUE, color: st.color });
+    x += Math.max(measure(st.label, LABEL), measure(st.value, VALUE)) + GAP;
+  }
+  const width = x - GAP + X;
+
+  // Thin goal bar under the numbers (white, ember when the goal is done)
+  if (data.target) {
+    const y = 190, w = width - X * 2;
+    c.beginPath();
+    c.roundRect(X, y, w, 10, 5);
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    c.fill();
+    c.beginPath();
+    c.roundRect(X, y, Math.max(10, (w * Math.min(1, data.nth / data.target))), 10, 5);
+    c.fillStyle = data.complete ? EMBER : '#FFFFFF';
+    c.fill();
+  }
+  return crop(canvas, data.target ? 230 : 190, Math.min(OVERLAY_W, width));
 }
 
 /** The all-goals story: one total ring, then a bar per goal of the year. */
-export async function renderYearStory(data: YearStoryData): Promise<HTMLCanvasElement> {
-  const { canvas, c, text, measure, panel, ring } = await setup(STORY_W, STORY_H);
+export async function renderYearStory(data: YearStoryData, opts: RenderOpts = {}): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure, panel, ring, backdrop } = await setup(STORY_W, STORY_H, opts.clear);
   const t = data.total;
   const accent = t.complete ? EMBER : VIOLET;
   const innerW = STORY_W - PAD * 2;
-  paintBackground(c);
+  if (!opts.clear) paintBackground(c);
 
   // ── Header ──
   const headerY = SAFE_TOP + 50;
-  paintMark(c, PAD, headerY);
-  text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
-  text(data.dateLabel, STORY_W - PAD, headerY, { size: 36, color: TEXT2, align: 'right', mono: true });
+  if (!opts.clear) {
+    paintMark(c, PAD, headerY);
+    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
+  }
+  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
 
   // ── Total hero ──
   const heroTop = headerY + 76;
@@ -496,7 +734,94 @@ export async function renderYearStory(data: YearStoryData): Promise<HTMLCanvasEl
     if (more > 0) text(`+${more} more`, STORY_W / 2, listTop + listH - 40, { size: 30, color: TEXT3, align: 'center' });
   }
 
-  text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, color: TEXT3, align: 'center', spacing: 2 });
+  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, color: TEXT3, align: 'center', spacing: 2 });
+  backdrop(SAFE_TOP - 24, footY - 16);
+  return canvas;
+}
+
+/** The year in numbers: total sends, 8 stats and the weekly bars. */
+export async function renderYearStats(data: YearStatsData, opts: RenderOpts = {}): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure, panel, backdrop } = await setup(STORY_W, STORY_H, opts.clear);
+  const innerW = STORY_W - PAD * 2;
+  if (!opts.clear) paintBackground(c);
+
+  const headerY = SAFE_TOP + 50;
+  if (!opts.clear) {
+    paintMark(c, PAD, headerY);
+    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
+  }
+  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
+
+  // Hero: year pill and the total
+  const heroTop = headerY + 76;
+  const badge = `${data.year} SO FAR`;
+  const badgeOpts: TextOpts = { size: 30, weight: 700, spacing: 2 };
+  c.beginPath();
+  c.roundRect(PAD, heroTop, measure(badge, badgeOpts) + 56, 64, 32);
+  c.fillStyle = 'rgba(155,140,255,0.16)';
+  c.fill();
+  text(badge, PAD + 28, heroTop + 43, { ...badgeOpts, color: VIOLET });
+  const numY = heroTop + 96 + 180 * 0.74;
+  text(String(data.total), PAD, numY, { size: 180, mono: true });
+  text('sends', PAD + measure(String(data.total), { size: 180, mono: true }) + 20, numY, { size: 56, color: TEXT2 });
+  const subY = numY + 66;
+  text(`${data.days} climbing days · ${data.weeks} active weeks`, PAD, subY, { size: 40, weight: 600, color: TEXT2 });
+
+  // Stats grid, 4 x 2
+  const gridTop = subY + 60;
+  const gridH = 380;
+  panel(PAD, gridTop, innerW, gridH);
+  const stats = [
+    { v: `${data.flashRate}%`, l: 'FLASH RATE', color: data.flashes > 0 ? OK : TEXT1 },
+    { v: String(data.flashes), l: 'FLASHES', color: data.flashes > 0 ? OK : TEXT1 },
+    { v: String(data.avgAttempts), l: 'AVG ATTEMPTS', color: TEXT1 },
+    { v: data.hardest, l: 'HARDEST', color: TEXT1 },
+    { v: String(data.weeklyAvg), l: 'WEEKLY AVG', color: TEXT1 },
+    { v: String(data.bestWeek), l: 'BEST WEEK', color: TEXT1 },
+    { v: String(data.days), l: 'DAYS', color: TEXT1 },
+    { v: String(data.weeks), l: 'WEEKS', color: TEXT1 },
+  ];
+  const colW = (innerW - 32) / 4;
+  const rowH = gridH / 2;
+  stats.forEach((st, i) => {
+    const col = i % 4, row = Math.floor(i / 4);
+    const x = PAD + 16 + colW * col + colW / 2;
+    const y = gridTop + rowH * row;
+    let size = 64;
+    while (size > 30 && measure(st.v, { size, mono: true }) > colW - 20) size -= 4;
+    text(st.v, x, y + 108, { size, mono: true, color: st.color, align: 'center' });
+    text(st.l, x, y + 150, { size: 20, weight: 600, color: TEXT3, align: 'center', spacing: 2 });
+  });
+  c.fillStyle = LINE;
+  c.fillRect(PAD + 40, gridTop + rowH, innerW - 80, 2);
+
+  // Weekly bars
+  const chartTop = gridTop + gridH + 32;
+  const footY = SAFE_BOTTOM - 8;
+  const chartH = footY - 56 - chartTop;
+  panel(PAD, chartTop, innerW, chartH);
+  text(`Weekly sends · ${data.year}`, PAD + 36, chartTop + 56, { size: 26, weight: 600, color: TEXT2 });
+  {
+    const px = PAD + 36, pw = innerW - 72;
+    const py = chartTop + 110, ph = chartH - 110 - 56;
+    const weeks = data.weekly.weeks;
+    const max = Math.max(1, ...weeks.map((w) => w.count));
+    const slot = pw / Math.max(1, weeks.length);
+    const bw = Math.max(4, Math.min(16, slot * 0.68));
+    weeks.forEach((w, i) => {
+      const x = px + slot * i + (slot - bw) / 2;
+      const h = w.count > 0 ? Math.max(8, (ph * w.count) / max) : 4;
+      c.beginPath();
+      c.roundRect(x, py + ph - h, bw, h, Math.min(4, bw / 2));
+      c.fillStyle = w.count === data.bestWeek && w.count > 0 ? VIOLET : w.count > 0 ? 'rgba(155,140,255,0.42)' : 'rgba(255,255,255,0.08)';
+      c.fill();
+    });
+    text('Jan', px, chartTop + chartH - 20, { size: 22, color: TEXT3 });
+    text('brightest bar = best week', px + pw, chartTop + chartH - 20, { size: 22, color: TEXT3, align: 'right' });
+  }
+
+  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, color: TEXT3, align: 'center', spacing: 2 });
+  backdrop(SAFE_TOP - 24, footY - 16);
   return canvas;
 }
 

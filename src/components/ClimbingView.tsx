@@ -15,6 +15,8 @@ import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
 import Skeleton from '@/components/ui/Skeleton';
+import ShareStorySheet, { type StoryStyle } from '@/components/climbing/ShareStorySheet';
+import { latestSessionDate } from '@/lib/climbStory';
 import { CHART_SERIES, TOOLTIP_STYLE, seriesColor } from '@/lib/chartTheme';
 
 const GoalOverlay = dynamic(() => import('./GoalOverlay'), { ssr: false });
@@ -28,6 +30,8 @@ export default function ClimbingView() {
   const [goals, setGoals] = useState<Array<ClimbGoal>>([]);
   const [yearLogs, setYearLogs] = useState<Array<ClimbLog>>([]);
   const [yearLogsByYear, setYearLogsByYear] = useState<Record<number, Array<ClimbLog>>>({});
+  // Share sheet opened from the year card (Year or Goals image), null when closed
+  const [storyStyle, setStoryStyle] = useState<StoryStyle | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<{ id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number } | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
   const yearCacheRef = useRef<Map<string, Array<{ id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number; location?: string; notes?: string }>>>(new Map());
@@ -713,8 +717,8 @@ export default function ClimbingView() {
           actions={
             yearSummary.total ? (
               <>
-                <Button small variant="outline" onClick={generateYearSummaryOverlay}>Share</Button>
-                {goalsForSelectedYear.length ? <Button small variant="outline" onClick={generateGoalsYearOverlay}>Goals</Button> : null}
+                <Button small variant="outline" onClick={() => setStoryStyle('year')}>Share</Button>
+                {goalsForSelectedYear.length ? <Button small variant="outline" onClick={() => setStoryStyle('goals')}>Goals</Button> : null}
               </>
             ) : null
           }
@@ -746,7 +750,26 @@ export default function ClimbingView() {
         ) : (
           <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No climbing data for {goalsYear}.</p>
         )}
+        {yearSummary.total ? (
+          <p className="mt-2 flex flex-wrap items-center gap-x-1 text-[13px]" style={{ color: 'var(--text-3)' }}>
+            Old images:
+            <button type="button" className="min-h-11 px-2 underline" style={{ color: 'var(--text-2)' }} onClick={generateYearSummaryOverlay}>Year</button>
+            {goalsForSelectedYear.length ? (
+              <button type="button" className="min-h-11 px-2 underline" style={{ color: 'var(--text-2)' }} onClick={generateGoalsYearOverlay}>Goals</button>
+            ) : null}
+          </p>
+        ) : null}
       </Card>
+
+      <ShareStorySheet
+        key={`${storyStyle ?? 'closed'}-${goalsYear}`}
+        open={storyStyle !== null}
+        onClose={() => setStoryStyle(null)}
+        goals={goals}
+        initialDate={latestSessionDate(yearLogsByYear[goalsYear] || []) ?? (goalsYear === thisYear ? today : `${goalsYear}-12-31`)}
+        initialStyle={storyStyle ?? 'year'}
+        knownLogs={yearLogsByYear}
+      />
 
       {/* ── Last 30 days ───────────────────────────────────── */}
       <Card>

@@ -6,9 +6,9 @@ import Button from '@/components/ui/Button';
 import Input, { Label } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Sheet from '@/components/ui/Sheet';
-import { buildStory, buildYearStory, chooseGoal, latestSessionDate, type StoryGoal, type StoryLog } from '@/lib/climbStory';
+import { buildClimbCard, buildOverlay, buildStory, dayGoals, buildYearStats, buildYearStory, chooseGoal, climbsOn, latestSessionDate, type StoryGoal, type StoryLog } from '@/lib/climbStory';
 import { localTodayISO } from '@/lib/date';
-import { canvasToBlob, renderOverlay, renderStory, renderYearStory } from './storyImage';
+import { canvasToBlob, renderClimbCard, renderOverlay, renderStory, renderYearStats, renderYearStory } from './storyImage';
 
 type Props = {
   open: boolean;
@@ -20,6 +20,10 @@ type Props = {
   initialDate?: string;
   /** Climbs already loaded by the page, by year. Missing years are read from /api/climbing/logs. */
   knownLogs?: Record<number, StoryLog[]>;
+  /** Which image to start on. */
+  initialStyle?: StoryStyle;
+  /** Overlay of one climb (a log id) instead of the whole session. */
+  initialClimbId?: string;
 };
 
 /** "Share story": pick a style, goal and date, see the image, then share it (phone) or download it. */
@@ -37,21 +41,26 @@ const MIN_YEAR = 2000;
 
 type Shown = { url: string; key: string; blob: Blob };
 
-type Style = 'story' | 'overlay' | 'goals';
+export type StoryStyle = 'story' | 'overlay' | 'goals' | 'year';
+type Style = StoryStyle;
 const STYLES: Array<{ id: Style; label: string; hint: string }> = [
   { id: 'story', label: 'Story', hint: 'Full story, 1080 x 1920.' },
-  { id: 'overlay', label: 'Overlay', hint: 'See-through card for your video or photo. Copy it, then paste it in your story.' },
-  { id: 'goals', label: 'All goals', hint: 'Every goal of the year, 1080 x 1920.' },
+  { id: 'overlay', label: 'Overlay', hint: 'For on top of your video or photo. Copy it, then paste it in your story.' },
+  { id: 'goals', label: 'Goals', hint: 'Every goal of the year, 1080 x 1920.' },
+  { id: 'year', label: 'Year', hint: 'Your year in numbers, 1080 x 1920.' },
 ];
 
-function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props, 'open' | 'onClose'>) {
+function StoryBody({ goals, initialGoalId, initialDate, knownLogs, initialStyle, initialClimbId }: Omit<Props, 'open' | 'onClose'>) {
   const today = useMemo(() => localTodayISO(), []);
   const maxYear = yearOf(today) + 1;
   const [goalId, setGoalId] = useState<string>(
     () => initialGoalId ?? (initialDate ? chooseGoal(goals, [], initialDate)?.id : undefined) ?? goals[0]?.id ?? '',
   );
   const [date, setDate] = useState<string>(initialDate ?? today);
-  const [style, setStyle] = useState<Style>('story');
+  const [style, setStyle] = useState<Style>(initialStyle ?? 'story');
+  const [clearBg, setClearBg] = useState(false);
+  // Overlay content: 'session' or one climb's log id
+  const [show, setShow] = useState<string>(initialClimbId ?? 'session');
   const [goalTouched, setGoalTouched] = useState(false);
   const [dateTouched, setDateTouched] = useState(false);
   const [fetched, setFetched] = useState<Record<number, StoryLog[]>>({});
@@ -133,7 +142,16 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
   }, []);
 
   // What the image should show right now. The buttons only work when the shown image matches it.
-  const key = goal && dateValid && ready && !failed ? `${style}|${goal.id}|${date}|${allLogs.length}` : null;
+  const dayClimbs = useMemo(() => climbsOn(allLogs, date), [allLogs, date]);
+  // The story shows every goal sent that day; the goal picker is only for a day without one.
+  const sentGoals = useMemo(() => dayGoals(goals, allLogs, date), [goals, allLogs, date]);
+  const storyGoals = sentGoals.length ? sentGoals : goal ? [goal] : [];
+  // A climb from another date falls back to the whole session.
+  const climbId = style === 'overlay' && show !== 'session' && dayClimbs.some((x) => x.id === show) ? show : null;
+
+  // The overlay card is always see-through; the full images can drop their background too.
+  const seeThrough = style === 'overlay' || clearBg;
+  const key = goal && dateValid && ready && !failed ? `${style}|${seeThrough}|${climbId}|${storyGoals.map((x) => x.id).join(',')}|${date}|${allLogs.length}` : null;
 
   useEffect(() => {
     if (!goal || !key) return;
@@ -141,9 +159,11 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
     (async () => {
       try {
         const canvas =
-          style === 'overlay' ? await renderOverlay(buildStory(goal, allLogs, date))
-          : style === 'goals' ? await renderYearStory(buildYearStory(goals, allLogs, date))
-          : await renderStory(buildStory(goal, allLogs, date));
+          style === 'overlay' && climbId ? await renderClimbCard(buildClimbCard(climbId, goals, allLogs) as NonNullable<ReturnType<typeof buildClimbCard>>)
+          : style === 'overlay' ? await renderOverlay(buildOverlay(goals, allLogs, date))
+          : style === 'goals' ? await renderYearStory(buildYearStory(goals, allLogs, date), { clear: seeThrough })
+          : style === 'year' ? await renderYearStats(buildYearStats(allLogs, dateYear, date), { clear: seeThrough })
+          : await renderStory(buildStory(storyGoals, allLogs, date), { clear: seeThrough });
         const blob = await canvasToBlob(canvas);
         if (run !== runRef.current) return;
         if (!blob) throw new Error('no blob');
@@ -155,15 +175,16 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
         if (run === runRef.current) { swapUrl(null); setShown(null); setNote('Could not draw the image. Try again.'); }
       }
     })();
-  // allLogs and style are covered by key (style, goal, date, count); only redraw when key changes
+  // allLogs, style and seeThrough are covered by key; only redraw when key changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   useEffect(() => () => swapUrl(null), []);
 
   const current = shown && key !== null && shown.key === key ? shown : null;
+  const suffix = seeThrough && style !== 'overlay' ? '-clear' : '';
   const fileName =
-    style === 'overlay' ? `climbing-overlay-${date}.png` : style === 'goals' ? `climbing-goals-${dateYear}.png` : `climbing-story-${date}.png`;
+    style === 'overlay' ? `climbing-overlay-${date}${climbId ? '-climb' : ''}.png` : style === 'goals' ? `climbing-goals-${dateYear}${suffix}.png` : style === 'year' ? `climbing-year-${dateYear}${suffix}.png` : `climbing-story-${date}${suffix}.png`;
   const hint = STYLES.find((x) => x.id === style)?.hint ?? '';
 
   async function copy() {
@@ -215,8 +236,8 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
           style={{
             height: 'min(42dvh, 440px)',
             aspectRatio: '9 / 16',
-            // The overlay sits on a stand-in for a climbing photo, so its see-through edges show.
-            background: style === 'overlay' ? 'linear-gradient(165deg, #6b7c8f 0%, #3b4656 45%, #1a2029 100%)' : 'var(--surface-2)',
+            // See-through images sit on a stand-in for a climbing photo, so the clear parts show.
+            background: seeThrough ? 'linear-gradient(165deg, #6b7c8f 0%, #3b4656 45%, #1a2029 100%)' : 'var(--surface-2)',
             border: '1px solid var(--border)',
           }}
         >
@@ -241,7 +262,7 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
               role="radio"
               aria-checked={on}
               onClick={() => setStyle(x.id)}
-              className="min-h-11 flex-1 rounded-full px-3 text-[14px] font-medium"
+              className="min-h-11 min-w-0 flex-1 rounded-full px-2 text-[14px] font-medium"
               style={{ background: on ? 'var(--accent-soft)' : 'transparent', color: on ? 'var(--accent)' : 'var(--text-2)' }}
             >
               {x.label}
@@ -252,7 +273,25 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
       <p className="-mt-2 text-[13px]" style={{ color: 'var(--text-3)' }}>{hint}</p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div hidden={style === 'goals'}>
+        <div hidden={style === 'overlay'}>
+          <Label htmlFor="story-bg">Background</Label>
+          <Select id="story-bg" className="w-full" value={clearBg ? 'none' : 'dark'} onChange={(e) => setClearBg(e.target.value === 'none')}>
+            <option value="dark">Dark background</option>
+            <option value="none">No background (on a photo or video)</option>
+          </Select>
+        </div>
+        <div hidden={style !== 'overlay' || dayClimbs.length === 0}>
+          <Label htmlFor="story-show">Show</Label>
+          <Select id="story-show" className="w-full" value={climbId ?? 'session'} onChange={(e) => setShow(e.target.value)}>
+            <option value="session">Whole session ({dayClimbs.length} {dayClimbs.length === 1 ? 'climb' : 'climbs'})</option>
+            {dayClimbs.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.grade} {x.type} · S{x.session} · {x.attempts === 0 ? 'flash' : `${x.attempts} att`}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div hidden={style !== 'story' || sentGoals.length > 0}>
           <Label htmlFor="story-goal">Goal</Label>
           <Select id="story-goal" className="w-full" value={goalId} onChange={(e) => { setGoalId(e.target.value); setGoalTouched(true); }}>
             {goals.map((g) => <option key={g.id} value={g.id}>{goalLabel(g)}</option>)}
@@ -275,7 +314,7 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs }: Omit<Props,
           {canShareFiles ? <Share2 size={18} aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}
           {canShareFiles ? 'Share story' : 'Download image'}
         </Button>
-        {canCopy && style === 'overlay' && (
+        {canCopy && seeThrough && (
           <Button variant="outline" disabled={!current} onClick={() => void copy()} aria-label="Copy image">
             <Copy size={18} aria-hidden="true" />
           </Button>

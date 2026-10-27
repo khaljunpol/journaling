@@ -39,7 +39,9 @@ export default function ClimbingLogView() {
   // "Share story" sheet: the date it opens on (null = closed)
   const [storyDate, setStoryDate] = useState<string | null>(null);
   const [storyKey, setStoryKey] = useState(0);
-  const openStory = (d: string) => { setStoryKey((k) => k + 1); setStoryDate(d); };
+  // One climb's overlay when opened from a log row (null = the whole day)
+  const [storyClimb, setStoryClimb] = useState<string | null>(null);
+  const openStory = (d: string, climbId: string | null = null) => { setStoryKey((k) => k + 1); setStoryClimb(climbId); setStoryDate(d); };
 
   async function refresh() {
     try {
@@ -491,6 +493,8 @@ export default function ClimbingLogView() {
         onClose={() => setStoryDate(null)}
         goals={goals}
         initialDate={storyDate ?? date}
+        initialStyle={storyClimb ? 'overlay' : undefined}
+        initialClimbId={storyClimb ?? undefined}
       />
 
       {/* Share image style picker (story + 3 older styles) */}
@@ -517,6 +521,15 @@ export default function ClimbingLogView() {
           >
             <div className="text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>Share story</div>
             <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>Goal, session and charts</div>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block min-h-11 w-full rounded-[8px] px-3 py-1.5 text-left hover:bg-[var(--surface-3)]"
+            onClick={() => { openStory(String(overlayMenu.log.date).slice(0, 10), overlayMenu.log.id); setOverlayMenu(null); }}
+          >
+            <div className="text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>Share this climb</div>
+            <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>Card for on top of your video</div>
           </button>
           <div className="mt-1 border-t px-3 pb-1 pt-2.5 text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)', borderColor: 'var(--border)' }}>More styles</div>
           {[

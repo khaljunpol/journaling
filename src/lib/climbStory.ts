@@ -162,29 +162,69 @@ export function chooseGoal(goals: StoryGoal[], logs: StoryLog[], date: string): 
   return best ?? pool[0];
 }
 
+export type StoryClimb = { id: string; grade: string; type: 'boulder' | 'rope'; attempts: number; session: number };
+
+/** That day's climbs, by session (log order within a session). */
+export function climbsOn(logs: StoryLog[], date: string): StoryClimb[] {
+  const d = day(date);
+  return logs
+    .filter((l) => day(l.date) === d)
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => a.l.session - b.l.session || a.i - b.i)
+    .map(({ l }) => ({ id: l.id, grade: l.type === 'boulder' ? l.grade.toUpperCase() : l.grade, type: l.type, attempts: l.attempts || 0, session: l.session }));
+}
+
+export type StoryGoalView = { id: string; grade: string; typeLabel: string; line: GoalLine } & GoalProgress;
+
 export type StoryData = {
   date: string;
   dateLabel: string;
   year: number;
+  /** The first of `goals` (the one the single-goal layout shows) */
   goal: { grade: string; typeLabel: string } & GoalProgress;
+  /** Every goal on the story: the goals that got a send that day, or the picked goal */
+  goals: StoryGoalView[];
   session: SessionStats;
+  climbs: StoryClimb[];
   line: GoalLine;
   weekly: WeeklySends;
   attempts: AttemptBucket[];
 };
 
-export function buildStory(goal: StoryGoal, logs: StoryLog[], date: string): StoryData {
+/** Goals of the date's year that got a send that day, most sends first. */
+export function dayGoals(goals: StoryGoal[], logs: StoryLog[], date: string): StoryGoal[] {
   const d = day(date);
-  const progress = goalProgress(goal, logs, d);
+  const todays = logs.filter((l) => day(l.date) === d);
+  return goals
+    .filter((g) => String(g.year) === d.slice(0, 4))
+    .map((g, i) => ({ g, i, n: todays.filter((l) => logMatchesGoal(l, g)).length }))
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map((x) => x.g);
+}
+
+/** The story for one or more goals (pass `dayGoals(...)`, or the picked goal when that day has none). */
+export function buildStory(goals: StoryGoal[], logs: StoryLog[], date: string): StoryData {
+  const d = day(date);
+  const views: StoryGoalView[] = goals.map((g) => ({
+    id: g.id,
+    grade: g.type === 'boulder' ? g.grade.toUpperCase() : g.grade,
+    typeLabel: g.type === 'boulder' ? 'Boulder' : 'Rope',
+    line: goalLine(g, logs, d),
+    ...goalProgress(g, logs, d),
+  }));
+  const first = goals[0];
   return {
     date: d,
     dateLabel: formatStoryDate(d),
-    year: goal.year,
-    goal: { grade: goal.type === 'boulder' ? goal.grade.toUpperCase() : goal.grade, typeLabel: goal.type === 'boulder' ? 'Boulder' : 'Rope', ...progress },
+    year: first.year,
+    goal: views[0],
+    goals: views,
     session: sessionStats(logs, d),
-    line: goalLine(goal, logs, d),
-    weekly: weeklySends(logs, goal.year, d),
-    attempts: attemptsBuckets(goalSends(goal, logs, d)),
+    climbs: climbsOn(logs, d),
+    line: views[0].line,
+    weekly: weeklySends(logs, first.year, d),
+    attempts: attemptsBuckets(goals.flatMap((g) => goalSends(g, logs, d))),
   };
 }
 
@@ -211,4 +251,92 @@ export function buildYearStory(goals: StoryGoal[], logs: StoryLog[], date: strin
   const pct = target ? Math.min(100, Math.round((done / target) * 100)) : 0;
   const pace = complete ? 'Goal complete' : paceText(done, target, expected);
   return { date: d, dateLabel: formatStoryDate(d), year, total: { done, target, pct, complete, expected, pace }, goals: rows };
+}
+
+export type YearStatsData = {
+  date: string; dateLabel: string; year: number;
+  total: number; flashes: number; flashRate: number; avgAttempts: number;
+  days: number; weeks: number; weeklyAvg: number; bestWeek: number; hardest: string;
+  weekly: WeeklySends;
+};
+
+/** The year in numbers (same rules as the Climbing page "activity" card), up to and including asOf. */
+export function buildYearStats(logs: StoryLog[], year: number, asOf: string): YearStatsData {
+  const end = day(asOf);
+  const ylogs = logs.filter((l) => day(l.date).startsWith(`${year}-`) && day(l.date) <= end);
+  const total = ylogs.length;
+  const flashes = ylogs.filter((l) => l.attempts === 0).length;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const weekMap = new Map<string, number>();
+  for (const l of ylogs) {
+    const k = localISO(weekStartLocal(parseLocalDate(day(l.date))));
+    weekMap.set(k, (weekMap.get(k) || 0) + 1);
+  }
+  const counts = Array.from(weekMap.values());
+  return {
+    date: end,
+    dateLabel: formatStoryDate(end),
+    year,
+    total,
+    flashes,
+    flashRate: total ? Math.round((flashes / total) * 100) : 0,
+    avgAttempts: total ? round1(ylogs.reduce((a, l) => a + (l.attempts || 0), 0) / total) : 0,
+    days: new Set(ylogs.map((l) => day(l.date))).size,
+    weeks: weekMap.size,
+    weeklyAvg: counts.length ? round1(counts.reduce((a, b) => a + b, 0) / counts.length) : 0,
+    bestWeek: counts.reduce((m, c) => Math.max(m, c), 0),
+    hardest: hardestGrade(ylogs),
+    weekly: weeklySends(logs, year, end),
+  };
+}
+
+export type SessionGoal = YearGoalRow & { today: number };
+export type OverlayData = { dateLabel: string; session: SessionStats; climbs: StoryClimb[]; goals: SessionGoal[] };
+
+/** The session overlay: the day's stats and climbs, plus every goal of that year that got a send that day (most sends first). */
+export function buildOverlay(goals: StoryGoal[], logs: StoryLog[], date: string): OverlayData {
+  const d = day(date);
+  const todays = logs.filter((l) => day(l.date) === d);
+  const rows = dayGoals(goals, logs, d)
+    .map((g) => ({ g, today: todays.filter((l) => logMatchesGoal(l, g)).length }))
+    .map(({ g, today }) => ({
+      id: g.id,
+      grade: g.type === 'boulder' ? g.grade.toUpperCase() : g.grade,
+      typeLabel: g.type === 'boulder' ? 'Boulder' : 'Rope',
+      today,
+      ...goalProgress(g, logs, d),
+    }));
+  return { dateLabel: formatStoryDate(d), session: sessionStats(logs, d), climbs: climbsOn(logs, d), goals: rows };
+}
+
+export type ClimbCardData = {
+  grade: string;
+  flash: boolean;
+  attempts: number;
+  /** Which send of this grade this year this climb was (1-based, in log order) */
+  nth: number;
+  /** The matching goal's target, or null without a goal */
+  target: number | null;
+  complete: boolean;
+};
+
+/** One climb, kept tiny: its grade and which send of that grade it was this year. Null when the id is not in the logs. */
+export function buildClimbCard(climbId: string, goals: StoryGoal[], logs: StoryLog[]): ClimbCardData | null {
+  const log = logs.find((l) => l.id === climbId);
+  if (!log) return null;
+  const year = day(log.date).slice(0, 4);
+  const same = logs
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => day(l.date).startsWith(`${year}-`) && logMatchesGoal(l, log))
+    .sort((a, b) => (day(a.l.date) < day(b.l.date) ? -1 : day(a.l.date) > day(b.l.date) ? 1 : a.l.session - b.l.session || a.i - b.i));
+  const nth = same.findIndex(({ l }) => l.id === climbId) + 1;
+  const g = goals.find((x) => String(x.year) === year && logMatchesGoal(log, x));
+  return {
+    grade: log.type === 'boulder' ? log.grade.toUpperCase() : log.grade,
+    flash: (log.attempts || 0) === 0,
+    attempts: log.attempts || 0,
+    nth,
+    target: g ? g.target : null,
+    complete: g ? nth >= g.target : false,
+  };
 }
