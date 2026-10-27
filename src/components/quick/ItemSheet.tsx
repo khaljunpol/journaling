@@ -10,6 +10,7 @@ import WeightEditor from './editors/WeightEditor';
 import HighlightEditor from './editors/HighlightEditor';
 import QuestsEditor from './editors/QuestsEditor';
 import HoursEditor from './editors/HoursEditor';
+import DayPill from './DayPill';
 import type { QuestInfo, SaveSpec } from './editors/types';
 
 export type SheetTarget = { date: string; key: ItemKey };
@@ -26,7 +27,8 @@ export const TITLES: Record<ItemKey, string> = {
 
 type Props = {
   target: SheetTarget;
-  dayLabel: string;
+  today: string | null;
+  yesterday: string | null;
   payload: QuickPayload;
   categories: TimeCategory[];
   quests: QuestInfo;
@@ -35,13 +37,14 @@ type Props = {
   onClose: () => void;
 };
 
-export default function ItemSheet({ target, dayLabel, payload, categories, quests, queued, onSave, onClose }: Props) {
+export default function ItemSheet({ target, today, yesterday, payload, categories, quests, queued, onSave, onClose }: Props) {
   const { date, key } = target;
   const common = { date, payload, queued, onSave };
 
   // The kit Sheet gives focus trap, Escape, Back button, z-50 above the tabs and the motion.
   return (
-    <Sheet open onClose={onClose} title={TITLES[key]} subtitle={dayLabel}>
+    <Sheet open onClose={onClose} title={TITLES[key]}>
+      <div className="mb-4"><DayPill date={date} today={today} yesterday={yesterday} /></div>
       {key === 'mood' && <MoodEditor {...common} />}
       {key === 'habits' && <HabitsEditor {...common} />}
       {key === 'weight' && <WeightEditor {...common} />}

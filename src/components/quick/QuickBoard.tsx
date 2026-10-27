@@ -413,6 +413,8 @@ export default function QuickBoard() {
           steps={stack.steps}
           weekRun={stack.weekRun}
           labelFor={(d) => (stack.weekRun ? shortLabel(d) : d === today ? 'Today' : dayLabel(d, yesterday ?? ''))}
+          today={today}
+          yesterday={yesterday ?? null}
           payload={payload}
           categories={categories}
           quests={quests}
@@ -426,7 +428,8 @@ export default function QuickBoard() {
         <ItemSheet
           key={`${sheet.date}:${sheet.key}`}
           target={sheet}
-          dayLabel={sheet.date === today ? 'Today' : dayLabel(sheet.date, yesterday ?? '')}
+          today={today}
+          yesterday={yesterday ?? null}
           payload={payload}
           categories={categories}
           quests={quests}

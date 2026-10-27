@@ -17,12 +17,15 @@ import HighlightEditor from './editors/HighlightEditor';
 import QuestsEditor from './editors/QuestsEditor';
 import HoursEditor from './editors/HoursEditor';
 import type { QuestInfo, SaveSpec } from './editors/types';
+import DayPill from './DayPill';
 
 type Props = {
   /** Captured when the stack opened. One card per step; a day run has one date, a week run has many. */
   steps: CatchUpStep[];
   /** Short label for a date, e.g. "Tue 14 Oct". */
   labelFor: (date: string) => string;
+  today: string | null;
+  yesterday: string | null;
   /** Set for a week catch-up run: changes the title and the closing words. */
   weekRun?: boolean;
   payload: QuickPayload;
@@ -36,7 +39,7 @@ type Props = {
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-export default function CardStack({ steps, labelFor, weekRun, payload, categories, quests, queued, onSave, onClose }: Props) {
+export default function CardStack({ steps, labelFor, today, yesterday, weekRun, payload, categories, quests, queued, onSave, onClose }: Props) {
   const [index, setIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const lockedUntil = useRef(0);
@@ -209,7 +212,7 @@ export default function CardStack({ steps, labelFor, weekRun, payload, categorie
               style={sliding ? { pointerEvents: 'none' } : undefined}
             >
               <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>{TITLES[key]}</h2>
-              <p className="mb-4 text-[13px]" style={{ color: 'var(--text-2)' }}>{dayLabel}</p>
+              <div className="mb-4 mt-1"><DayPill date={date} today={today} yesterday={yesterday} /></div>
               {key === 'mood' && <MoodEditor {...common} />}
               {key === 'habits' && <HabitsEditor {...common} />}
               {key === 'weight' && <WeightEditor {...common} />}
