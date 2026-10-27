@@ -12,6 +12,7 @@ import type { TimeCategory } from '@/lib/types';
 import { useOutbox } from './useOutbox';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection from './DaySection';
+import ReminderToggle from './ReminderToggle';
 import CardStack from './CardStack';
 import ItemSheet, { type SheetTarget } from './ItemSheet';
 import type { QuestInfo, SaveSpec } from './editors/types';
@@ -267,6 +268,8 @@ export default function QuickBoard() {
           <SkeletonDay label="Today" />
         </>
       )}
+
+      {payload && <ReminderToggle initial={payload.reminderEnabled} disabled={!confirmed} />}
 
       {stack && payload && (
         <CardStack

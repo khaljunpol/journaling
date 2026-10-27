@@ -1,20 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import {
-  listActivities,
-  getLogsBetween,
-  getMoodsBetween,
-  getWeightsBetween,
-  getHighlightsBetween,
-  listHourLogs,
-  listClimbLogs,
-  listTimeCategories,
-  getSettings,
-  tabCache,
-} from '@/lib/googleSheets';
-import { listSidequests, listSidequestLogs } from '@/lib/sidequests';
-import { buildQuickPayload } from '@/lib/quickPayload';
+import { loadQuickPayload } from '@/lib/server/loadQuick';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -44,35 +31,8 @@ export async function GET(req: Request) {
     if (a > b) return apiError('from must be on or before to', 400);
     if (b - a + 1 > MAX_DAYS) return apiError(`range is at most ${MAX_DAYS} days`, 400);
 
-    // One batched read fills the cache; the calls below hit memory.
-    await tabCache.read(sheetAuth.spreadsheetId, [
-      'activities', 'logs', 'moods', 'weights', 'highlights', 'hours', 'climbs',
-      'sidequests', 'sidequestLogs', 'timeCategories', 'settings',
-    ]);
-
-    const [activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories, settings] =
-      await Promise.all([
-        listActivities(sheetAuth),
-        getLogsBetween(sheetAuth, from, to),
-        getMoodsBetween(sheetAuth, from, to),
-        getWeightsBetween(sheetAuth, from, to),
-        getHighlightsBetween(sheetAuth, from, to),
-        listHourLogs(sheetAuth, from, to),
-        listClimbLogs(sheetAuth, from, to),
-        listSidequests(sheetAuth),
-        listSidequestLogs(sheetAuth),
-        listTimeCategories(sheetAuth),
-        getSettings(sheetAuth),
-      ]);
-
-    return NextResponse.json(
-      buildQuickPayload(
-        { activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories },
-        from,
-        to,
-        settings,
-      ),
-    );
+    const { payload } = await loadQuickPayload(sheetAuth, from, to);
+    return NextResponse.json(payload);
   } catch (error: unknown) {
     return apiFailure(error, 'GET /api/quick');
   }

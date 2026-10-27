@@ -31,3 +31,10 @@ test('allowed user', () => {
   assert.equal(decideAccess({ pathname: '/login', email: ' ALEX@X.com ', allowed }), 'to-home');
   assert.equal(decideAccess({ pathname: '/journal', email: 'alex@x.com', allowed }), 'next');
 });
+
+test('only the exact reminder run path is public', () => {
+  assert.equal(decideAccess({ pathname: '/api/reminder/run', email: null, allowed }), 'next');
+  assert.equal(decideAccess({ pathname: '/api/reminder/runx', email: null, allowed }), 'json-401');
+  assert.equal(decideAccess({ pathname: '/api/reminders', email: null, allowed }), 'json-401');
+  assert.equal(decideAccess({ pathname: '/api/push/subscribe', email: null, allowed }), 'json-401');
+});

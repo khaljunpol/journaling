@@ -7,6 +7,8 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname === '/manifest.webmanifest' ||
+    // The route itself checks CRON_SECRET. Exact match only.
+    pathname === '/api/reminder/run' ||
     pathname.startsWith('/sw') ||
     pathname.startsWith('/icon')
   );
