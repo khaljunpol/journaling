@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { settleUnconfirmed, enqueue, classify, onResult, due, backoffMs } from '../src/lib/outbox.ts';
+import { settleUnconfirmed, enqueue, classify, onResult, due, backoffMs, nextToSend } from '../src/lib/outbox.ts';
 
 const mk = (key: string, body: unknown = {}) => ({ key, url: '/api/x', method: 'POST' as const, body });
 
@@ -152,4 +152,17 @@ test('settleUnconfirmed: other user drops flagged items only', () => {
   q = enqueue(q, { ...mk('weight:a'), unconfirmed: true }, 0);
   const out = settleUnconfirmed(q, false);
   assert.deepEqual(out.map((x) => x.key), ['mood:a']);
+});
+
+test('nextToSend: at most one due item per group, none for groups in flight', () => {
+  let q: ReturnType<typeof enqueue> = [];
+  for (let d = 10; d < 17; d++) q = enqueue(q, mk(`hours:2026-10-${d}`), 1000 + d);
+  for (const id of ['a', 'b', 'c']) q = enqueue(q, mk(`log:2026-10-26:${id}`), 2000);
+  q = enqueue(q, mk('mood:2026-10-26'), 3000);
+  const out = nextToSend(q, 5000, new Set());
+  assert.equal(out.length, 3);
+  assert.deepEqual(out.map((x) => x.key.split(':')[0]).sort(), ['hours', 'log', 'mood']);
+  assert.equal(out.find((x) => x.key.startsWith('hours:'))!.key, 'hours:2026-10-10'); // oldest first
+  const busy = nextToSend(q, 5000, new Set(['hours:2026-10-10']));
+  assert.deepEqual(busy.map((x) => x.key.split(':')[0]).sort(), ['log', 'mood']);
 });

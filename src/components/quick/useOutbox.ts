@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { classify, due, settleUnconfirmed, enqueue as enqueueItem, mergeQueues, nextBase, onResult, type OutboxItem } from '@/lib/outbox';
+import { classify, settleUnconfirmed, enqueue as enqueueItem, mergeQueues, nextBase, nextToSend, onResult, type OutboxItem } from '@/lib/outbox';
 import { loadOutbox, readOutbox, saveOutbox } from '@/lib/quickStore';
 
 const TICK_MS = 15000;
@@ -12,6 +12,7 @@ export function useOutbox(email: string, canSend = true) {
   const router = useRouter();
   const [queue, setQueue] = useState<OutboxItem[]>([]);
   const qRef = useRef<OutboxItem[]>([]);
+  const drainRef = useRef<() => void>(() => {});
   const inflight = useRef<Set<string>>(new Set());
   const baseRef = useRef<OutboxItem[]>([]);
   const loaded = useRef(false);
@@ -35,8 +36,8 @@ export function useOutbox(email: string, canSend = true) {
 
   const drain = useCallback(() => {
     if (!loaded.current || !canSendRef.current || loadedFor.current !== email) return;
-    for (const item of due(qRef.current, Date.now())) {
-      if (inflight.current.has(item.key)) continue;
+    // One request per sheet group at a time; the next one of the group goes out as soon as this one is back.
+    for (const item of nextToSend(qRef.current, Date.now(), inflight.current)) {
       inflight.current.add(item.key);
       const sentBody = item.body;
       void (async () => {
@@ -57,9 +58,11 @@ export function useOutbox(email: string, canSend = true) {
           commit(onResult(qRef.current, item.key, result, Date.now()));
         }
         if (result === 'auth') router.replace(status === 403 ? '/setup' : '/login');
+        else drainRef.current();
       })();
     }
   }, [commit, router, email]);
+  useEffect(() => { drainRef.current = drain; }, [drain]);
 
   const enqueue = useCallback((item: Omit<OutboxItem, 'attempts' | 'nextAt' | 'state' | 'updatedAt'>) => {
     const flagged = canSendRef.current ? item : { ...item, unconfirmed: true };

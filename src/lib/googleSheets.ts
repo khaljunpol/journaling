@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 import { range, TABS } from '@/lib/sheetLayout';
+import { withLock } from '@/lib/keyedLock';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
 
@@ -99,71 +100,77 @@ export async function createActivity(sa: SheetAuth, name: string, options?: { st
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.activities;
-  try {
-    const id = String(Date.now());
-    const status = options?.status ?? 'active';
-    await sheets.spreadsheets.values.append({
-      spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
-      requestBody: { values: [[id, name, status]] },
-    });
-    return { id, name, status };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'activities');
-  }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const id = String(Date.now());
+      const status = options?.status ?? 'active';
+      await sheets.spreadsheets.values.append({
+        spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
+        requestBody: { values: [[id, name, status]] },
+      });
+      return { id, name, status };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'activities');
+    }
+  });
 }
 
 export async function updateActivity(sa: SheetAuth, id: string, updates: { name?: string; status?: 'active' | 'stopped' }) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.activities;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === id) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) throw new Error('Activity not found');
+      const existing = values[rowIndex - 2] || [];
+      const name = updates.name ?? existing[1] ?? '';
+      const status = updates.status ?? (existing[2] || 'active');
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: range(title, `B${rowIndex}:C${rowIndex}`), valueInputOption: 'RAW',
+        requestBody: { values: [[name, status]] },
+      });
+      return { id, name: String(name), status: String(status) };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'activities');
     }
-    if (rowIndex === -1) throw new Error('Activity not found');
-    const existing = values[rowIndex - 2] || [];
-    const name = updates.name ?? existing[1] ?? '';
-    const status = updates.status ?? (existing[2] || 'active');
-    await sheets.spreadsheets.values.update({
-      spreadsheetId, range: range(title, `B${rowIndex}:C${rowIndex}`), valueInputOption: 'RAW',
-      requestBody: { values: [[name, status]] },
-    });
-    return { id, name: String(name), status: String(status) };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'activities');
-  }
+  });
 }
 
 export async function deleteActivity(sa: SheetAuth, id: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.activities;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === id) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) throw new Error('Activity not found');
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+      const sheetId = sheet?.properties?.sheetId;
+      if (typeof sheetId === 'number') {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] },
+        });
+      } else {
+        await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:C${rowIndex}`) });
+      }
+      return { id };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'activities');
     }
-    if (rowIndex === -1) throw new Error('Activity not found');
-    const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
-    const sheetId = sheet?.properties?.sheetId;
-    if (typeof sheetId === 'number') {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] },
-      });
-    } else {
-      await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:C${rowIndex}`) });
-    }
-    return { id };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'activities');
-  }
+  });
 }
 
 // ── Activity Logs ────────────────────────────────────────────
@@ -201,30 +208,32 @@ export async function upsertLog(sa: SheetAuth, dateISO: string, activityId: stri
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.logs;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = values.length - 1; i >= 0; i--) {
-      if (String(values[i]?.[0] ?? '').trim() === dateISO && String(values[i]?.[1] ?? '').trim() === activityId) {
-        rowIndex = i + 2; break;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = values.length - 1; i >= 0; i--) {
+        if (String(values[i]?.[0] ?? '').trim() === dateISO && String(values[i]?.[1] ?? '').trim() === activityId) {
+          rowIndex = i + 2; break;
+        }
       }
+      const value = completed ? '1' : '0';
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
+          requestBody: { values: [[dateISO, activityId, value]] },
+        });
+      } else {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId, range: range(title, `C${rowIndex}`), valueInputOption: 'RAW',
+          requestBody: { values: [[value]] },
+        });
+      }
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'logs');
     }
-    const value = completed ? '1' : '0';
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
-        requestBody: { values: [[dateISO, activityId, value]] },
-      });
-    } else {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `C${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[value]] },
-      });
-    }
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'logs');
-  }
+  });
 }
 
 // ── Highlights ───────────────────────────────────────────────
@@ -233,27 +242,29 @@ export async function setHighlight(sa: SheetAuth, dateISO: string, text: string)
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.highlights;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
+          requestBody: { values: [[dateISO, text]] },
+        });
+      } else {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
+          requestBody: { values: [[text]] },
+        });
+      }
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'highlights');
     }
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
-        requestBody: { values: [[dateISO, text]] },
-      });
-    } else {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[text]] },
-      });
-    }
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'highlights');
-  }
+  });
 }
 
 export async function getHighlight(sa: SheetAuth, dateISO: string) {
@@ -296,27 +307,29 @@ export async function setWeight(sa: SheetAuth, dateISO: string, weight: number) 
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.weights;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
+          requestBody: { values: [[dateISO, String(weight)]] },
+        });
+      } else {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
+          requestBody: { values: [[String(weight)]] },
+        });
+      }
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'weights');
     }
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
-        requestBody: { values: [[dateISO, String(weight)]] },
-      });
-    } else {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[String(weight)]] },
-      });
-    }
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'weights');
-  }
+  });
 }
 
 export async function getWeightsBetween(sa: SheetAuth, fromISO: string, toISO: string) {
@@ -353,27 +366,29 @@ export async function setMood(sa: SheetAuth, dateISO: string, score: number) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.moods;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === dateISO) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
+          requestBody: { values: [[dateISO, String(score)]] },
+        });
+      } else {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
+          requestBody: { values: [[String(score)]] },
+        });
+      }
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'moods');
     }
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
-        requestBody: { values: [[dateISO, String(score)]] },
-      });
-    } else {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[String(score)]] },
-      });
-    }
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'moods');
-  }
+  });
 }
 
 export async function getMoodsBetween(sa: SheetAuth, fromISO: string, toISO: string) {
@@ -408,27 +423,29 @@ export async function setSetting(sa: SheetAuth, key: string, value: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.settings;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i]?.[0] ?? '').trim() === key) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (String(values[i]?.[0] ?? '').trim() === key) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
+          requestBody: { values: [[key, value]] },
+        });
+      } else {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
+          requestBody: { values: [[value]] },
+        });
+      }
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'settings');
     }
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
-        requestBody: { values: [[key, value]] },
-      });
-    } else {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[value]] },
-      });
-    }
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'settings');
-  }
+  });
 }
 
 // ── Consistency Metrics ──────────────────────────────────────
@@ -568,42 +585,46 @@ export async function addClimbLog(sa: SheetAuth, entry: { date: string; session:
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.climbs;
-  try {
-    const id = String(Date.now());
-    await sheets.spreadsheets.values.append({
-      spreadsheetId, range: range(title, 'A1:H'), valueInputOption: 'RAW',
-      requestBody: { values: [[id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')]] },
-    });
-    return { id, ...entry } as ClimbLog;
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'climbs');
-  }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const id = String(Date.now());
+      await sheets.spreadsheets.values.append({
+        spreadsheetId, range: range(title, 'A1:H'), valueInputOption: 'RAW',
+        requestBody: { values: [[id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')]] },
+      });
+      return { id, ...entry } as ClimbLog;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'climbs');
+    }
+  });
 }
 
 export async function deleteClimbLog(sa: SheetAuth, id: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.climbs;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:H') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === id) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:H') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) return { id };
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+      const sheetId = sheet?.properties?.sheetId;
+      if (typeof sheetId === 'number') {
+        await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+      } else {
+        await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:H${rowIndex}`) });
+      }
+      return { id };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'climbs');
     }
-    if (rowIndex === -1) return { id };
-    const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
-    const sheetId = sheet?.properties?.sheetId;
-    if (typeof sheetId === 'number') {
-      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
-    } else {
-      await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:H${rowIndex}`) });
-    }
-    return { id };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'climbs');
-  }
+  });
 }
 
 export async function listClimbGoals(sa: SheetAuth) {
@@ -622,52 +643,56 @@ export async function upsertClimbGoal(sa: SheetAuth, goal: { year: number; type:
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.climbGoals;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
-    const values = res.data.values || [];
-    let rowIndex = -1; let existingId = '';
-    for (let i = 0; i < values.length; i++) {
-      const [id, year, type, grade] = values[i];
-      if (parseInt(String(year ?? '0'), 10) === goal.year && String(type || '').trim().toLowerCase() === goal.type && String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()) {
-        rowIndex = i + 2; existingId = id; break;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
+      const values = res.data.values || [];
+      let rowIndex = -1; let existingId = '';
+      for (let i = 0; i < values.length; i++) {
+        const [id, year, type, grade] = values[i];
+        if (parseInt(String(year ?? '0'), 10) === goal.year && String(type || '').trim().toLowerCase() === goal.type && String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()) {
+          rowIndex = i + 2; existingId = id; break;
+        }
       }
+      if (rowIndex === -1) {
+        const id = String(Date.now());
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW', requestBody: { values: [[id, String(goal.year), goal.type, goal.grade, String(goal.target)]] } });
+        return { id, ...goal } as ClimbGoal;
+      }
+      await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `E${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[String(goal.target)]] } });
+      return { id: existingId, ...goal } as ClimbGoal;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'climbGoals');
     }
-    if (rowIndex === -1) {
-      const id = String(Date.now());
-      await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW', requestBody: { values: [[id, String(goal.year), goal.type, goal.grade, String(goal.target)]] } });
-      return { id, ...goal } as ClimbGoal;
-    }
-    await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `E${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[String(goal.target)]] } });
-    return { id: existingId, ...goal } as ClimbGoal;
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'climbGoals');
-  }
+  });
 }
 
 export async function deleteClimbGoal(sa: SheetAuth, id: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.climbGoals;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i][0] === id) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) return { id };
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+      const sheetId = sheet?.properties?.sheetId;
+      if (typeof sheetId === 'number') {
+        await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+      } else {
+        await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:E${rowIndex}`) });
+      }
+      return { id };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'climbGoals');
     }
-    if (rowIndex === -1) return { id };
-    const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
-    const sheetId = sheet?.properties?.sheetId;
-    if (typeof sheetId === 'number') {
-      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
-    } else {
-      await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:E${rowIndex}`) });
-    }
-    return { id };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'climbGoals');
-  }
+  });
 }
 
 // ── Time Tracking ────────────────────────────────────────────
@@ -708,25 +733,27 @@ export async function upsertHourLog(sa: SheetAuth, entry: { date: string; hour: 
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.hours;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:Y') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:Y') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
+      }
+      const colLetter = hourIndexToColumnLetter(entry.hour);
+      if (rowIndex === -1) {
+        const row = new Array(25).fill('');
+        row[0] = entry.date; row[1 + entry.hour] = String(entry.category);
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:Y'), valueInputOption: 'RAW', requestBody: { values: [row] } });
+      } else {
+        await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `${colLetter}${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[String(entry.category)]] } });
+      }
+      return { id: `${entry.date}-${entry.hour}`, ...entry } as HourLog;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'hours');
     }
-    const colLetter = hourIndexToColumnLetter(entry.hour);
-    if (rowIndex === -1) {
-      const row = new Array(25).fill('');
-      row[0] = entry.date; row[1 + entry.hour] = String(entry.category);
-      await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:Y'), valueInputOption: 'RAW', requestBody: { values: [row] } });
-    } else {
-      await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `${colLetter}${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[String(entry.category)]] } });
-    }
-    return { id: `${entry.date}-${entry.hour}`, ...entry } as HourLog;
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'hours');
-  }
+  });
 }
 
 export async function deleteHourLog(sa: SheetAuth, id: string) {
@@ -742,35 +769,37 @@ export async function upsertHourLogsBatch(sa: SheetAuth, entry: { date: string; 
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.hours;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:Y') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
-    }
-    let rowHours: string[] = new Array(24).fill('');
-    if (rowIndex !== -1) {
-      const existing = values[rowIndex - 2] || [];
-      for (let h = 0; h < 24; h++) {
-        const v = existing[1 + h];
-        rowHours[h] = (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : '';
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:Y') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (String((values[i] && values[i][0]) || '').trim() === entry.date) { rowIndex = i + 2; break; }
       }
-    }
-    for (const e of entry.entries) {
-      if (Number.isFinite(e.hour) && e.hour >= 0 && e.hour <= 23 && Number.isFinite(e.category)) {
-        rowHours[e.hour] = String(e.category);
+      let rowHours: string[] = new Array(24).fill('');
+      if (rowIndex !== -1) {
+        const existing = values[rowIndex - 2] || [];
+        for (let h = 0; h < 24; h++) {
+          const v = existing[1 + h];
+          rowHours[h] = (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : '';
+        }
       }
+      for (const e of entry.entries) {
+        if (Number.isFinite(e.hour) && e.hour >= 0 && e.hour <= 23 && Number.isFinite(e.category)) {
+          rowHours[e.hour] = String(e.category);
+        }
+      }
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:Y'), valueInputOption: 'RAW', requestBody: { values: [[entry.date, ...rowHours]] } });
+      } else {
+        await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:Y${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [rowHours] } });
+      }
+      return { date: entry.date, count: entry.entries.length };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'hours');
     }
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:Y'), valueInputOption: 'RAW', requestBody: { values: [[entry.date, ...rowHours]] } });
-    } else {
-      await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:Y${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [rowHours] } });
-    }
-    return { date: entry.date, count: entry.entries.length };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'hours');
-  }
+  });
 }
 
 // ── Time Categories ──────────────────────────────────────────
@@ -783,11 +812,13 @@ export async function listTimeCategories(sa: SheetAuth) {
   const rows = parseTimeCategories(values);
   if (values.length > 0 && rows.some((r) => r.id === MISC_TIME_CATEGORY.id)) return rows;
   // Seeding is a write: re-check with a fresh read, then invalidate.
-  try {
-    return await seedTimeCategories(spreadsheetId);
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'timeCategories');
-  }
+  return withLock(`${spreadsheetId}:${TABS.timeCategories}`, async () => {
+    try {
+      return await seedTimeCategories(spreadsheetId);
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'timeCategories');
+    }
+  });
 }
 
 const DEFAULT_TIME_CATEGORIES: readonly TimeCategory[] = [
@@ -847,52 +878,56 @@ export async function upsertTimeCategory(sa: SheetAuth, entry: { id?: string; na
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.timeCategories;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
-    const values = res.data.values || [];
-    let rowIndex = -1; let existingId = '';
-    if (entry.id) {
-      for (let i = 0; i < values.length; i++) {
-        if (String(values[i][0]).trim() === entry.id) { rowIndex = i + 2; existingId = entry.id; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
+      const values = res.data.values || [];
+      let rowIndex = -1; let existingId = '';
+      if (entry.id) {
+        for (let i = 0; i < values.length; i++) {
+          if (String(values[i][0]).trim() === entry.id) { rowIndex = i + 2; existingId = entry.id; break; }
+        }
       }
+      const id = existingId || String(Date.now());
+      const name = String(entry.name || '').trim();
+      const color = String(entry.color || '').trim() || '#888888';
+      const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);
+      if (rowIndex === -1) {
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order)]] } });
+      } else {
+        await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:D${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order)]] } });
+      }
+      return { id, name, color, order } as TimeCategory;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'timeCategories');
     }
-    const id = existingId || String(Date.now());
-    const name = String(entry.name || '').trim();
-    const color = String(entry.color || '').trim() || '#888888';
-    const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);
-    if (rowIndex === -1) {
-      await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order)]] } });
-    } else {
-      await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:D${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order)]] } });
-    }
-    return { id, name, color, order } as TimeCategory;
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'timeCategories');
-  }
+  });
 }
 
 export async function deleteTimeCategory(sa: SheetAuth, id: string) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.timeCategories;
-  try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
-    const values = res.data.values || [];
-    let rowIndex = -1;
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i][0]).trim() === id) { rowIndex = i + 2; break; }
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
+      const values = res.data.values || [];
+      let rowIndex = -1;
+      for (let i = 0; i < values.length; i++) {
+        if (String(values[i][0]).trim() === id) { rowIndex = i + 2; break; }
+      }
+      if (rowIndex === -1) return { id };
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
+      const sheetId = sheet?.properties?.sheetId;
+      if (typeof sheetId === 'number') {
+        await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
+      } else {
+        await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:D${rowIndex}`) });
+      }
+      return { id };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'timeCategories');
     }
-    if (rowIndex === -1) return { id };
-    const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = (meta.data.sheets || []).find((s) => s.properties?.title === title);
-    const sheetId = sheet?.properties?.sheetId;
-    if (typeof sheetId === 'number') {
-      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } } }] } });
-    } else {
-      await sheets.spreadsheets.values.clear({ spreadsheetId, range: range(title, `A${rowIndex}:D${rowIndex}`) });
-    }
-    return { id };
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'timeCategories');
-  }
+  });
 }

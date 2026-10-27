@@ -60,6 +60,29 @@ export function due(q: OutboxItem[], now: number): OutboxItem[] {
   return q.filter((x) => x.state === 'pending' && x.nextAt <= now);
 }
 
+/** The sheet group of a key: the part before the first ':' (mood, weight, highlight, log, hours, sq). */
+export function groupOf(key: string): string {
+  const i = key.indexOf(':');
+  return i === -1 ? key : key.slice(0, i);
+}
+
+/**
+ * Due items to send now: at most one per group (oldest updatedAt first), skipping groups that already have a
+ * request in flight. Writes to one sheet tab must not overlap, or Google Sheets can put two appends on one row.
+ */
+export function nextToSend(q: OutboxItem[], now: number, inflightKeys: ReadonlySet<string>): OutboxItem[] {
+  const busy = new Set<string>();
+  for (const k of inflightKeys) busy.add(groupOf(k));
+  const picked = new Map<string, OutboxItem>();
+  for (const x of due(q, now)) {
+    const g = groupOf(x.key);
+    if (busy.has(g)) continue;
+    const cur = picked.get(g);
+    if (!cur || x.updatedAt < cur.updatedAt) picked.set(g, x);
+  }
+  return [...picked.values()];
+}
+
 /**
  * Three-way merge of two tabs sharing one stored queue.
  * stored = what is in storage now, local = this tab's queue, base = what this tab last read or wrote.
