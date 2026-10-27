@@ -11,6 +11,7 @@ const base = (): QuickPayload => ({
   ctx: { activities: [], categoryIds: [1], sidequests: [], year: 2026 },
   days: { '2026-10-27': day('2026-10-27') },
   templates: { weekday: null, weekend: null },
+  habitTemplates: { weekday: null, weekend: null },
   reminderEnabled: false,
 });
 const q = (key: string, body: unknown) => ({ key, body, state: 'pending' as const });

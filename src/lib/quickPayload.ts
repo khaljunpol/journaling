@@ -1,6 +1,6 @@
 // Pure builder for GET /api/quick. Gets typed rows (already parsed), returns the board payload.
 import type { DayData, Ctx } from './quickDay.ts';
-import { parseTemplate } from './quickDay.ts';
+import { parseTemplate, parseHabitTemplate } from './quickDay.ts';
 
 export type QuickRows = {
   activities: Array<{ id: string; name: string; status?: string }>;
@@ -19,6 +19,7 @@ export type QuickPayload = {
   ctx: Ctx;
   days: Record<string, DayData>;
   templates: { weekday: Array<number | null> | null; weekend: Array<number | null> | null };
+  habitTemplates: { weekday: string[] | null; weekend: string[] | null };
   reminderEnabled: boolean;
 };
 
@@ -96,6 +97,10 @@ export function buildQuickPayload(
     templates: {
       weekday: parseTemplate(parseJson(settings.hourTemplateWeekday)),
       weekend: parseTemplate(parseJson(settings.hourTemplateWeekend)),
+    },
+    habitTemplates: {
+      weekday: parseHabitTemplate(parseJson(settings.habitTemplateWeekday)),
+      weekend: parseHabitTemplate(parseJson(settings.habitTemplateWeekend)),
     },
     reminderEnabled: settings.reminderEnabled === '1',
   };

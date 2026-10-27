@@ -1,5 +1,6 @@
 "use client";
 
+import HabitTemplatesEditor from '@/components/HabitTemplatesEditor';
 import HourTemplatesEditor from '@/components/HourTemplatesEditor';
 import TimeCategoriesEditor from '@/components/TimeCategoriesEditor';
 
@@ -8,6 +9,7 @@ export default function TimeCategoriesPage() {
     <div className="space-y-8">
       <TimeCategoriesEditor />
       <HourTemplatesEditor />
+      <HabitTemplatesEditor />
     </div>
   );
 }

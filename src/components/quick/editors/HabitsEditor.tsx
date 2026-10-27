@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { initialTicks, templateKind } from '@/lib/quickDay';
 import type { EditorProps } from './types';
 
 export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
@@ -11,9 +12,11 @@ export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
     (a) => a.status === 'stopped' && day?.logs.some((l) => l.activityId === a.id),
   );
   const list = [...active, ...archived];
-  const [ticked, setTicked] = useState<Set<string>>(
-    () => new Set((day?.logs ?? []).filter((l) => l.completed).map((l) => l.activityId)),
+  const kind = templateKind(date);
+  const [start] = useState(() =>
+    initialTicks(day?.logs ?? [], payload.habitTemplates?.[kind] ?? null, payload.ctx.activities),
   );
+  const [ticked, setTicked] = useState<Set<string>>(start.ticked);
 
   function toggle(id: string) {
     setTicked((prev) => {
@@ -62,6 +65,7 @@ export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
           );
         })}
       </ul>
+      {start.fromTemplate && <p className="subtle">Started from your usual {kind} habits</p>}
       {list.length === 0 && <p className="subtle">No habits yet.</p>}
       <button type="button" className="btn min-h-12 w-full" onClick={done} disabled={list.length === 0}>
         Done

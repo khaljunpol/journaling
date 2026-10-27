@@ -95,6 +95,26 @@ export function applyTemplate(tpl: Array<number | null> | null, categoryIds: num
   });
 }
 
+/** A saved habit template: up to 100 non-empty activity ids. Anything else gives null. */
+export function parseHabitTemplate(v: unknown): string[] | null {
+  if (!Array.isArray(v) || v.length > 100) return null;
+  return v.every((x) => typeof x === 'string' && x !== '') ? (v as string[]) : null;
+}
+
+/** Starting ticks for the habits card. Logs win; on an empty day use the template (active habits only). */
+export function initialTicks(
+  logs: Array<{ activityId: string; completed: boolean }>,
+  template: string[] | null,
+  activities: Array<{ id: string; status?: string }>,
+): { ticked: Set<string>; fromTemplate: boolean } {
+  if (logs.length > 0) {
+    return { ticked: new Set(logs.filter((l) => l.completed).map((l) => l.activityId)), fromTemplate: false };
+  }
+  const active = new Set(activities.filter((a) => a.status !== 'stopped').map((a) => a.id));
+  const ticked = new Set((template ?? []).filter((id) => active.has(id)));
+  return { ticked, fromTemplate: ticked.size > 0 };
+}
+
 /** A saved hour template: exactly 24 items, each an integer >= 0 or null. Anything else gives null. */
 export function parseTemplate(v: unknown): Array<number | null> | null {
   if (!Array.isArray(v) || v.length !== 24) return null;

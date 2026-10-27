@@ -84,3 +84,12 @@ test('templates parse from settings; reminder is 1/0; no push subscription', () 
   assert.equal(p.reminderEnabled, true);
   assert.equal(JSON.stringify(p).includes('secret'), false);
 });
+
+test('habitTemplates parse from settings; bad JSON gives null', () => {
+  const p = buildQuickPayload(empty, '2026-10-26', '2026-10-26', {
+    habitTemplateWeekday: JSON.stringify(['a1', 'a2']),
+    habitTemplateWeekend: 'nope',
+  });
+  assert.deepEqual(p.habitTemplates.weekday, ['a1', 'a2']);
+  assert.equal(p.habitTemplates.weekend, null);
+});
