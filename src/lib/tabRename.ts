@@ -4,6 +4,7 @@
 export const BASES = [
   'Activities', 'Logs', 'Highlights', 'Weights', 'Moods', 'Climbs',
   'ClimbGoals', 'Hours', 'TimeCategories', 'Sidequests', 'SidequestLogs',
+  'Settings',
 ] as const;
 
 function split(title: string): { base: string; account: string } | null {

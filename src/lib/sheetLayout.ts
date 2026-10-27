@@ -12,6 +12,7 @@ export const TABS = {
   timeCategories: 'TimeCategories',
   sidequests: 'Sidequests',
   sidequestLogs: 'SidequestLogs',
+  settings: 'Settings',
 } as const;
 
 export type TabKey = keyof typeof TABS;
@@ -28,6 +29,7 @@ export const HEADERS: Record<TabKey, string[]> = {
   timeCategories: ['id', 'name', 'color', 'order'],
   sidequests: ['id', 'title', 'type', 'year', 'unit', 'target', 'milestones', 'description', 'createdAt', 'completedAt'],
   sidequestLogs: ['id', 'sidequestId', 'date', 'value', 'value2', 'note', 'milestoneIndex'],
+  settings: ['key', 'value'],
 };
 
 /** A1 range with the tab name quoted; a single quote in the name is doubled. */

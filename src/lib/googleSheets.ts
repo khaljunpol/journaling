@@ -168,20 +168,6 @@ export async function deleteActivity(sa: SheetAuth, id: string) {
 
 // ── Activity Logs ────────────────────────────────────────────
 
-export async function appendLog(sa: SheetAuth, dateISO: string, activityId: string, completed: boolean) {
-  const sheets = getServiceSheets();
-  const { spreadsheetId } = sa;
-  const title = TABS.logs;
-  try {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
-      requestBody: { values: [[dateISO, activityId, completed ? '1' : '0']] },
-    });
-  } finally {
-    tabCache.invalidate(spreadsheetId, 'logs');
-  }
-}
-
 export async function getLogsForDate(sa: SheetAuth, dateISO: string) {
   const { spreadsheetId } = sa;
   const rows = await tabCache.readOne(spreadsheetId, 'logs');
@@ -209,6 +195,36 @@ export async function getLogsBetween(sa: SheetAuth, fromISO: string, toISO: stri
       const t = new Date(date).getTime();
       return !Number.isNaN(t) && t >= from && t <= to;
     });
+}
+
+export async function upsertLog(sa: SheetAuth, dateISO: string, activityId: string, completed: boolean) {
+  const sheets = getServiceSheets();
+  const { spreadsheetId } = sa;
+  const title = TABS.logs;
+  try {
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
+    const values = res.data.values || [];
+    let rowIndex = -1;
+    for (let i = values.length - 1; i >= 0; i--) {
+      if (String(values[i]?.[0] ?? '').trim() === dateISO && String(values[i]?.[1] ?? '').trim() === activityId) {
+        rowIndex = i + 2; break;
+      }
+    }
+    const value = completed ? '1' : '0';
+    if (rowIndex === -1) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
+        requestBody: { values: [[dateISO, activityId, value]] },
+      });
+    } else {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: range(title, `C${rowIndex}`), valueInputOption: 'RAW',
+        requestBody: { values: [[value]] },
+      });
+    }
+  } finally {
+    tabCache.invalidate(spreadsheetId, 'logs');
+  }
 }
 
 // ── Highlights ───────────────────────────────────────────────
@@ -374,6 +390,45 @@ export async function getMoodsBetween(sa: SheetAuth, fromISO: string, toISO: str
       const t = new Date(date).getTime();
       return !Number.isNaN(t) && t >= from && t <= to && Number.isFinite(score);
     });
+}
+
+// ── Settings ───────────────────────────────────────────────────
+
+export async function getSettings(sa: SheetAuth): Promise<Record<string, string>> {
+  const rows = await tabCache.readOne(sa.spreadsheetId, 'settings');
+  const out: Record<string, string> = {};
+  for (const row of rows) {
+    const key = String(row?.[0] ?? '').trim();
+    if (key) out[key] = String(row[1] ?? '');
+  }
+  return out;
+}
+
+export async function setSetting(sa: SheetAuth, key: string, value: string) {
+  const sheets = getServiceSheets();
+  const { spreadsheetId } = sa;
+  const title = TABS.settings;
+  try {
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+    const values = res.data.values || [];
+    let rowIndex = -1;
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i]?.[0] ?? '').trim() === key) { rowIndex = i + 2; break; }
+    }
+    if (rowIndex === -1) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId, range: range(title, 'A1:B'), valueInputOption: 'RAW',
+        requestBody: { values: [[key, value]] },
+      });
+    } else {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: range(title, `B${rowIndex}`), valueInputOption: 'RAW',
+        requestBody: { values: [[value]] },
+      });
+    }
+  } finally {
+    tabCache.invalidate(spreadsheetId, 'settings');
+  }
 }
 
 // ── Consistency Metrics ──────────────────────────────────────

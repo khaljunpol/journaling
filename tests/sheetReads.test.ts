@@ -26,7 +26,7 @@ const READS = [
   'listActivities', 'getLogsForDate', 'getLogsBetween', 'getHighlight', 'getHighlightsBetween',
   'getWeight', 'getWeightsBetween', 'getMood', 'getMoodsBetween', 'getConsistencyMetrics',
   'listClimbLogs', 'listClimbGoals', 'listHourLogs', 'listTimeCategories',
-  'listSidequests', 'getSidequest', 'listSidequestLogs',
+  'listSidequests', 'getSidequest', 'listSidequestLogs', 'getSettings',
 ];
 
 const WRITE_NAME = /^(create|update|delete|append|set|upsert|add)/;
@@ -55,6 +55,16 @@ describe('sheet reads use the tab cache', () => {
       assert.doesNotMatch(body, /values\.get\(/);
     });
   }
+
+  it('setSetting and upsertLog are writes that invalidate in finally', () => {
+    for (const name of ['setSetting', 'upsertLog']) {
+      const body = fns.get(name) ?? '';
+      assert.ok(body, `${name} not found`);
+      assert.match(body, /finally\s*\{[^}]*tabCache\.invalidate\(/);
+      assert.match(body, /values\.get\(/);
+      assert.doesNotMatch(body, /tabCache\.read/);
+    }
+  });
 
   it('listTimeCategories invalidates after seeding', () => {
     assert.match(fns.get('listTimeCategories') ?? '', /tabCache\.invalidate\(/);

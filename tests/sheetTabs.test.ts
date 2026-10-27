@@ -35,15 +35,17 @@ describe('ensureCoreTabs', () => {
     const { client, calls } = fakeClient(['Logs', 'Moods']);
     const created = await ensureCoreTabs(client, 'id1');
     assert.equal(calls.addTabs.length, 1);
-    assert.equal(calls.addTabs[0].length, 9);
-    assert.equal(created.length, 9);
+    assert.equal(calls.addTabs[0].length, 10);
+    assert.equal(created.length, 10);
     assert.ok(!created.includes('Logs') && !created.includes('Moods'));
     assert.equal(calls.writeHeaders.length, 1);
     const entries = calls.writeHeaders[0];
-    assert.equal(entries.length, 9);
+    assert.equal(entries.length, 10);
     const titles = entries.map((e) => e.title);
     assert.ok(!titles.includes('Logs') && !titles.includes('Moods'));
     assert.deepEqual(entries.find((e) => e.title === TABS.activities)?.header, HEADERS.activities);
+    assert.deepEqual(entries.find((e) => e.title === 'Settings')?.header, ['key', 'value']);
+    assert.ok(created.includes('Settings'));
   });
 
   it('does nothing when every tab exists', async () => {

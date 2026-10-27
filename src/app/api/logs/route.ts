@@ -1,4 +1,4 @@
-import { appendLog, getLogsBetween, getLogsForDate } from '@/lib/googleSheets';
+import { upsertLog, getLogsBetween, getLogsForDate } from '@/lib/googleSheets';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const activityId = String(body?.activityId || '');
     const completed = Boolean(body?.completed);
     if (!date || !activityId) return apiError('date and activityId required', 400);
-    await appendLog(ctx.sheetAuth, date, activityId, completed);
+    await upsertLog(ctx.sheetAuth, date, activityId, completed);
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/logs');
