@@ -2,13 +2,6 @@ import { NextResponse } from 'next/server';
 import { listClimbLogs, addClimbLog, deleteClimbLog } from '@/lib/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { createApiCache, cacheKey } from '@/lib/apiCache';
-
-const cache = createApiCache(60_000);
-const getKey = (spreadsheetId: string, date?: string | null, from?: string | null, to?: string | null, paged?: string | null) => {
-  const scope = from && to ? `range:${from}-${to}` : (date ? `date:${date}` : 'all');
-  return cacheKey(spreadsheetId, 'climbLogs', scope, paged ? `p:${paged}` : null);
-};
 
 export async function GET(req: Request) {
   try {
@@ -20,17 +13,12 @@ export async function GET(req: Request) {
     const to = url.searchParams.get('to');
     const limitParam = url.searchParams.get('limit');
     const pageParam = url.searchParams.get('page');
-    const key = getKey(ctx.sheetAuth.spreadsheetId, date, from, to, limitParam ? `${limitParam}:${pageParam || '1'}` : null);
-    const cached = cache.get(key);
-    if (cached) return NextResponse.json(cached);
     if (from && to) {
       const items = await listClimbLogs(ctx.sheetAuth, from, to);
-      cache.set(key, items);
       return NextResponse.json(items);
     }
     if (date) {
       const items = await listClimbLogs(ctx.sheetAuth, date, date);
-      cache.set(key, items);
       return NextResponse.json(items);
     }
     const items = await listClimbLogs(ctx.sheetAuth);
@@ -44,10 +32,8 @@ export async function GET(req: Request) {
         return String(b.id).localeCompare(String(a.id));
       });
       const paged = { items: sorted.slice((page - 1) * limit, page * limit), total: sorted.length, page, limit };
-      cache.set(key, paged);
       return NextResponse.json(paged);
     }
-    cache.set(key, items);
     return NextResponse.json(items);
   } catch (error: unknown) {
     return apiFailure(error, 'GET /api/climbing/logs');
@@ -71,7 +57,6 @@ export async function POST(req: Request) {
     if (location.length > MAX_LEN.location) return apiError(`location must be ≤${MAX_LEN.location} characters`, 400);
     if (notes.length > MAX_LEN.notes) return apiError(`notes must be ≤${MAX_LEN.notes} characters`, 400);
     const saved = await addClimbLog(ctx.sheetAuth, { date, session, type, grade, attempts, location, notes });
-    cache.invalidate();
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/climbing/logs');
@@ -86,7 +71,6 @@ export async function DELETE(req: Request) {
     const id = url.searchParams.get('id');
     if (!id) return apiError('id required', 400);
     const out = await deleteClimbLog(ctx.sheetAuth, id);
-    cache.invalidate();
     return NextResponse.json(out);
   } catch (error: unknown) {
     return apiFailure(error, 'DELETE /api/climbing/logs');

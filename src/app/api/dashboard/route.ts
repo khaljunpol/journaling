@@ -14,6 +14,7 @@ import {
   listHourLogs,
   listClimbLogs,
   listClimbGoals,
+  tabCache,
 } from '@/lib/googleSheets';
 import { listSidequests } from '@/lib/sidequests';
 
@@ -48,14 +49,20 @@ export async function GET() {
     const safe = <T>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { apiErrorBody(err, 'GET /api/dashboard (partial)'); return fallback; });
 
-    const [activities, logs30, weights8w, highlights30] = await Promise.all([
+    // One batched read fills the cache for every tab below, so the calls after it hit memory.
+    await safe(
+      tabCache.read(sheetAuth.spreadsheetId, [
+        'activities', 'logs', 'weights', 'highlights', 'moods',
+        'timeCategories', 'hours', 'climbs', 'climbGoals', 'sidequests',
+      ]).then(() => null),
+      null,
+    );
+
+    const [activities, logs30, weights8w, highlights30, moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY, sidequests] = await Promise.all([
       safe(listActivities(sheetAuth), []),
       safe(getLogsBetween(sheetAuth, from30ISO, todayISO), []),
       safe(getWeightsBetween(sheetAuth, eightWeeksAgoISO, todayISO), []),
       safe(getHighlightsBetween(sheetAuth, from30ISO, todayISO), []),
-    ]);
-
-    const [moods7, moodsPrev7, metrics, timeCategories, timeY, climb30, goals, climbY, sidequests] = await Promise.all([
       safe(getMoodsBetween(sheetAuth, from7ISO, todayISO), []),
       safe(getMoodsBetween(sheetAuth, prevWeekFromISO, prevWeekToISO), []),
       safe(getConsistencyMetrics(sheetAuth), null),

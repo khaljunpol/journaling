@@ -34,3 +34,9 @@ export const HEADERS: Record<TabKey, string[]> = {
 export function range(tab: string, cells: string): string {
   return `'${tab.replace(/'/g, "''")}'!${cells}`;
 }
+
+/** Data rows of a tab (header row skipped), as one A1 range. */
+export function dataRange(tab: TabKey): string {
+  const last = String.fromCharCode(64 + HEADERS[tab].length);
+  return range(TABS[tab], `A2:${last}`);
+}
