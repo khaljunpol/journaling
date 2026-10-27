@@ -10,6 +10,11 @@ type Props = {
   today: string | null;
   selected: string | null;
   onSelect: (date: string) => void;
+  /** Week arrows. Left out, the strip shows no arrows. */
+  weekLabel?: string;
+  canNext?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
 };
 
 const INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -20,13 +25,33 @@ function ring(filled: number | null, total: number | null): string {
   return `conic-gradient(var(--ok) 0 ${pct}%, var(--border) ${pct}% 100%)`;
 }
 
-export default function WeekStrip({ days, today, selected, onSelect }: Props) {
+export default function WeekStrip({ days, today, selected, onSelect, weekLabel, canNext = false, onPrev, onNext }: Props) {
   // Skeleton: seven quiet circles so the page never looks empty.
   const items: StripDay[] = days.length
     ? days
     : INITIALS.map((_, i) => ({ date: `skeleton-${i}`, filled: null, total: null }));
   return (
-    <nav aria-label="Week" className="flex justify-between">
+    <nav aria-label="Week">
+      {onPrev && onNext && (
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={onPrev} aria-label="Previous week" className="btn-outline flex min-h-11 min-w-11 items-center justify-center rounded-full">
+            ‹
+          </button>
+          <span className="text-sm muted" aria-live="polite">
+            {weekLabel}
+          </span>
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={!canNext}
+            aria-label="Next week"
+            className="btn-outline flex min-h-11 min-w-11 items-center justify-center rounded-full disabled:opacity-40"
+          >
+            ›
+          </button>
+        </div>
+      )}
+      <div className="flex justify-between">
       {items.map((d, i) => {
         const future = today !== null && !d.date.startsWith('skeleton') && d.date > today;
         const label = d.date.startsWith('skeleton')
@@ -61,6 +86,7 @@ export default function WeekStrip({ days, today, selected, onSelect }: Props) {
           </button>
         );
       })}
+      </div>
     </nav>
   );
 }

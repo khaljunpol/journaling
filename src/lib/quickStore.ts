@@ -2,6 +2,7 @@
 // Every key starts with 'quick:'. clearLocalCache() wipes them too, and signOutClean also calls clearQuick().
 import type { QuickPayload } from './quickPayload';
 import type { OutboxItem } from './outbox';
+import type { ItemKey } from './quickDay';
 
 const PREFIX = 'quick:';
 const snapKey = (email: string) => `${PREFIX}snapshot:${email.toLowerCase()}`;
@@ -35,6 +36,18 @@ function write(key: string, value: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+const catchKey = (email: string) => `${PREFIX}catchup:${email.toLowerCase()}`;
+
+/** Kinds the user ticked for catching up past days. Null when never chosen (caller defaults to all). */
+export function loadCatchup(email: string): ItemKey[] | null {
+  const v = read<unknown>(catchKey(email));
+  return Array.isArray(v) ? (v as ItemKey[]) : null;
+}
+
+export function saveCatchup(email: string, kinds: ItemKey[]): boolean {
+  return write(catchKey(email), kinds);
 }
 
 const LAST_EMAIL = PREFIX + 'lastEmail';

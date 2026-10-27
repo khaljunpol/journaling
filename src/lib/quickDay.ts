@@ -24,7 +24,12 @@ export type ItemStatus = { key: ItemKey; shown: boolean; filled: boolean; counts
 
 const ORDER: ItemKey[] = ['mood', 'habits', 'weight', 'sidequests', 'hours', 'highlight'];
 
-export function dayStatus(day: DayData, ctx: Ctx): { items: ItemStatus[]; filled: number; total: number } {
+/** `only`: count just these kinds (older days, where the user chose what to catch up). Others still show, but do not count. */
+export function dayStatus(
+  day: DayData,
+  ctx: Ctx,
+  opts?: { only?: ItemKey[] },
+): { items: ItemStatus[]; filled: number; total: number } {
   const active = ctx.activities.filter((a) => a.status !== 'stopped');
   const quests = ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === ctx.year,
@@ -58,6 +63,9 @@ export function dayStatus(day: DayData, ctx: Ctx): { items: ItemStatus[]; filled
     { key: 'highlight', shown: true, filled: day.highlight.trim() !== '', counts: true },
     { key: 'climb', shown: day.climbs > 0, filled: day.climbs > 0, counts: false },
   ];
+
+  const only = opts?.only;
+  if (only) for (const i of items) if (!only.includes(i.key)) i.counts = false;
 
   const counted = items.filter((i) => i.counts);
   return { items, filled: counted.filter((i) => i.filled).length, total: counted.length };

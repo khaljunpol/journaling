@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { dayStatus, type ItemKey } from '@/lib/quickDay';
+import { dayStatus } from '@/lib/quickDay';
+import type { CatchUpStep } from '@/lib/quickWeek';
 import { SLIDE_MS, canAdvance, cardsLeft, dotState, nextStep } from '@/lib/cardStack';
 import type { QuickPayload } from '@/lib/quickPayload';
 import type { TimeCategory } from '@/lib/types';
@@ -15,10 +16,12 @@ import HoursEditor from './editors/HoursEditor';
 import type { QuestInfo, SaveSpec } from './editors/types';
 
 type Props = {
-  date: string;
-  dayLabel: string;
-  /** Captured when the stack opened. */
-  cards: ItemKey[];
+  /** Captured when the stack opened. One card per step; a day run has one date, a week run has many. */
+  steps: CatchUpStep[];
+  /** Short label for a date, e.g. "Tue 14 Oct". */
+  labelFor: (date: string) => string;
+  /** Set for a week catch-up run: changes the title and the closing words. */
+  weekRun?: boolean;
   payload: QuickPayload;
   categories: TimeCategory[];
   quests: QuestInfo;
@@ -30,7 +33,7 @@ type Props = {
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-export default function CardStack({ date, dayLabel, cards, payload, categories, quests, queued, onSave, onClose }: Props) {
+export default function CardStack({ steps, labelFor, weekRun, payload, categories, quests, queued, onSave, onClose }: Props) {
   const [index, setIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const lockedUntil = useRef(0);
@@ -41,14 +44,13 @@ export default function CardStack({ date, dayLabel, cards, payload, categories, 
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  const total = cards.length;
+  const total = steps.length;
   const finished = index >= total;
-  const day = payload.days[date];
-  let complete = false;
-  if (day) {
-    const s = dayStatus(day, payload.ctx);
-    complete = s.filled === s.total;
-  }
+  // Calm ending only when every card we asked about is now filled.
+  const complete = steps.every((st) => {
+    const day = payload.days[st.date];
+    return day ? dayStatus(day, payload.ctx).items.find((i) => i.key === st.key)?.filled === true : false;
+  });
 
   // One history entry, so the phone's back button closes the stack and not the page.
   useEffect(() => {
@@ -129,7 +131,10 @@ export default function CardStack({ date, dayLabel, cards, payload, categories, 
     return () => window.clearTimeout(t);
   }, [finished, complete, close]);
 
-  const key = cards[index];
+  const step = steps[index];
+  const key = step?.key;
+  const date = step?.date ?? '';
+  const dayLabel = labelFor(date);
   const last = index === total - 1;
   const common = { date, payload, queued, onSave: handleSave, submitLabel: last ? 'Done' : 'Next' };
 
@@ -138,7 +143,7 @@ export default function CardStack({ date, dayLabel, cards, payload, categories, 
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={`Fill missing, ${dayLabel}`}
+      aria-label={weekRun ? 'Catch up this week' : `Fill missing, ${dayLabel}`}
       tabIndex={-1}
       className="fixed inset-0 z-50 flex flex-col outline-none"
       style={{ background: 'var(--surface)' }}
@@ -148,23 +153,33 @@ export default function CardStack({ date, dayLabel, cards, payload, categories, 
           type="button"
           onClick={close}
           className="quick-card-in flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
-          aria-label="Day complete. Tap to go back"
+          aria-label={weekRun ? 'Week caught up. Tap to go back' : 'Day complete. Tap to go back'}
         >
           <span className="text-4xl" aria-hidden="true" style={{ color: 'var(--ok)' }}>
             ✓
           </span>
-          <span className="text-lg font-semibold">Day complete</span>
-          <span className="subtle">{dayLabel} is all filled.</span>
+          <span className="text-lg font-semibold">{weekRun ? 'Week caught up' : 'Day complete'}</span>
+          <span className="subtle">{weekRun ? 'Everything you picked is filled.' : `${labelFor(steps[0]?.date ?? '')} is all filled.`}</span>
         </button>
       ) : (
         <>
           <header className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 pt-3">
+            {total > 8 ? (
+              <div
+                className="h-2 flex-1 overflow-hidden rounded-full"
+                style={{ background: 'var(--border)' }}
+                role="img"
+                aria-label={`Card ${index + 1} of ${total}`}
+              >
+                <div className="h-full rounded-full transition-[width] duration-150 ease-out motion-reduce:transition-none" style={{ width: `${(index / total) * 100}%`, background: 'var(--ok)' }} />
+              </div>
+            ) : (
             <div className="flex items-center gap-1.5" role="img" aria-label={`Card ${index + 1} of ${total}`}>
-              {cards.map((c, i) => {
+              {steps.map((st, i) => {
                 const s = dotState(i, index);
                 return (
                   <span
-                    key={c}
+                    key={`${st.date}:${st.key}`}
                     className="h-2 rounded-full"
                     style={{
                       width: s === 'current' ? '1.25rem' : '0.5rem',
@@ -174,6 +189,7 @@ export default function CardStack({ date, dayLabel, cards, payload, categories, 
                 );
               })}
             </div>
+            )}
             <span className="text-sm muted" aria-live="polite">
               {cardsLeft(index, total)} left
             </span>

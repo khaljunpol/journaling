@@ -158,3 +158,21 @@ test('parseTemplate accepts 24 ints or nulls only', () => {
   assert.equal(parseTemplate(ok.map((v, i) => (i === 0 ? 1.5 : v))), null);
   assert.equal(parseTemplate(ok.map((v, i) => (i === 0 ? '3' : v))), null);
 });
+
+test('dayStatus with only: unticked kinds are not counted', () => {
+  const day = emptyDay({ mood: 3 });
+  const all = dayStatus(day, ctx());
+  const some = dayStatus(day, ctx(), { only: ['mood', 'weight'] });
+  assert.equal(all.total, 6);
+  assert.equal(some.total, 2);
+  assert.equal(some.filled, 1);
+  assert.deepEqual(missingInOrder(some), ['weight']);
+  assert.equal(item(some, 'hours').counts, false);
+  assert.equal(item(some, 'hours').shown, true);
+});
+
+test('dayStatus with only [] counts nothing', () => {
+  const s = dayStatus(emptyDay(), ctx(), { only: [] });
+  assert.equal(s.total, 0);
+  assert.deepEqual(missingInOrder(s), []);
+});

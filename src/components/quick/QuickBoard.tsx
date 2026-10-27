@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
 import { applyQueue, applyQueueItem, pruneDays } from '@/lib/quickApply';
+import type { CatchUpStep } from '@/lib/quickWeek';
 import type { QuickPayload } from '@/lib/quickPayload';
 import { getLastEmail, loadOutbox, loadSnapshot, saveSnapshot, setLastEmail } from '@/lib/quickStore';
 import { localISO, localTodayISO, parseLocalDate, weekStartLocal } from '@/lib/date';
 import type { TimeCategory } from '@/lib/types';
 import { useOutbox } from './useOutbox';
+import { useWeek } from './useWeek';
+import { useCatchUp } from './useCatchUp';
+import WeekPanel from './WeekPanel';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection from './DaySection';
 import ReminderToggle from './ReminderToggle';
@@ -28,6 +32,17 @@ function dayLabel(date: string, yesterday: string): string {
   return parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
+function shortLabel(date: string): string {
+  return parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function weekTitle(monday: string, isCurrent: boolean, today: string | null): string {
+  if (isCurrent) return 'This week';
+  if (today && addDays(monday, 7) === localISO(weekStartLocal(parseLocalDate(today)))) return 'Last week';
+  const f = (d: string) => parseLocalDate(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return `${f(monday)} – ${f(addDays(monday, 6))}`;
+}
+
 const catKey = (email: string) => `quick:categories:${email.toLowerCase()}`;
 
 export default function QuickBoard() {
@@ -42,18 +57,16 @@ export default function QuickBoard() {
   const { queue, enqueue, persistOk } = useOutbox(email, confirmed);
 
   const [today, setToday] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
   const [payload, setPayload] = useState<QuickPayload | null>(null);
   const [stale, setStale] = useState(false);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
-  const [stack, setStack] = useState<{ date: string; cards: ItemKey[] } | null>(null);
+  const [stack, setStack] = useState<{ steps: CatchUpStep[]; weekRun: boolean } | null>(null);
   const fillButton = useRef<HTMLElement | null>(null);
   const [categories, setCategories] = useState<TimeCategory[]>([]);
   const [quests, setQuests] = useState<QuestInfo>({});
 
   const payloadRef = useRef<QuickPayload | null>(null);
   const queueRef = useRef(queue);
-  const fetched = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     queueRef.current = queue;
@@ -80,7 +93,6 @@ export default function QuickBoard() {
   /** Load a date range from the server, keep older days, and put pending taps back on top. */
   const fetchRange = useCallback(
     async (from: string, to: string) => {
-      const id = `${from}_${to}`;
       try {
         const res = await fetch(`/api/quick?from=${from}&to=${to}`);
         if (res.status === 401) return router.replace('/login');
@@ -90,7 +102,6 @@ export default function QuickBoard() {
         const old = payloadRef.current;
         const merged: QuickPayload = { ...fresh, days: { ...(old?.days ?? {}), ...fresh.days } };
         show(applyQueue(merged, queueRef.current));
-        fetched.current.add(id);
         setStale(false);
       } catch {
         setStale(true);
@@ -162,24 +173,25 @@ export default function QuickBoard() {
     setStack(null);
   }, [email]);
 
+  const week = useWeek(today, confirmed, fetchRange);
   const yesterday = today ? addDays(today, -1) : null;
-  const other = selected && selected !== today ? selected : yesterday;
+  // Current week: the tapped day replaces Yesterday. Past week: the tapped day, else that Monday.
+  const other = week.isCurrent ? (week.tapped && week.tapped !== today ? week.tapped : yesterday) : (week.tapped ?? week.shown);
+
+  const cu = useCatchUp({
+    email,
+    today,
+    yesterday,
+    payload,
+    payloadRef,
+    shown: week.shown,
+    dates: week.dates,
+    commit: (specs) => commit(specs),
+  });
+  const onlyOf = cu.onlyOf;
 
   function selectDay(date: string) {
-    if (!today || !yesterday) return;
-    if (date === today) {
-      setSelected(yesterday);
-      return;
-    }
-    setSelected(date);
-    if (!payloadRef.current?.days[date]) {
-      const from = localISO(weekStartLocal(parseLocalDate(date)));
-      const id = `${from}_${date}`;
-      if (!fetched.current.has(id)) {
-        fetched.current.add(id);
-        void fetchRange(from, date);
-      }
-    }
+    if (today && yesterday) week.pick(date === today ? yesterday : date);
   }
 
   /** One save path for the sheet and the card stack: queue it and update the board right away. */
@@ -201,10 +213,14 @@ export default function QuickBoard() {
     const p = payloadRef.current;
     const day = p?.days[date];
     if (!email || !p || !day) return;
-    const cards = missingInOrder(dayStatus(day, p.ctx));
-    if (cards.length === 0) return;
+    const steps = missingInOrder(dayStatus(day, p.ctx, { only: onlyOf(date) })).map((key) => ({ date, key }));
+    if (steps.length === 0) return;
+    openStack(steps, false);
+  }
+
+  function openStack(steps: CatchUpStep[], weekRun: boolean) {
     fillButton.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setStack({ date, cards });
+    setStack({ steps, weekRun });
   }
 
   function closeStack() {
@@ -219,11 +235,10 @@ export default function QuickBoard() {
   const queued = (key: string) => queue.find((q) => q.key === key)?.body;
 
   const stripDays: StripDay[] = today
-    ? Array.from({ length: 7 }, (_, i) => {
-        const date = addDays(localISO(weekStartLocal(parseLocalDate(today))), i);
+    ? week.dates.map((date) => {
         const day = payload?.days[date];
         if (!day || !payload) return { date, filled: null, total: null };
-        const s = dayStatus(day, payload.ctx);
+        const s = dayStatus(day, payload.ctx, { only: onlyOf(date) });
         return { date, filled: s.filled, total: s.total };
       })
     : [];
@@ -234,7 +249,16 @@ export default function QuickBoard() {
 
   return (
     <main className="mx-auto w-full max-w-md space-y-3 pb-8">
-      <WeekStrip days={stripDays} today={today} selected={other} onSelect={selectDay} />
+      <WeekStrip
+        days={stripDays}
+        today={today}
+        selected={other}
+        onSelect={selectDay}
+        weekLabel={week.shown ? weekTitle(week.shown, week.isCurrent, today) : ''}
+        canNext={week.canNext}
+        onPrev={week.prev}
+        onNext={week.next}
+      />
 
       {!persistOk && (
         <p className="rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--surface-alt)' }} role="status">
@@ -251,13 +275,13 @@ export default function QuickBoard() {
         <>
           {payload ? (
             <>
-              <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} />
-              <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} />
+              <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} only={onlyOf(other)} />
+              {week.isCurrent && <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} />}
             </>
           ) : (
             <>
               <SkeletonDay label={dayLabel(other, yesterday ?? '')} />
-              <SkeletonDay label="Today" />
+              {week.isCurrent && <SkeletonDay label="Today" />}
             </>
           )}
         </>
@@ -269,14 +293,31 @@ export default function QuickBoard() {
         </>
       )}
 
+      {payload && week.shown && (
+        <WeekPanel
+          key={week.shown}
+          isCurrent={week.isCurrent}
+          summary={cu.summary()}
+          choice={cu.choice}
+          chosen={cu.chosen}
+          stepsLeft={cu.stepsFor(cu.choice).length}
+          loaded={cu.loaded}
+          message={cu.message}
+          onSaveChoice={cu.saveChoice}
+          onCatchUp={(kinds) => openStack(cu.stepsFor(kinds), true)}
+          onFillHours={cu.fillHours}
+          onToday={week.toToday}
+        />
+      )}
+
       {payload && <ReminderToggle initial={payload.reminderEnabled} disabled={!confirmed} />}
 
       {stack && payload && (
         <CardStack
-          key={stack.date}
-          date={stack.date}
-          dayLabel={stack.date === today ? 'Today' : dayLabel(stack.date, yesterday ?? '')}
-          cards={stack.cards}
+          key={`${stack.weekRun}:${stack.steps[0]?.date}`}
+          steps={stack.steps}
+          weekRun={stack.weekRun}
+          labelFor={(d) => (stack.weekRun ? shortLabel(d) : d === today ? 'Today' : dayLabel(d, yesterday ?? ''))}
           payload={payload}
           categories={categories}
           quests={quests}

@@ -26,6 +26,8 @@ type Props = {
   queue: OutboxItem[];
   onOpen: (date: string, key: ItemKey) => void;
   onFill?: (date: string) => void;
+  /** Older days: count only these kinds. */
+  only?: ItemKey[];
 };
 
 function Tile(props: {
@@ -72,7 +74,7 @@ function Tile(props: {
   );
 }
 
-export default function DaySection({ date, label, payload, queue, onOpen, onFill }: Props) {
+export default function DaySection({ date, label, payload, queue, onOpen, onFill, only }: Props) {
   const day = payload.days[date];
   if (!day) {
     return (
@@ -87,7 +89,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
     );
   }
 
-  const status = dayStatus(day, payload.ctx);
+  const status = dayStatus(day, payload.ctx, { only });
   const missing = missingInOrder(status).length;
   const weekday = parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'short' });
   const activeIds = payload.ctx.activities.filter((a) => a.status !== 'stopped').map((a) => a.id);
