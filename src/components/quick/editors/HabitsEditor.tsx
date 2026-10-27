@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { initialTicks, templateKind } from '@/lib/quickDay';
+import { habitLogSpecs, initialTicks, templateKind } from '@/lib/quickDay';
 import type { EditorProps } from './types';
 
 export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
@@ -28,14 +28,7 @@ export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
   }
 
   function done() {
-    onSave(
-      list.map((a) => ({
-        key: `log:${date}:${a.id}`,
-        url: '/api/logs',
-        method: 'POST' as const,
-        body: { date, activityId: a.id, completed: ticked.has(a.id) },
-      })),
-    );
+    onSave(habitLogSpecs(date, list.map((a) => ({ activityId: a.id, completed: ticked.has(a.id) }))));
   }
 
   return (

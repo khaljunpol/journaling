@@ -115,6 +115,16 @@ export function initialTicks(
   return { ticked, fromTemplate: ticked.size > 0 };
 }
 
+/** Save items for a day's habits: exactly what the habits card's Done sends. The one shared body shape. */
+export function habitLogSpecs(date: string, rows: Array<{ activityId: string; completed: boolean }>) {
+  return rows.map((r) => ({
+    key: `log:${date}:${r.activityId}`,
+    url: '/api/logs',
+    method: 'POST' as const,
+    body: { date, activityId: r.activityId, completed: r.completed },
+  }));
+}
+
 /** A saved hour template: exactly 24 items, each an integer >= 0 or null. Anything else gives null. */
 export function parseTemplate(v: unknown): Array<number | null> | null {
   if (!Array.isArray(v) || v.length !== 24) return null;

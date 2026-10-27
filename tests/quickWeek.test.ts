@@ -15,6 +15,8 @@ import {
   catchUpSteps,
   templateFillPlan,
   templateMessage,
+  habitFillPlan,
+  habitMessage,
 } from '../src/lib/quickWeek.ts';
 
 const empty = Array.from({ length: 24 }, () => null);
@@ -123,4 +125,50 @@ test('templateMessage is calm and specific', () => {
   assert.equal(templateMessage({ fills: [], missingKinds: ['weekend'], skippedHasHours: 0 }), 'No weekend template yet.');
   assert.equal(templateMessage({ fills: [], missingKinds: ['weekday', 'weekend'], skippedHasHours: 0 }), 'No templates yet.');
   assert.equal(templateMessage({ fills: [], missingKinds: [], skippedHasHours: 3 }), 'Every day already has hours.');
+});
+
+const acts = [{ id: 'a', status: 'active' }, { id: 'b' }, { id: 'c', status: 'stopped' }];
+
+test('habitFillPlan fills empty days up to today with true/false per active habit', () => {
+  const days = [
+    { date: '2026-10-19', logs: [] }, // Mon, empty
+    { date: '2026-10-20', logs: [{ activityId: 'a', completed: false }] }, // has a row
+    { date: '2026-10-28', logs: [] }, // future
+  ];
+  const plan = habitFillPlan(days, '2026-10-26', { weekday: ['a', 'c'], weekend: null }, acts);
+  assert.deepEqual(plan.fills.map((f) => f.date), ['2026-10-19']);
+  assert.deepEqual(plan.fills[0].rows, [
+    { activityId: 'a', completed: true },
+    { activityId: 'b', completed: false },
+  ]);
+  assert.deepEqual(plan.missingKinds, []);
+  assert.equal(plan.skippedHasLogs, 1);
+});
+
+test('habitFillPlan names a missing template and skips those days', () => {
+  const days = [
+    { date: '2026-10-24', logs: [] }, // Sat
+    { date: '2026-10-19', logs: [] }, // Mon
+  ];
+  const plan = habitFillPlan(days, '2026-10-26', { weekday: ['a'], weekend: null }, acts);
+  assert.deepEqual(plan.fills.map((f) => f.date), ['2026-10-19']);
+  assert.deepEqual(plan.missingKinds, ['weekend']);
+});
+
+test('habitFillPlan treats a template of only stopped habits as missing', () => {
+  const plan = habitFillPlan([{ date: '2026-10-19', logs: [] }], '2026-10-26', { weekday: ['c'], weekend: null }, acts);
+  assert.equal(plan.fills.length, 0);
+  assert.deepEqual(plan.missingKinds, ['weekday']);
+});
+
+test('habitMessage is calm and specific', () => {
+  const f = (n: number) => Array.from({ length: n }, (_, i) => ({ date: `d${i}`, rows: [] }));
+  assert.equal(habitMessage({ fills: f(4), missingKinds: [], skippedHasLogs: 0 }), 'Filled habits for 4 days.');
+  assert.equal(
+    habitMessage({ fills: f(1), missingKinds: ['weekend'], skippedHasLogs: 0 }),
+    'Filled habits for 1 day. No usual weekend habits yet. Set them on Time categories.',
+  );
+  assert.equal(habitMessage({ fills: [], missingKinds: ['weekend'], skippedHasLogs: 0 }), 'No usual weekend habits yet. Set them on Time categories.');
+  assert.equal(habitMessage({ fills: [], missingKinds: ['weekday', 'weekend'], skippedHasLogs: 0 }), 'No usual habits yet. Set them on Time categories.');
+  assert.equal(habitMessage({ fills: [], missingKinds: [], skippedHasLogs: 3 }), 'Every day already has habits.');
 });

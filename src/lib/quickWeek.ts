@@ -1,6 +1,6 @@
 // Pure week and catch-up logic for /quick. Dates are local YYYY-MM-DD strings; math uses UTC parts so DST cannot shift a day.
 import type { ItemKey } from './quickDay.ts';
-import { applyTemplate, templateKind } from './quickDay.ts';
+import { applyTemplate, initialTicks, templateKind } from './quickDay.ts';
 
 const p2 = (n: number) => String(n).padStart(2, '0');
 
@@ -125,4 +125,59 @@ export function templateMessage(plan: TemplateFillPlan): string {
   if (n > 0) return `Filled hours for ${n} ${n === 1 ? 'day' : 'days'}.${lack ? ' ' + lack : ''}`;
   if (lack) return lack;
   return 'Every day already has hours.';
+}
+
+// ---- Habits from usual lists ----
+
+export type HabitFillPlan = {
+  fills: Array<{ date: string; rows: Array<{ activityId: string; completed: boolean }> }>;
+  missingKinds: Array<'weekday' | 'weekend'>;
+  /** Days left alone because they already have a habit row. */
+  skippedHasLogs: number;
+};
+
+/** Which days get their usual habits: up to today, no log rows at all, template has an active habit. */
+export function habitFillPlan(
+  days: Array<{ date: string; logs: Array<{ activityId: string; completed: boolean }> }>,
+  today: string,
+  templates: { weekday: string[] | null; weekend: string[] | null },
+  activities: Array<{ id: string; status?: string }>,
+): HabitFillPlan {
+  const fills: HabitFillPlan['fills'] = [];
+  const missing = new Set<'weekday' | 'weekend'>();
+  const active = activities.filter((a) => a.status !== 'stopped');
+  let skippedHasLogs = 0;
+  for (const d of days) {
+    if (d.date > today) continue;
+    if (d.logs.length > 0) {
+      skippedHasLogs += 1;
+      continue;
+    }
+    const kind = templateKind(d.date);
+    const { ticked } = initialTicks([], templates[kind], activities);
+    if (ticked.size === 0) {
+      missing.add(kind);
+      continue;
+    }
+    fills.push({ date: d.date, rows: active.map((a) => ({ activityId: a.id, completed: ticked.has(a.id) })) });
+  }
+  return {
+    fills,
+    missingKinds: (['weekday', 'weekend'] as const).filter((k) => missing.has(k)),
+    skippedHasLogs,
+  };
+}
+
+/** Calm one-liner for the result of a habit fill. */
+export function habitMessage(plan: HabitFillPlan): string {
+  const n = plan.fills.length;
+  const lack =
+    plan.missingKinds.length === 2
+      ? 'No usual habits yet. Set them on Time categories.'
+      : plan.missingKinds.length === 1
+        ? `No usual ${plan.missingKinds[0]} habits yet. Set them on Time categories.`
+        : '';
+  if (n > 0) return `Filled habits for ${n} ${n === 1 ? 'day' : 'days'}.${lack ? ' ' + lack : ''}`;
+  if (lack) return lack;
+  return 'Every day already has habits.';
 }

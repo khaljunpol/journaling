@@ -24,9 +24,11 @@ type Props = {
   stepsLeft: number;
   loaded: boolean;
   message: string | null;
+  habitMessage: string | null;
   onSaveChoice: (choice: ItemKey[]) => void;
   onCatchUp: (choice: ItemKey[]) => void;
   onFillHours: () => void;
+  onFillHabits: () => void;
   onToday: () => void;
 };
 
@@ -38,9 +40,11 @@ export default function WeekPanel({
   stepsLeft,
   loaded,
   message,
+  habitMessage,
   onSaveChoice,
   onCatchUp,
   onFillHours,
+  onFillHabits,
   onToday,
 }: Props) {
   // 'start' = first time, picking before the run. 'change' = editing later.
@@ -121,6 +125,14 @@ export default function WeekPanel({
       {message && (
         <p className="text-center text-xs muted" role="status">
           {message}
+        </p>
+      )}
+      <button type="button" onClick={onFillHabits} className="btn-outline min-h-11 w-full" disabled={!loaded}>
+        Fill empty habits from usual lists
+      </button>
+      {habitMessage && (
+        <p className="text-center text-xs muted" role="status">
+          {habitMessage}
         </p>
       )}
 

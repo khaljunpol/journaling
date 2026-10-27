@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type MutableRefObject } from 'react';
-import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
+import { dayStatus, habitLogSpecs, missingInOrder, type ItemKey } from '@/lib/quickDay';
 import { hoursEntries } from '@/lib/quickApply';
 import type { QuickPayload } from '@/lib/quickPayload';
 import { loadCatchup, saveCatchup } from '@/lib/quickStore';
@@ -9,6 +9,8 @@ import {
   CATCHUP_KINDS,
   catchUpSteps,
   datesUpTo,
+  habitFillPlan,
+  habitMessage,
   onlyFor,
   sanitizeChoice,
   templateFillPlan,
@@ -33,6 +35,7 @@ export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown
   const [choice, setChoice] = useState<ItemKey[]>(CATCHUP_KINDS);
   const [chosen, setChosen] = useState(false);
   const [tplMsg, setTplMsg] = useState<{ week: string; text: string } | null>(null);
+  const [habitMsg, setHabitMsg] = useState<{ week: string; text: string } | null>(null);
 
   useEffect(() => {
     const saved = email ? loadCatchup(email) : null;
@@ -90,6 +93,15 @@ export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown
     setTplMsg({ week: shown, text: templateMessage(plan) });
   }
 
+  function fillHabits() {
+    const p = payloadRef.current;
+    if (!p || !today || !shown) return;
+    const days = upToToday.flatMap((d) => (p.days[d] ? [{ date: d, logs: p.days[d].logs }] : []));
+    const plan = habitFillPlan(days, today, p.habitTemplates, p.ctx.activities);
+    commit(plan.fills.flatMap((f) => habitLogSpecs(f.date, f.rows)));
+    setHabitMsg({ week: shown, text: habitMessage(plan) });
+  }
+
   return {
     choice,
     chosen,
@@ -99,6 +111,8 @@ export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown
     summary,
     saveChoice,
     fillHours,
+    fillHabits,
     message: tplMsg && tplMsg.week === shown ? tplMsg.text : null,
+    habitMessage: habitMsg && habitMsg.week === shown ? habitMsg.text : null,
   };
 }

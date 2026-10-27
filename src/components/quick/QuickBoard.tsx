@@ -303,9 +303,11 @@ export default function QuickBoard() {
           stepsLeft={cu.stepsFor(cu.choice).length}
           loaded={cu.loaded}
           message={cu.message}
+          habitMessage={cu.habitMessage}
           onSaveChoice={cu.saveChoice}
           onCatchUp={(kinds) => openStack(cu.stepsFor(kinds), true)}
           onFillHours={cu.fillHours}
+          onFillHabits={cu.fillHabits}
           onToday={week.toToday}
         />
       )}
