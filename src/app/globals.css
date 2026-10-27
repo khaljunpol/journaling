@@ -140,3 +140,12 @@ select {
 /* Hidden scrollbar for nav overflow */
 .nav-scroll { scrollbar-width: none; }
 .nav-scroll::-webkit-scrollbar { display: none; }
+
+/* Slot painter: small colour/scale feedback only */
+.slot-cell, .slot-chip { transition: background-color 120ms ease, transform 120ms ease, box-shadow 120ms ease; }
+.slot-cell:active { transform: scale(0.94); }
+.slot-chip:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .slot-cell, .slot-chip { transition: none; }
+  .slot-cell:active, .slot-chip:active { transform: none; }
+}
