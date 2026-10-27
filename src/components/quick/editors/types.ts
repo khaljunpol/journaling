@@ -12,6 +12,8 @@ export type EditorProps = {
   /** Body still waiting in the outbox for a key. Used to show what was typed. */
   queued: (key: string) => unknown;
   onSave: (specs: SaveSpec[]) => void;
+  /** Button text; the card stack sets Next / Done. */
+  submitLabel?: string;
 };
 
 export type HoursEditorProps = EditorProps & { categories: TimeCategory[] };

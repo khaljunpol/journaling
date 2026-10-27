@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { EditorProps } from './types';
 
-export default function HighlightEditor({ date, payload, onSave }: EditorProps) {
+export default function HighlightEditor({ date, payload, onSave, submitLabel }: EditorProps) {
   const [text, setText] = useState(payload.days[date]?.highlight ?? '');
   const ok = text.trim() !== '';
   return (
@@ -24,7 +24,7 @@ export default function HighlightEditor({ date, payload, onSave }: EditorProps) 
         disabled={!ok}
         onClick={() => onSave([{ key: `highlight:${date}`, url: '/api/highlights', method: 'POST', body: { date, text: text.trim() } }])}
       >
-        Save
+        {submitLabel ?? 'Save'}
       </button>
     </div>
   );

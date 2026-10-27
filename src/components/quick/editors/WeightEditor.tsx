@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { EditorProps } from './types';
 
-export default function WeightEditor({ date, payload, onSave }: EditorProps) {
+export default function WeightEditor({ date, payload, onSave, submitLabel }: EditorProps) {
   const [text, setText] = useState(() => {
     const w = payload.days[date]?.weight;
     return w === null || w === undefined ? '' : String(w);
@@ -37,7 +37,7 @@ export default function WeightEditor({ date, payload, onSave }: EditorProps) {
         />
       </label>
       <button type="submit" className="btn min-h-12 w-full" disabled={!valid}>
-        Save
+        {submitLabel ?? 'Save'}
       </button>
     </form>
   );

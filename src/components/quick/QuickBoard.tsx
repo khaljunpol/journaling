@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { dayStatus, type ItemKey } from '@/lib/quickDay';
+import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
 import { applyQueue, applyQueueItem, pruneDays } from '@/lib/quickApply';
 import type { QuickPayload } from '@/lib/quickPayload';
 import { getLastEmail, loadOutbox, loadSnapshot, saveSnapshot, setLastEmail } from '@/lib/quickStore';
@@ -12,6 +12,7 @@ import type { TimeCategory } from '@/lib/types';
 import { useOutbox } from './useOutbox';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection from './DaySection';
+import CardStack from './CardStack';
 import ItemSheet, { type SheetTarget } from './ItemSheet';
 import type { QuestInfo, SaveSpec } from './editors/types';
 
@@ -28,7 +29,7 @@ function dayLabel(date: string, yesterday: string): string {
 
 const catKey = (email: string) => `quick:categories:${email.toLowerCase()}`;
 
-export default function QuickBoard({ onFill }: { onFill?: (date: string) => void }) {
+export default function QuickBoard() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const sessionEmail = session?.user?.email?.toLowerCase() ?? '';
@@ -44,6 +45,8 @@ export default function QuickBoard({ onFill }: { onFill?: (date: string) => void
   const [payload, setPayload] = useState<QuickPayload | null>(null);
   const [stale, setStale] = useState(false);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
+  const [stack, setStack] = useState<{ date: string; cards: ItemKey[] } | null>(null);
+  const fillButton = useRef<HTMLElement | null>(null);
   const [categories, setCategories] = useState<TimeCategory[]>([]);
   const [quests, setQuests] = useState<QuestInfo>({});
 
@@ -153,6 +156,9 @@ export default function QuickBoard({ onFill }: { onFill?: (date: string) => void
 
   useEffect(() => {
     setSheet(null);
+    // Remove the history entry the stack pushed, so back does not need an extra press.
+    if (window.history.state && window.history.state.quickStack) window.history.back();
+    setStack(null);
   }, [email]);
 
   const yesterday = today ? addDays(today, -1) : null;
@@ -175,14 +181,38 @@ export default function QuickBoard({ onFill }: { onFill?: (date: string) => void
     }
   }
 
-  function save(specs: SaveSpec[]) {
+  /** One save path for the sheet and the card stack: queue it and update the board right away. */
+  function commit(specs: SaveSpec[]) {
     let next = payloadRef.current;
     for (const s of specs) {
       enqueue({ key: s.key, url: s.url, method: s.method, body: s.body });
       if (next) next = applyQueueItem(next, { key: s.key, body: s.body, state: 'pending' });
     }
     if (next) show(next);
+  }
+
+  function save(specs: SaveSpec[]) {
+    commit(specs);
     setSheet(null);
+  }
+
+  function fill(date: string) {
+    const p = payloadRef.current;
+    const day = p?.days[date];
+    if (!email || !p || !day) return;
+    const cards = missingInOrder(dayStatus(day, p.ctx));
+    if (cards.length === 0) return;
+    fillButton.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setStack({ date, cards });
+  }
+
+  function closeStack() {
+    setStack(null);
+    const el = fillButton.current;
+    fillButton.current = null;
+    window.setTimeout(() => {
+      if (el && el.isConnected) el.focus();
+    }, 0);
   }
 
   const queued = (key: string) => queue.find((q) => q.key === key)?.body;
@@ -220,8 +250,8 @@ export default function QuickBoard({ onFill }: { onFill?: (date: string) => void
         <>
           {payload ? (
             <>
-              <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={onFill} />
-              <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={onFill} />
+              <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} />
+              <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} />
             </>
           ) : (
             <>
@@ -236,6 +266,21 @@ export default function QuickBoard({ onFill }: { onFill?: (date: string) => void
           <SkeletonDay label="Yesterday" />
           <SkeletonDay label="Today" />
         </>
+      )}
+
+      {stack && payload && (
+        <CardStack
+          key={stack.date}
+          date={stack.date}
+          dayLabel={stack.date === today ? 'Today' : dayLabel(stack.date, yesterday ?? '')}
+          cards={stack.cards}
+          payload={payload}
+          categories={categories}
+          quests={quests}
+          queued={queued}
+          onSave={commit}
+          onClose={closeStack}
+        />
       )}
 
       {sheet && payload && (

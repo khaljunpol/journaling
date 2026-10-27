@@ -14,7 +14,7 @@ import type { QuestInfo, SaveSpec } from './editors/types';
 
 export type SheetTarget = { date: string; key: ItemKey };
 
-const TITLES: Record<ItemKey, string> = {
+export const TITLES: Record<ItemKey, string> = {
   mood: 'How was the day?',
   habits: 'Habits',
   weight: 'Weight',

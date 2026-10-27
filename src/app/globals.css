@@ -182,13 +182,20 @@ select {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes quick-card-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.quick-card-in { animation: quick-card-in 200ms ease-out; }
+/* The main button of a card stays in view while a long list scrolls above it. */
+.quick-card-body > :last-child:not(.grid) > button:last-child { position: sticky; bottom: 0; box-shadow: 0 0 0 10px var(--surface); }
 .quick-pop { animation: quick-pop 150ms ease-out; }
 .quick-sheet { animation: quick-sheet-in 200ms ease-out; }
 .quick-backdrop { animation: quick-fade-in 200ms ease-out; }
 .quick-tile { transition: transform 100ms ease-out; }
 .quick-tile:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
-  .quick-pop, .quick-sheet, .quick-backdrop { animation: none; }
+  .quick-pop, .quick-sheet, .quick-backdrop, .quick-card-in { animation: none; }
   .quick-tile { transition: none; }
   .quick-tile:active { transform: none; }
 }

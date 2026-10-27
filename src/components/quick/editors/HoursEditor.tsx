@@ -6,7 +6,7 @@ import { applyTemplate, templateKind } from '@/lib/quickDay';
 import { hoursEntries } from '@/lib/quickApply';
 import type { HoursEditorProps } from './types';
 
-export default function HoursEditor({ date, payload, categories, onSave }: HoursEditorProps) {
+export default function HoursEditor({ date, payload, categories, onSave, submitLabel }: HoursEditorProps) {
   const kind = templateKind(date);
   const startedEmpty = !(payload.days[date]?.hours ?? []).some((h) => h !== null);
   const [hours, setHours] = useState<Array<number | null>>(() =>
@@ -34,8 +34,8 @@ export default function HoursEditor({ date, payload, categories, onSave }: Hours
       ) : (
         <SlotPainter value={hours} categories={categories} onChange={setHours} />
       )}
-      <button type="button" className="btn min-h-12 w-full" onClick={save} disabled={hours.every((h) => h === null)}>
-        Looks right
+      <button type="button" className={`btn w-full ${submitLabel ? 'min-h-14 text-base font-semibold' : 'min-h-12'}`} onClick={save} disabled={hours.every((h) => h === null)}>
+        {submitLabel ?? 'Looks right'}
       </button>
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { QuestsEditorProps } from './types';
 
-export default function QuestsEditor({ date, payload, quests, queued, onSave }: QuestsEditorProps) {
+export default function QuestsEditor({ date, payload, quests, queued, onSave, submitLabel }: QuestsEditorProps) {
   const list = payload.ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === payload.ctx.year,
   );
@@ -53,7 +53,7 @@ export default function QuestsEditor({ date, payload, quests, queued, onSave }: 
       })}
       {list.length === 0 && <p className="subtle">No active side quests.</p>}
       <button type="button" className="btn min-h-12 w-full" disabled={parsed.length === 0} onClick={save}>
-        Save
+        {submitLabel ?? 'Save'}
       </button>
     </div>
   );
