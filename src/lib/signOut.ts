@@ -2,6 +2,7 @@
 
 import { signOut } from 'next-auth/react';
 import { clearLocalCache } from '@/lib/cache';
+import { clearQuick } from '@/lib/quickStore';
 
 /**
  * Sign out and leave nothing behind for the next person on this browser:
@@ -13,5 +14,6 @@ export async function signOutClean(callbackUrl = '/login'): Promise<void> {
     await fetch('/api/connection', { method: 'DELETE' });
   } catch { /* signing out still clears the session */ }
   clearLocalCache();
+  clearQuick();
   await signOut({ callbackUrl });
 }
