@@ -5,25 +5,22 @@ import { createPortal } from 'react-dom';
 import { Line, LineChart, Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Modal from '@/components/Modal';
 import Button from '@/components/ui/Button';
+import GoalSheet from '@/components/climbing/GoalSheet';
+import { useToast } from '@/components/ui/Toast';
+import type { GoalPace } from '@/lib/climbStats';
 import { pad, parseLocalDate } from '@/lib/date';
 import { COLORS } from '@/lib/colors';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
 import ShareStorySheet from '@/components/climbing/ShareStorySheet';
 import type { StoryGoal, StoryLog } from '@/lib/climbStory';
 
-function daysUntilYearEnd(year: number) {
-    const now = new Date();
-    const end = new Date(year, 11, 31);
-    const ms = end.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return Math.max(0, Math.ceil(ms / 86400000));
-}
-
-export default function GoalOverlay({ goal, progressSeries, weeklySeries, weeklyAvg, weeklyRecentAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, storyGoals, storyLogs, onClose }: {
+export default function GoalOverlay({ goal, pace, progressSeries, weeklySeries, weeklyAvg, bestWeek, flashPie, attemptsDist, goalItems, byWeekDates, allGoalsForYear, storyGoals, storyLogs, onClose, onChanged }: {
     goal: { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
+    /** From goalPace(): done, needed per week, projection, ended. Rest weeks count as 0. */
+    pace: GoalPace;
     progressSeries: Array<{ date: string; actual: number; ideal: number; recentPace: number }>;
     weeklySeries: Array<{ date: string; count: number }>;
     weeklyAvg: number;
-    weeklyRecentAvg: number;
     bestWeek: number;
     flashPie: { flash: number; nonFlash: number };
     attemptsDist: Array<{ bucket: string; count: number }>;
@@ -34,19 +31,40 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
     storyGoals?: StoryGoal[];
     storyLogs?: Record<number, StoryLog[]>;
     onClose: () => void;
+    /** A goal was edited or deleted: the parent reloads goals and clears year caches. */
+    onChanged: (year?: number) => void;
 }) {
     const [storyOpen, setStoryOpen] = useState(false);
     const total = flashPie.flash + flashPie.nonFlash;
     const flashRate = total ? Math.round((flashPie.flash / total) * 100) : 0;
-    const daysLeft = daysUntilYearEnd(goal.year);
-    const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7));
-    const done = progressSeries.length ? progressSeries[progressSeries.length - 1].actual : 0;
-    const remaining = Math.max(0, goal.target - done);
-    const paceNeeded = Math.round((remaining / weeksLeft) * 10) / 10;
-    const projection = Math.round(done + weeklyRecentAvg * weeksLeft);
+    const { show } = useToast();
+    const [editOpen, setEditOpen] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const weeklyRecentAvg = pace.recentPerWeek;
+    const done = pace.done;
+    const paceNeeded = pace.neededPerWeek;
+    const projection = pace.projected;
     const pct = goal.target ? Math.min(100, Math.round((done / goal.target) * 100)) : 0;
-    const onTrack = projection >= goal.target;
+    const isDone = done >= goal.target;
+    const onTrack = pace.onTrack;
     const activeWeeks = weeklySeries.filter((w) => w.count > 0).length;
+
+    async function deleteGoal() {
+        if (deleting) return;
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/climbing/goals?id=${encodeURIComponent(goal.id)}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('delete failed');
+        } catch {
+            show("Couldn't delete the goal. Try again.");
+            setDeleting(false);
+            return;
+        }
+        onClose();
+        onChanged(goal.year);
+        show('Goal deleted');
+    }
 
     function exportGoalOverlay() {
         const W = CANVAS_WIDTH, H = CANVAS_HEIGHT;
@@ -57,7 +75,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
         c.clearRect(0, 0, W, H);
 
         const accent = COLORS.accent;
-        const green = COLORS.success;
+        const reward = '#f0a24a'; // --reward, ember: earned moments only
         const white = '#ffffff';
         const muted = 'rgba(255,255,255,0.6)';
         const font = 'Inter, system-ui, -apple-system, Segoe UI, Roboto';
@@ -102,7 +120,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
         const endAngle = startAngle + (Math.PI * 2 * Math.min(1, pct / 100));
         c.beginPath();
         c.arc(ringCx, ringCy, ringR, startAngle, endAngle);
-        c.strokeStyle = pct >= 100 ? green : accent;
+        c.strokeStyle = isDone ? reward : accent;
         c.lineWidth = ringW;
         c.lineCap = 'round';
         shadow();
@@ -111,7 +129,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
         c.lineCap = 'butt';
 
         // Center text in ring
-        write(`${pct}%`, 64, ringCx, ringCy + 8, { bold: true, color: pct >= 100 ? green : accent });
+        write(`${pct}%`, 64, ringCx, ringCy + 8, { bold: true, color: isDone ? reward : accent });
         write(`${done}/${goal.target}`, 28, ringCx, ringCy + 48, { color: muted });
 
         // Stats row below ring
@@ -131,10 +149,16 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
 
         // Projection line
         const projY = statsY + 100;
-        const projText = onTrack
-            ? `On track · projected ${projection} by year end`
-            : `${paceNeeded}/wk needed · projected ${projection}`;
-        write(projText, 30, cx, projY, { color: onTrack ? green : accent });
+        const projText = isDone
+            ? 'Goal done'
+            : pace.ended
+                ? `Ended · ${done}/${goal.target}`
+                : pace.notStarted
+                ? `Starts ${goal.year} · ${paceNeeded}/wk`
+                : onTrack
+                    ? `On track · projected ${projection} by year end`
+                    : `${paceNeeded}/wk needed · projected ${projection}`;
+        write(projText, 30, cx, projY, { color: isDone ? reward : pace.ended ? muted : accent });
 
         canvas.toBlob((blob) => {
             if (!blob) return;
@@ -157,34 +181,35 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                         <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border)" strokeWidth="10" />
                         <circle
                             cx="70" cy="70" r="60" fill="none"
-                            stroke={pct >= 100 ? 'var(--ok)' : 'var(--accent)'}
+                            stroke={isDone ? 'var(--reward)' : 'var(--accent)'}
                             strokeWidth="10"
                             strokeLinecap="round"
                             strokeDasharray={`${Math.min(1, pct / 100) * 377} 377`}
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold" style={{ color: pct >= 100 ? 'var(--ok)' : 'var(--accent)' }}>{pct}%</span>
-                        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{done}/{goal.target}</span>
+                        <span className="text-2xl font-bold" style={{ color: isDone ? 'var(--reward-text)' : 'var(--accent)' }}>{pct}%</span>
+                        <span className="text-xs" style={{ color: 'var(--text-2)' }}>{done}/{goal.target}</span>
                     </div>
                 </div>
 
-                {/* Status chips */}
+                {/* Status chips: neutral for behind, ember only when done */}
                 <div className="flex flex-wrap justify-center gap-2">
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{
-                        background: onTrack ? 'var(--ok-soft)' : 'var(--surface-2)',
-                        color: onTrack ? 'var(--ok)' : 'var(--text-2)',
-                    }}>
-                        {onTrack ? `On track · ~${projection} projected` : `Needs a push · ~${projection} projected`}
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={isDone
+                        ? { background: 'var(--surface-2)', color: 'var(--reward-text)' }
+                        : { background: onTrack && !pace.ended ? 'var(--ok-soft)' : 'var(--surface-2)', color: onTrack && !pace.ended ? 'var(--ok)' : 'var(--text-2)' }}>
+                        {isDone ? 'Goal done' : pace.ended ? `Ended · ${done}/${goal.target}` : pace.notStarted ? `Starts ${goal.year} · ${paceNeeded}/wk` : onTrack ? `On track · ~${projection} projected` : `Behind pace · ~${projection} projected`}
                     </span>
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: 'var(--surface-alt)', color: 'var(--muted-foreground)' }}>
-                        {paceNeeded}/wk needed
-                    </span>
+                    {!isDone && !pace.ended && !pace.notStarted && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+                            {paceNeeded}/wk needed
+                        </span>
+                    )}
                 </div>
             </div>
 
             {/* Key stats strip */}
-            <div className="grid grid-cols-4 rounded-xl overflow-hidden" style={{ background: 'var(--surface-alt)' }}>
+            <div className="grid grid-cols-4 rounded-xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
                 {[
                     { label: 'Flash rate', value: `${flashRate}%` },
                     { label: 'Weekly avg', value: String(weeklyRecentAvg) },
@@ -193,7 +218,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                 ].map(({ label, value }) => (
                     <div key={label} className="py-3 text-center">
                         <div className="text-lg font-bold">{value}</div>
-                        <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>{label}</div>
+                        <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-2)' }}>{label}</div>
                     </div>
                 ))}
             </div>
@@ -202,7 +227,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
             <div className="mt-5 space-y-2">
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Progress vs Pace</h3>
-                    <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-2)' }}>
                         <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: 'var(--accent)' }} />Actual</span>
                         <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: 'var(--text-3)' }} />Ideal</span>
                         <span><span className="inline-block w-2 h-0.5 mr-1 rounded" style={{ background: 'var(--sync)' }} />Recent</span>
@@ -238,7 +263,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
             <div className="mt-5 space-y-2">
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Weekly Completions</h3>
-                    <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>avg {weeklyAvg}/wk</span>
+                    <span className="text-xs" style={{ color: 'var(--text-2)' }}>avg {weeklyAvg}/wk</span>
                 </div>
                 <div className="h-28 w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -253,7 +278,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                                         <div className="rounded-[10px] border px-3 py-1.5 text-[13px]" style={{ background: 'var(--surface-2)', borderColor: 'var(--border-strong)', color: 'var(--text-1)' }}>
                                             <div className="font-medium">Week of {label}</div>
                                             <div>{payload[0]?.value} sends</div>
-                                            {dates.length > 0 && <div className="mt-1" style={{ color: 'var(--muted-foreground)' }}>{dates.join(', ')}</div>}
+                                            {dates.length > 0 && <div className="mt-1" style={{ color: 'var(--text-2)' }}>{dates.join(', ')}</div>}
                                         </div>
                                     );
                                 }}
@@ -281,7 +306,7 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                                     opacity: isFlash ? 1 : 0.6,
                                 }} />
                                 <span className="text-sm font-bold">{b.count}</span>
-                                <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{isFlash ? 'Flash' : `${b.bucket} att`}</span>
+                                <span className="text-[10px]" style={{ color: 'var(--text-2)' }}>{isFlash ? 'Flash' : `${b.bucket} att`}</span>
                             </div>
                         );
                     })}
@@ -298,9 +323,9 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                             .sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime())
                             .slice(0, 6)
                             .map((s) => (
-                                <div key={s.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg" style={{ background: 'var(--surface-alt)' }}>
+                                <div key={s.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg" style={{ background: 'var(--surface-2)' }}>
                                     <span>{s.date.slice(0, 10)}</span>
-                                    <span style={{ color: 'var(--muted-foreground)' }}>
+                                    <span style={{ color: 'var(--text-2)' }}>
                                         S{s.session} · {s.attempts === 0 ? <span style={{ color: 'var(--ok)' }}>flash</span> : `${s.attempts} att`}
                                         {s.location ? ` · ${s.location}` : ''}
                                     </span>
@@ -316,6 +341,24 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                 <Button variant="outline" onClick={exportGoalOverlay}>Download share image</Button>
             </div>
 
+            {/* Edit / delete */}
+            <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                {confirmDelete ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2" role="alert">
+                        <span className="text-[14px]" style={{ color: 'var(--text-1)' }}>Delete {goal.grade} goal?</span>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</Button>
+                            <Button onClick={() => void deleteGoal()} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex justify-center gap-2">
+                        <Button variant="outline" onClick={() => setEditOpen(true)}>Edit</Button>
+                        <Button variant="ghost" onClick={() => setConfirmDelete(true)}>Delete</Button>
+                    </div>
+                )}
+            </div>
+
             {/* Portal: the sheet is position:fixed and must not sit inside the modal's animated box. */}
             {createPortal(
                 <ShareStorySheet
@@ -324,6 +367,16 @@ export default function GoalOverlay({ goal, progressSeries, weeklySeries, weekly
                     goals={storyGoals && storyGoals.length ? storyGoals : [goal]}
                     initialGoalId={goal.id}
                     knownLogs={storyLogs}
+                />,
+                document.body,
+            )}
+            {createPortal(
+                <GoalSheet
+                    open={editOpen}
+                    onClose={() => setEditOpen(false)}
+                    initial={goal}
+                    goals={storyGoals && storyGoals.length ? storyGoals : [goal]}
+                    onSaved={(y) => { onClose(); onChanged(y); }}
                 />,
                 document.body,
             )}

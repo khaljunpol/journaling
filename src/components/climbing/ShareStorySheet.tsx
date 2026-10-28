@@ -24,6 +24,8 @@ type Props = {
   initialStyle?: StoryStyle;
   /** Overlay of one climb (a log id) instead of the whole session. */
   initialClimbId?: string;
+  /** Other ways to make an image (the older generators), shown small under the form. */
+  moreStyles?: Array<{ label: string; run: () => void }>;
 };
 
 /** "Share story": pick a style, goal and date, see the image, then share it (phone) or download it. */
@@ -50,7 +52,7 @@ const STYLES: Array<{ id: Style; label: string; hint: string }> = [
   { id: 'year', label: 'Year', hint: 'Your year in numbers, 1080 x 1920.' },
 ];
 
-function StoryBody({ goals, initialGoalId, initialDate, knownLogs, initialStyle, initialClimbId }: Omit<Props, 'open' | 'onClose'>) {
+function StoryBody({ goals, initialGoalId, initialDate, knownLogs, initialStyle, initialClimbId, moreStyles }: Omit<Props, 'open' | 'onClose'>) {
   const today = useMemo(() => localTodayISO(), []);
   const maxYear = yearOf(today) + 1;
   const [goalId, setGoalId] = useState<string>(
@@ -304,6 +306,15 @@ function StoryBody({ goals, initialGoalId, initialDate, knownLogs, initialStyle,
       </div>
 
       <p className="min-h-5 text-[13px]" role="status" aria-live="polite" style={{ color: failed ? 'var(--danger, var(--text-1))' : 'var(--text-2)' }}>{message}</p>
+
+      {moreStyles && moreStyles.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-1 text-[13px]" style={{ color: 'var(--text-3)' }}>
+          <span>More styles:</span>
+          {moreStyles.map((m) => (
+            <button key={m.label} type="button" className="min-h-11 px-2 underline" style={{ color: 'var(--text-2)' }} onClick={m.run}>{m.label}</button>
+          ))}
+        </div>
+      ) : null}
 
       {/* Primary action stays in view while the form scrolls, inside the sheet (z-50, above the tabs). */}
       <div

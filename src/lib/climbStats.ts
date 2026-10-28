@@ -104,7 +104,7 @@ export function groupBySession(logs: Log[]): Array<{ date: string; sessions: Arr
     }));
 }
 
-export type GoalPace = { done: number; target: number; weeksLeft: number; neededPerWeek: number; recentPerWeek: number; onTrack: boolean; projected: number; ended: boolean };
+export type GoalPace = { done: number; target: number; weeksLeft: number; neededPerWeek: number; recentPerWeek: number; onTrack: boolean; projected: number; ended: boolean; notStarted: boolean };
 
 export function goalPace(goal: GoalSpec, logs: Log[], today: string): GoalPace {
   const t = day(today);
@@ -113,6 +113,11 @@ export function goalPace(goal: GoalSpec, logs: Log[], today: string): GoalPace {
   const mine = logs.filter((l) => day(l.date).startsWith(`${goal.year}-`) && l.type === goal.type && normalizeGrade(l.type, l.grade) === normalizeGrade(goal.type, goal.grade));
   const done = mine.filter((l) => day(l.date) <= t).length;
   const ended = t > dec31;
+  const notStarted = t < jan1;
+  if (notStarted) {
+    const weeksInYear = Math.max(1, Math.floor((daysBetween(jan1, dec31) + 1) / 7));
+    return { done: 0, target: goal.target, weeksLeft: weeksInYear, neededPerWeek: round1(goal.target / weeksInYear), recentPerWeek: 0, onTrack: true, projected: 0, ended: false, notStarted: true };
+  }
   const weeksLeft = ended ? 0 : Math.max(1, Math.floor(daysBetween(t < jan1 ? jan1 : t, dec31) / 7));
   const neededPerWeek = ended ? 0 : Math.max(0, round1((goal.target - done) / weeksLeft));
   // Last 8 weeks that sit inside the goal year, rest weeks counted as 0.
@@ -121,7 +126,7 @@ export function goalPace(goal: GoalSpec, logs: Log[], today: string): GoalPace {
   const series = weeklySeries(mine, windowStart < jan1 ? jan1 : windowStart, end);
   const recent = mean(series.reduce((a, w) => a + w.count, 0), series.length);
   const projected = Math.round(done + recent * weeksLeft);
-  return { done, target: goal.target, weeksLeft, neededPerWeek, recentPerWeek: round1(recent), onTrack: projected >= goal.target, projected, ended };
+  return { done, target: goal.target, weeksLeft, neededPerWeek, recentPerWeek: round1(recent), onTrack: projected >= goal.target, projected, ended, notStarted: false };
 }
 
 export function gradePyramid(logs: Log[], type: ClimbType): Array<{ grade: string; count: number }> {

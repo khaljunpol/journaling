@@ -60,3 +60,17 @@ export function clearLocalCache(keep: string[] = ['theme']): void {
     for (const k of keys) storage.removeItem(k);
   } catch { /* localStorage unavailable */ }
 }
+
+// Remove every cached entry whose key starts with `prefix` (e.g. "climb:year:"). Never throws.
+export function clearCacheByPrefix(prefix: string): void {
+  try {
+    const storage = (globalThis as { localStorage?: Storage }).localStorage;
+    if (!storage) return;
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k !== null && k.startsWith(prefix)) keys.push(k);
+    }
+    for (const k of keys) storage.removeItem(k);
+  } catch { /* localStorage unavailable */ }
+}

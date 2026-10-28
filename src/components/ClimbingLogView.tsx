@@ -2,12 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { localTodayISO, parseLocalDate } from '@/lib/date';
-import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE, BOULDER_GRADES, FRENCH_GRADES } from '@/lib/climbing';
-import Button from '@/components/ui/Button';
-import { Card, CardHeader } from '@/components/ui/Card';
-import Chip from '@/components/ui/Chip';
-import Input, { Label } from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
+import { clearCacheByPrefix } from '@/lib/cache';
+import { logMatchesGoal } from '@/lib/climbStory';
+import Link from 'next/link';
 import { ToastHost, useToast } from '@/components/ui/Toast';
 import ShareStorySheet from '@/components/climbing/ShareStorySheet';
 import QuickLog from '@/components/climbing/QuickLog';
@@ -33,7 +30,6 @@ export default function ClimbingLogView() {
   const [allLoading, setAllLoading] = useState<boolean>(false);
   const [goals, setGoals] = useState<GoalEntry[]>([]);
   const [yearCache, setYearCache] = useState<Record<number, LogEntry[]>>({});
-  const [goalForm, setGoalForm] = useState<{ year: number; type: 'boulder' | 'rope'; grade: string; target: number }>({ year: new Date().getFullYear(), type: 'boulder', grade: DEFAULT_BOULDER_GRADE, target: 100 });
   // "Share story" sheet: the date it opens on (null = closed)
   const [storyDate, setStoryDate] = useState<string | null>(null);
   const [storyKey, setStoryKey] = useState(0);
@@ -87,7 +83,12 @@ export default function ClimbingLogView() {
   useEffect(() => { refreshAll(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** After any save, undo, edit or delete: reload today's list and the all-logs list. */
-  function refreshBoth() { void refresh(); void refreshAll(); }
+  function refreshBoth() {
+    clearCacheByPrefix('climb:year:');
+    setYearCache({});
+    void refresh();
+    void refreshAll();
+  }
   // Toast actions outlive the render that made them: they call the latest refreshBoth.
   const refreshRef = useRef(refreshBoth);
   useEffect(() => { refreshRef.current = refreshBoth; });
@@ -148,7 +149,7 @@ export default function ClimbingLogView() {
       } catch { yrLogs = []; }
     }
     const same = (yrLogs || [])
-      .filter((x) => x.type === l.type && String(x.grade).toLowerCase() === l.grade.toLowerCase())
+      .filter((x) => logMatchesGoal(x, l))
       .slice()
       .sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
     let ordinal = 0;
@@ -163,7 +164,7 @@ export default function ClimbingLogView() {
       ordinal = same.filter((x) => parseLocalDate(x.date).getTime() <= cutoff).length;
     }
     if (ordinal <= 0) ordinal = same.length;
-    const goal = (goals || []).find((g) => g.year === yr && g.type === l.type && String(g.grade).toLowerCase() === l.grade.toLowerCase());
+    const goal = (goals || []).find((g) => g.year === yr && logMatchesGoal(l, g));
     const target = goal?.target || 0;
     return { yr, ordinal, target };
   }
@@ -173,14 +174,6 @@ export default function ClimbingLogView() {
     { label: 'Compact', run: () => void createOverlayV2(editing, getProgressForLog) },
     { label: 'Bold', run: () => void createOverlayV3(editing, getProgressForLog) },
   ] : [];
-
-  const boulderGrades = BOULDER_GRADES;
-  const frenchGrades = FRENCH_GRADES;
-
-  async function saveGoal() {
-    const res = await fetch('/api/climbing/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(goalForm) });
-    if (res.ok) { /* refresh goals */ try { const gRes = await fetch('/api/climbing/goals'); const gs = gRes.ok ? await gRes.json() : []; setGoals(Array.isArray(gs) ? gs : []); } catch { } }
-  }
 
   return (
     <section className="space-y-3 sm:space-y-4">
@@ -202,49 +195,9 @@ export default function ClimbingLogView() {
         onShareDay={(d) => openStory(d)}
       />
 
-      {/* ── Set goal (Task 4 moves this to Overview) ── */}
-      <Card>
-        <CardHeader title="Add a goal" />
-        <form onSubmit={(e) => { e.preventDefault(); void saveGoal(); }} className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <div>
-              <Label htmlFor="cg-year">Year</Label>
-              <Input id="cg-year" type="number" inputMode="numeric" value={goalForm.year} onChange={(e) => setGoalForm({ ...goalForm, year: parseInt(e.target.value || String(new Date().getFullYear()), 10) || new Date().getFullYear() })} />
-            </div>
-            <div>
-              <Label htmlFor="cg-type">Type</Label>
-              <Select id="cg-type" className="w-full" value={goalForm.type} onChange={(e) => { const t = e.target.value as 'boulder' | 'rope'; setGoalForm({ ...goalForm, type: t, grade: t === 'boulder' ? DEFAULT_BOULDER_GRADE : DEFAULT_ROPE_GRADE }); }}>
-                <option value="boulder">Boulder</option>
-                <option value="rope">Rope</option>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="cg-grade">Grade</Label>
-              <Select id="cg-grade" className="w-full" value={goalForm.grade} onChange={(e) => setGoalForm({ ...goalForm, grade: e.target.value })}>
-                {(goalForm.type === 'boulder' ? boulderGrades : frenchGrades).map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="cg-target">Target</Label>
-              <Input id="cg-target" type="number" min={1} inputMode="numeric" value={goalForm.target} onChange={(e) => setGoalForm({ ...goalForm, target: parseInt(e.target.value || '1', 10) || 1 })} />
-            </div>
-          </div>
-          <Button type="submit" className="w-full sm:w-auto">Save goal</Button>
-        </form>
-
-        {goals.length > 0 && (
-          <div className="mt-4 space-y-2 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-            <div className="text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>Active goals</div>
-            <div className="flex flex-wrap gap-2">
-              {goals.map((g) => (
-                <Chip key={g.id}>{g.year} · {g.grade.toUpperCase()} × {g.target}</Chip>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
+      <p className="px-1 text-[13px]" style={{ color: 'var(--text-2)' }}>
+        Goals live on <Link href="/climbing" className="inline-flex min-h-11 items-center font-medium underline" style={{ color: 'var(--accent)' }}>Overview</Link>
+      </p>
 
       <LogEditSheet
         open={editOpen}

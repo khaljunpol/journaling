@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
 import { range, TABS } from '@/lib/sheetLayout';
 import { localISO } from '@/lib/date';
+import { normalizeGrade } from '@/lib/climbing';
 import { withLock } from '@/lib/keyedLock';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
@@ -676,7 +677,7 @@ export async function upsertClimbGoal(sa: SheetAuth, goal: { year: number; type:
       let rowIndex = -1; let existingId = '';
       for (let i = 0; i < values.length; i++) {
         const [id, year, type, grade] = values[i];
-        if (parseInt(String(year ?? '0'), 10) === goal.year && String(type || '').trim().toLowerCase() === goal.type && String(grade || '').trim().toLowerCase() === goal.grade.trim().toLowerCase()) {
+        if (parseInt(String(year ?? '0'), 10) === goal.year && String(type || '').trim().toLowerCase() === goal.type && normalizeGrade(goal.type, String(grade || '').trim()) === normalizeGrade(goal.type, goal.grade.trim())) {
           rowIndex = i + 2; existingId = id; break;
         }
       }

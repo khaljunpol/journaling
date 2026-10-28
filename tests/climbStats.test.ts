@@ -92,6 +92,16 @@ describe('climb stats: goal pace', () => {
     assert.ok(f.weeksLeft >= 1 && Number.isFinite(f.neededPerWeek));
   });
 
+  it('treats a future-year goal as not started and on track', () => {
+    const f = goalPace({ ...goal, year: 2027 }, [], '2026-10-27');
+    assert.equal(f.notStarted, true);
+    assert.equal(f.onTrack, true);
+    assert.equal(f.projected, 0);
+    assert.equal(f.recentPerWeek, 0);
+    assert.ok(Number.isFinite(f.neededPerWeek) && f.neededPerWeek > 0);
+    assert.equal(goalPace(goal, [], TODAY).notStarted, false);
+  });
+
   it('never needs below zero once the target is met', () => {
     const p = goalPace({ ...goal, target: 2 }, [log('2026-10-01'), log('2026-10-02'), log('2026-10-03')], TODAY);
     assert.equal(p.neededPerWeek, 0);

@@ -15,13 +15,21 @@ export function adoptSheetEntry(): boolean {
   return true;
 }
 
-type Props = { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  /** 'field' (default) focuses the first input; 'panel' focuses the panel, so no phone keyboard pops up. */
+  initialFocus?: 'field' | 'panel';
+  children: ReactNode;
+};
 
 /**
  * Bottom sheet under 1024 px, side panel from 1024 px. Focus is trapped, Escape and the
  * browser Back button close it, and focus returns to the opener. z-50 sits above the bottom tabs (z-40).
  */
-export default function Sheet({ open, onClose, title, subtitle, children }: Props) {
+export default function Sheet({ open, onClose, title, subtitle, initialFocus = 'field', children }: Props) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -65,7 +73,7 @@ export default function Sheet({ open, onClose, title, subtitle, children }: Prop
     if (!open || !mounted) return;
     const panel = panelRef.current;
     if (panel && !panel.contains(document.activeElement)) {
-      (panel.querySelector<HTMLElement>('input, textarea, select') ?? panel).focus();
+      (initialFocus === 'field' ? panel.querySelector<HTMLElement>('input, textarea, select') ?? panel : panel).focus();
     }
     // Capture phase + stopPropagation: Escape closes only the top layer (a Sheet over a Modal leaves the Modal open).
     const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); closeRef.current(); } };
@@ -79,7 +87,7 @@ export default function Sheet({ open, onClose, title, subtitle, children }: Prop
       if (opener && opener.isConnected) opener.focus();
       else (document.querySelector<HTMLElement>('h1') ?? document.body).focus?.();
     };
-  }, [open, mounted]);
+  }, [open, mounted, initialFocus]);
 
   const trap = useCallback((e: KeyboardEvent) => {
     if (e.key !== 'Tab' || !panelRef.current) return;
