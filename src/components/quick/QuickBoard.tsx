@@ -68,6 +68,11 @@ export default function QuickBoard() {
   useEffect(() => {
     if (email) setWelcomeHidden(loadWelcomeHidden(email));
   }, [email]);
+  // Dev only: /quick?welcome shows the card even with data, so it can be checked on a real account.
+  const [previewWelcome, setPreviewWelcome] = useState(false);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') setPreviewWelcome(new URLSearchParams(window.location.search).has('welcome'));
+  }, []);
   const [payload, setPayload] = useState<QuickPayload | null>(null);
   const [stale, setStale] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -333,10 +338,11 @@ export default function QuickBoard() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
-          {payload && today && showWelcome(payload, today, welcomeHidden) && (
+          {payload && today && (previewWelcome || showWelcome(payload, today, welcomeHidden)) && (
             <WelcomeCard
               steps={welcomeSteps(payload, today)}
               onHide={() => {
+                setPreviewWelcome(false);
                 setWelcomeHidden(true);
                 if (email) saveWelcomeHidden(email);
               }}
