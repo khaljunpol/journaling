@@ -147,24 +147,6 @@ function paintBackground(c: CanvasRenderingContext2D) {
   c.fillRect(0, 0, STORY_W, STORY_H);
 }
 
-/** App mark (violet tile with a small peak) with its baseline-aligned bottom at y. */
-function paintMark(c: CanvasRenderingContext2D, x: number, y: number, size = 52) {
-  const k = size / 52;
-  c.beginPath();
-  c.roundRect(x, y - 40 * k, size, size, 14 * k);
-  c.fillStyle = VIOLET_FILL;
-  c.fill();
-  c.beginPath();
-  c.moveTo(x + 11 * k, y - 6 * k);
-  c.lineTo(x + 26 * k, y - 28 * k);
-  c.lineTo(x + 41 * k, y - 6 * k);
-  c.strokeStyle = '#fff';
-  c.lineWidth = 5 * k;
-  c.lineJoin = 'round';
-  c.lineCap = 'round';
-  c.stroke();
-}
-
 export async function renderStory(data: StoryData, opts: RenderOpts = {}): Promise<HTMLCanvasElement> {
   const { canvas, c, text, measure, panel, ring, backdrop } = await setup(STORY_W, STORY_H, opts.clear);
 
@@ -175,11 +157,7 @@ export async function renderStory(data: StoryData, opts: RenderOpts = {}): Promi
 
   // ── 1. Header ──
   const headerY = SAFE_TOP + 50;
-  if (!opts.clear) {
-    paintMark(c, PAD, headerY);
-    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
-  }
-  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, weight: 500, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
+  text(data.dateLabel, PAD, headerY, { size: 36, weight: 500, color: TEXT2, align: 'left', mono: true });
 
   // ── 2. Goal hero: one goal big, several goals as rows ──
   const heroTop = headerY + 76;
@@ -467,7 +445,6 @@ export async function renderStory(data: StoryData, opts: RenderOpts = {}): Promi
 
   // ── 5. Footer (stays above the bottom safe zone) ──
   const footY = Math.min(SAFE_BOTTOM - 8, chartB.y + chartB.h + 40);
-  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, weight: 500, color: TEXT3, align: 'center', spacing: 2 });
   backdrop(SAFE_TOP - 24, footY - 16);
 
   return canvas;
@@ -653,11 +630,7 @@ export async function renderYearStory(data: YearStoryData, opts: RenderOpts = {}
 
   // ── Header ──
   const headerY = SAFE_TOP + 50;
-  if (!opts.clear) {
-    paintMark(c, PAD, headerY);
-    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
-  }
-  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
+  text(data.dateLabel, PAD, headerY, { size: 36, color: TEXT2, align: 'left', mono: true });
 
   // ── Total hero ──
   const heroTop = headerY + 76;
@@ -734,7 +707,6 @@ export async function renderYearStory(data: YearStoryData, opts: RenderOpts = {}
     if (more > 0) text(`+${more} more`, STORY_W / 2, listTop + listH - 40, { size: 30, color: TEXT3, align: 'center' });
   }
 
-  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, color: TEXT3, align: 'center', spacing: 2 });
   backdrop(SAFE_TOP - 24, footY - 16);
   return canvas;
 }
@@ -746,11 +718,7 @@ export async function renderYearStats(data: YearStatsData, opts: RenderOpts = {}
   if (!opts.clear) paintBackground(c);
 
   const headerY = SAFE_TOP + 50;
-  if (!opts.clear) {
-    paintMark(c, PAD, headerY);
-    text('Climbing', PAD + 74, headerY, { size: 40, weight: 700 });
-  }
-  text(data.dateLabel, opts.clear ? PAD : STORY_W - PAD, headerY, { size: 36, color: TEXT2, align: opts.clear ? 'left' : 'right', mono: true });
+  text(data.dateLabel, PAD, headerY, { size: 36, color: TEXT2, align: 'left', mono: true });
 
   // Hero: year pill and the total
   const heroTop = headerY + 76;
@@ -820,7 +788,6 @@ export async function renderYearStats(data: YearStatsData, opts: RenderOpts = {}
     text('brightest bar = best week', px + pw, chartTop + chartH - 20, { size: 22, color: TEXT3, align: 'right' });
   }
 
-  if (!opts.clear) text(`${data.year} · climbing log`, STORY_W / 2, footY, { size: 26, color: TEXT3, align: 'center', spacing: 2 });
   backdrop(SAFE_TOP - 24, footY - 16);
   return canvas;
 }

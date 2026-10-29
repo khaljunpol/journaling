@@ -212,7 +212,8 @@ export default function GoalOverlay({ goal, pace, progressSeries, weeklySeries, 
             <div className="grid grid-cols-4 rounded-xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
                 {[
                     { label: 'Flash rate', value: `${flashRate}%` },
-                    { label: 'Weekly avg', value: String(weeklyRecentAvg) },
+                    // Last 8 weeks (the pace behind "on track"); the bars below show the whole-year average.
+                    { label: '8-wk avg', value: String(weeklyRecentAvg) },
                     { label: 'Best week', value: String(bestWeek) },
                     { label: 'Active wks', value: `${activeWeeks}/${weeklySeries.length}` },
                 ].map(({ label, value }) => (
@@ -263,7 +264,7 @@ export default function GoalOverlay({ goal, pace, progressSeries, weeklySeries, 
             <div className="mt-5 space-y-2">
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Weekly Completions</h3>
-                    <span className="text-xs" style={{ color: 'var(--text-2)' }}>avg {weeklyAvg}/wk</span>
+                    <span className="text-xs" style={{ color: 'var(--text-2)' }}>year avg {weeklyAvg}/wk</span>
                 </div>
                 <div className="h-28 w-full">
                     <ResponsiveContainer width="100%" height="100%">

@@ -93,7 +93,6 @@ export function downloadYearOverlay(ylogs: ClimbLog[], year: number, today: stri
   const baseY = H * 0.42;
 
   write(`${year}`, 48, cx, baseY, { color: muted });
-  write('CLIMBING YEAR', 72, cx, baseY + 70, { bold: true });
   write(String(s.total), 160, cx, baseY + 230, { bold: true, color: accent });
   write('TOTAL SENDS', 32, cx, baseY + 270, { color: muted });
 
@@ -156,7 +155,6 @@ export function downloadGoalsOverlay(allGoals: OverlayGoal[], year: number) {
   const goals = allGoals.slice(0, 6);
   const baseY = H * 0.38;
   write(`${year}`, 48, cx, baseY, { color: muted });
-  write('CLIMBING GOALS', 72, cx, baseY + 70, { bold: true });
 
   const succeeded = goals.filter((g) => g.done >= g.target).length;
   write(`${succeeded}/${goals.length} completed`, 36, cx, baseY + 120, { color: succeeded === goals.length ? green : accent });
