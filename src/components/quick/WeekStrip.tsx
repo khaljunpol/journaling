@@ -64,16 +64,17 @@ export default function WeekStrip({ days, today, selected, onSelect, weekLabel, 
               disabled={future || d.date.startsWith('skeleton')}
               aria-label={d.filled !== null ? `${label}, ${d.filled} of ${d.total} done` : label}
               aria-current={d.date === today ? 'date' : undefined}
+              aria-pressed={isSel}
               onClick={() => onSelect(d.date)}
-              className="flex min-h-11 min-w-11 items-center justify-center rounded-full disabled:opacity-40"
+              className="press flex min-h-11 min-w-11 items-center justify-center rounded-full disabled:opacity-40"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: ring(d.filled, d.total) }}>
+                {/* Selected day: a solid fill, so it reads at a glance next to the progress rings. */}
                 <span
-                  className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[12px] font-medium"
+                  className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-[12px] ${isSel ? 'font-semibold' : 'font-medium'}`}
                   style={{
-                    background: isSel ? 'var(--surface-2)' : 'var(--surface)',
-                    color: d.date === today ? 'var(--accent)' : 'var(--text-1)',
-                    boxShadow: isSel ? 'inset 0 0 0 1.5px var(--accent)' : undefined,
+                    background: isSel ? 'var(--accent-fill)' : 'var(--surface)',
+                    color: isSel ? 'var(--on-accent-fill)' : d.date === today ? 'var(--accent)' : 'var(--text-1)',
                   }}
                 >
                   {INITIALS[i]}

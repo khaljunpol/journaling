@@ -8,6 +8,11 @@ import { withLock } from '@/lib/keyedLock';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
 
+/** Row id for new rows. Random, so two saves in the same millisecond can't share one. */
+export function newId(): string {
+  return crypto.randomUUID();
+}
+
 export type SheetAuth = {
   spreadsheetId: string;
 };
@@ -105,7 +110,7 @@ export async function createActivity(sa: SheetAuth, name: string, options?: { st
   const title = TABS.activities;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const id = String(Date.now());
+      const id = newId();
       const status = options?.status ?? 'active';
       await sheets.spreadsheets.values.append({
         spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
@@ -591,7 +596,7 @@ export async function addClimbLog(sa: SheetAuth, entry: { date: string; session:
   const title = TABS.climbs;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const id = String(Date.now());
+      const id = newId();
       await sheets.spreadsheets.values.append({
         spreadsheetId, range: range(title, 'A1:H'), valueInputOption: 'RAW',
         requestBody: { values: [[id, entry.date, String(entry.session || 0), entry.type, entry.grade, String(entry.attempts || 0), String(entry.location || ''), String(entry.notes || '')]] },
@@ -683,7 +688,7 @@ export async function upsertClimbGoal(sa: SheetAuth, goal: { year: number; type:
         }
       }
       if (rowIndex === -1) {
-        const id = String(Date.now());
+        const id = newId();
         await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW', requestBody: { values: [[id, String(goal.year), goal.type, goal.grade, String(goal.target)]] } });
         return { id, ...goal } as ClimbGoal;
       }
@@ -920,7 +925,7 @@ export async function upsertTimeCategory(sa: SheetAuth, entry: { id?: string; na
           if (String(values[i][0]).trim() === entry.id) { rowIndex = i + 2; existingId = entry.id; break; }
         }
       }
-      const id = existingId || String(Date.now());
+      const id = existingId || String(Date.now()); // numeric on purpose: hour rows store category ids as numbers
       const name = String(entry.name || '').trim();
       const color = String(entry.color || '').trim() || '#888888';
       const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);

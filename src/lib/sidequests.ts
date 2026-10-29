@@ -1,4 +1,4 @@
-import { getServiceSheets, tabCache } from '@/lib/googleSheets';
+import { getServiceSheets, newId, tabCache } from '@/lib/googleSheets';
 import type { SheetAuth } from '@/lib/googleSheets';
 import { range, TABS } from '@/lib/sheetLayout';
 import { withLock } from '@/lib/keyedLock';
@@ -60,7 +60,7 @@ export async function createSidequest(sa: SheetAuth, data: Omit<Sidequest, 'id' 
   const title = TABS.sidequests;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const id = String(Date.now());
+      const id = newId();
       const createdAt = new Date().toISOString().slice(0, 10);
       const row = [
         id, data.title, data.type, String(data.year),
@@ -156,7 +156,7 @@ export async function addSidequestLog(sa: SheetAuth, entry: Omit<SidequestLog, '
   const title = TABS.sidequestLogs;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const id = String(Date.now());
+      const id = newId();
       const row = [
         id, entry.sidequestId, entry.date,
         entry.value != null ? String(entry.value) : '',
@@ -191,7 +191,7 @@ export async function setSidequestDayValue(
       const values = res.data.values || [];
       const [first, ...extra] = dayValueRows(values, sidequestId, date);
       if (first === undefined) {
-        const id = String(Date.now());
+        const id = newId();
         await sheets.spreadsheets.values.append({
           spreadsheetId, range: range(title, 'A1:G'), valueInputOption: 'RAW',
           requestBody: { values: [[id, sidequestId, date, String(value), '', '', '']] },

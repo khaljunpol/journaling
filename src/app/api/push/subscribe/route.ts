@@ -51,6 +51,8 @@ export async function DELETE() {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     await setSetting(ctx.sheetAuth, 'reminderEnabled', '0');
+    // Off means off: the phone's push address is personal data, so it leaves the sheet too.
+    await setSetting(ctx.sheetAuth, 'pushSubscription', '');
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error: unknown) {
     return apiFailure(error, 'DELETE /api/push/subscribe');

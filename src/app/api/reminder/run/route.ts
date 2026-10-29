@@ -40,8 +40,9 @@ async function remindOne(spreadsheetId: string, today: string): Promise<boolean>
   } catch (err: unknown) {
     const code = (err as { statusCode?: number } | null)?.statusCode;
     if (code === 404 || code === 410) {
-      // The phone dropped this subscription. Switch the reminder off.
+      // The phone dropped this subscription. Switch the reminder off and forget the dead address.
       await setSetting(sheetAuth, 'reminderEnabled', '0');
+      await setSetting(sheetAuth, 'pushSubscription', '');
       return false;
     }
     throw err;
