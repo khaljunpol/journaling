@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 
 /** Today ring. Violet while filling, ember once every item is in. Own SVG. Pops and buzzes once, only when it closes while mounted. */
 export default function Ring({ filled, total, size = 56 }: { filled: number; total: number; size?: number }) {
-  const stroke = 6;
+  const stroke = size < 40 ? 3 : 6;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const closed = total > 0 && filled >= total;

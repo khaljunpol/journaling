@@ -18,11 +18,9 @@ import { useCatchUp } from './useCatchUp';
 import WeekPanel from './WeekPanel';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection, { SkeletonDay } from './DaySection';
-import Ring from '@/components/overview/Ring';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Sheet from '@/components/ui/Sheet';
-import Skeleton from '@/components/ui/Skeleton';
 import CardStack from './CardStack';
 import ItemSheet, { type SheetTarget } from './ItemSheet';
 import type { QuestInfo, SaveSpec } from './editors/types';
@@ -271,8 +269,6 @@ export default function QuickBoard() {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const todayStatus = today && payload?.days[today] ? dayStatus(payload.days[today], payload.ctx) : null;
-  const closed = !!todayStatus && todayStatus.total > 0 && todayStatus.filled >= todayStatus.total;
   const sync = syncState(queue, persistOk);
   const dateLine = today ? parseLocalDate(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
 
@@ -330,49 +326,17 @@ export default function QuickBoard() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
-          <section className="card p-4 sm:p-5" aria-label="Today progress">
-            <div className="flex items-center gap-4">
-              <div className="relative shrink-0">
-                {todayStatus ? (
-                  <>
-                    <Ring filled={todayStatus.filled} total={todayStatus.total} size={96} />
-                    <span
-                      aria-hidden="true"
-                      className="num pointer-events-none absolute inset-0 flex items-center justify-center text-[24px] font-semibold"
-                      style={{ color: closed ? 'var(--reward-text)' : 'var(--text-1)' }}
-                    >
-                      {todayStatus.filled}/{todayStatus.total}
-                    </span>
-                  </>
-                ) : (
-                  <Skeleton className="h-24 w-24 !rounded-full" />
-                )}
-              </div>
-              <div className="min-w-0">
-                {closed ? (
-                  <p className="text-[20px] font-semibold" style={{ color: 'var(--reward-text)' }}>Day complete</p>
-                ) : (
-                  <p className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>
-                    {todayStatus ? `${todayStatus.total - todayStatus.filled} to go` : 'Loading'}
-                  </p>
-                )}
-                <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
-                  {closed ? 'Everything is in. Nice.' : 'Tap a tile, or fill what is missing.'}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3">
-              <WeekStrip
-                days={stripDays}
-                today={today}
-                selected={other}
-                onSelect={selectDay}
-                weekLabel={week.shown ? weekTitle(week.shown, week.isCurrent, today) : ''}
-                canNext={week.canNext}
-                onPrev={week.prev}
-                onNext={week.next}
-              />
-            </div>
+          <section className="card p-3 sm:p-4" aria-label="Week">
+            <WeekStrip
+              days={stripDays}
+              today={today}
+              selected={other}
+              onSelect={selectDay}
+              weekLabel={week.shown ? weekTitle(week.shown, week.isCurrent, today) : ''}
+              canNext={week.canNext}
+              onPrev={week.prev}
+              onNext={week.next}
+            />
           </section>
 
           {today && other ? (

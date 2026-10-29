@@ -12,6 +12,7 @@ import type { OutboxItem } from '@/lib/outbox';
 import Chip from '@/components/ui/Chip';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
+import Ring from '@/components/overview/Ring';
 
 const NAMES: Record<ItemKey, string> = {
   mood: 'Mood',
@@ -168,7 +169,8 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
       <h2 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>
         {label}
         <span className="text-[13px] font-normal" style={{ color: 'var(--text-2)' }}>{weekday}</span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
+          {primary && <Ring filled={status.filled} total={status.total} size={22} />}
           <Chip tone={complete ? 'ok' : 'neutral'}>
             {status.filled}/{status.total}
           </Chip>
