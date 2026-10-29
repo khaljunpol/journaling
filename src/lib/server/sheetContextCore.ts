@@ -40,3 +40,16 @@ export function buildSheetContext(
     },
   };
 }
+
+export type OwnerCheck = 'ok' | 'claim' | 'deny';
+
+/**
+ * Who may use a sheet. The owner is the Settings key `ownerEmail`, kept in the sheet itself,
+ * so a changed cookie or a pasted sheet link can't open someone else's data.
+ * No owner yet: the signed-in user claims it.
+ */
+export function ownerCheck(owner: string | undefined, email: string): OwnerCheck {
+  const o = owner?.trim().toLowerCase();
+  if (!o) return 'claim';
+  return o === email.trim().toLowerCase() ? 'ok' : 'deny';
+}

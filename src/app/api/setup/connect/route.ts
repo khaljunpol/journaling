@@ -6,6 +6,7 @@ import { writeSheetConnection } from '@/lib/server/sheetConnection';
 import { parseSpreadsheetId } from '@/lib/setup';
 import { getServiceSheets, serviceTabsClient } from '@/lib/googleSheets';
 import { ensureCoreTabs } from '@/lib/sheetTabs';
+import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
 
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 
@@ -37,6 +38,11 @@ export async function POST(req: Request) {
 
     // Create any missing core tabs (never overwrites existing ones).
     await ensureCoreTabs(serviceTabsClient(), spreadsheetId);
+
+    // A sheet belongs to the first account that connects it.
+    if (!(await claimOrCheckOwner(spreadsheetId, userKey))) {
+      return apiError('This sheet is linked to another account. Use your own sheet.', 403);
+    }
 
     // Persist the connection in a durable httpOnly cookie (survives reloads/cold starts).
     await writeSheetConnection(spreadsheetId, session.user.email);

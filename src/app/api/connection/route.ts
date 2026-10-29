@@ -6,6 +6,7 @@ import {
   clearSheetConnection,
   readSheetConnection,
 } from '@/lib/server/sheetConnection';
+import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
 
 export async function GET() {
   try {
@@ -14,7 +15,7 @@ export async function GET() {
     if (!email) return apiError('Unauthorized', 401);
 
     const { spreadsheetId } = await readSheetConnection(email);
-    if (!spreadsheetId) return apiError('Setup required', 403);
+    if (!spreadsheetId || !(await claimOrCheckOwner(spreadsheetId, email))) return apiError('Setup required', 403);
 
     return NextResponse.json({ connected: true, spreadsheetId });
   } catch (error: unknown) {

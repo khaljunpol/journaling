@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   buildSheetContext,
   getSessionUserKey,
+  ownerCheck,
 } from '../src/lib/server/sheetContextCore.ts';
 
 describe('getSessionUserKey', () => {
@@ -39,5 +40,20 @@ describe('buildSheetContext', () => {
       ok: true,
       context: { sheetAuth: { spreadsheetId: 'id1' } },
     });
+  });
+});
+
+describe('ownerCheck', () => {
+  it('lets the first signed-in user claim a sheet with no owner', () => {
+    assert.equal(ownerCheck(undefined, 'a@b.com'), 'claim');
+    assert.equal(ownerCheck('  ', 'a@b.com'), 'claim');
+  });
+
+  it('allows the owner, ignoring case and spaces', () => {
+    assert.equal(ownerCheck(' A@B.com ', 'a@b.com'), 'ok');
+  });
+
+  it('denies anyone else', () => {
+    assert.equal(ownerCheck('a@b.com', 'c@d.com'), 'deny');
   });
 });

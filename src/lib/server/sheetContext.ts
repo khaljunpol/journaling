@@ -17,7 +17,7 @@ export { buildSheetContext, getSessionUserKey } from './sheetContextCore.ts';
 export async function getSheetContext() {
   const session = await auth();
   const email = getSessionUserKey(session);
-  if (!email) return buildSheetContext(null, null);
+  if (!email) return { ...buildSheetContext(null, null), email: null };
   const { spreadsheetId, legacy } = await readSheetConnection(email);
   if (legacy && spreadsheetId) {
     // Upgrade the old bare-id cookie. Cookies are read-only outside route handlers,
@@ -26,5 +26,5 @@ export async function getSheetContext() {
       await writeSheetConnection(spreadsheetId, email);
     } catch { /* read-only cookie store */ }
   }
-  return buildSheetContext(email, spreadsheetId);
+  return { ...buildSheetContext(email, spreadsheetId), email };
 }
