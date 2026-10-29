@@ -77,12 +77,27 @@ export default function CardStack({ steps, labelFor, today, yesterday, weekRun, 
     else onCloseRef.current();
   }, []);
 
-  const advance = useCallback(() => {
-    if (!canAdvance(Date.now(), lockedUntil.current)) return;
-    lockedUntil.current = Date.now() + SLIDE_MS;
+  const slideTimer = useRef<number | null>(null);
+  const deferTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (slideTimer.current !== null) window.clearTimeout(slideTimer.current);
+    if (deferTimer.current !== null) window.clearTimeout(deferTimer.current);
+  }, []);
+
+  const advance = useCallback(function step() {
+    const now = Date.now();
+    if (!canAdvance(now, lockedUntil.current)) {
+      // A save that lands mid-slide (Enter on the new card): move on once the slide ends, at most once.
+      if (deferTimer.current === null) {
+        deferTimer.current = window.setTimeout(() => { deferTimer.current = null; step(); }, lockedUntil.current - now);
+      }
+      return;
+    }
+    lockedUntil.current = now + SLIDE_MS;
     setIndex((i) => nextStep(i, total).index);
     setSliding(true);
-    window.setTimeout(() => setSliding(false), SLIDE_MS);
+    if (slideTimer.current !== null) window.clearTimeout(slideTimer.current);
+    slideTimer.current = window.setTimeout(() => { slideTimer.current = null; setSliding(false); }, SLIDE_MS);
   }, [total]);
 
   const handleSave = useCallback(

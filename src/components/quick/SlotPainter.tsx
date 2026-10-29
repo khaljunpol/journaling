@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TimeCategory } from '@/lib/types';
+import { inkOn } from '@/lib/contrast';
 
 const COLS = 6;
 
@@ -142,7 +143,8 @@ export default function SlotPainter({ value, categories, onChange }: Props) {
               className="slot-cell flex min-h-12 items-center justify-center rounded-lg text-xs font-semibold tabular-nums"
               style={{
                 background: bg ?? 'var(--surface-alt)',
-                color: bg ? 'rgba(0,0,0,0.6)' : 'var(--muted-foreground)',
+                // Hour numbers stay readable on dark category colours too.
+                color: bg ? (inkOn(bg) === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)') : 'var(--muted-foreground)',
                 border: bg ? '1px solid transparent' : '1px dashed var(--border)',
               }}
             >

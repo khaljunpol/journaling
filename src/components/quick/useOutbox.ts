@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { classify, settleUnconfirmed, enqueue as enqueueItem, mergeQueues, nextBase, nextToSend, onResult, type OutboxItem } from '@/lib/outbox';
+import { classify, discardKeys, settleUnconfirmed, enqueue as enqueueItem, mergeQueues, nextBase, nextToSend, onResult, type OutboxItem } from '@/lib/outbox';
 import { loadOutbox, readOutbox, saveOutbox } from '@/lib/quickStore';
 
 const TICK_MS = 15000;
@@ -70,6 +70,11 @@ export function useOutbox(email: string, canSend = true) {
     drain();
   }, [commit, drain]);
 
+  /** Forget changes that will never save (the tile's Discard). */
+  const discard = useCallback((keys: string[]) => {
+    commit(discardKeys(qRef.current, keys));
+  }, [commit]);
+
   // Declared before the load effect so the flag is current when it drains. Nothing is sent until the session is confirmed.
   useEffect(() => {
     canSendRef.current = canSend;
@@ -122,5 +127,5 @@ export function useOutbox(email: string, canSend = true) {
     };
   }, [email, drain]);
 
-  return { queue, enqueue, drain, persistOk };
+  return { queue, enqueue, discard, drain, persistOk };
 }

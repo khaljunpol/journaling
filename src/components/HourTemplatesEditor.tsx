@@ -88,12 +88,18 @@ export default function HourTemplatesEditor() {
             <span className="text-xs ml-auto" style={{ color: dirty ? 'var(--accent)' : 'var(--text-2)' }}>{status}</span>
           )}
         </div>
-        {loadFailed ? (
-          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Couldn&apos;t load your categories just now. Reload to try again.</p>
-        ) : cats.length === 0 && loaded ? (
+        {cats.length === 0 && loaded ? (
           <p className="text-sm" style={{ color: 'var(--text-2)' }}>Add a category above to start.</p>
         ) : (
-          <SlotPainter value={slots} categories={cats} onChange={(next) => setDraft((p) => ({ ...p, [kind]: next }))} />
+          <SlotPainter
+            value={slots}
+            categories={cats}
+            onChange={(next) => {
+              setDraft((p) => ({ ...p, [kind]: next }));
+              // An old "couldn't save" no longer describes what is on screen.
+              setMessage((m) => (m?.kind === kind ? null : m));
+            }}
+          />
         )}
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className="text-xs" role="status" style={{ color: 'var(--text-2)' }}>
@@ -115,8 +121,17 @@ export default function HourTemplatesEditor() {
           Pick a category, then tap or drag across the hours. Quick check-in starts from these.
         </p>
       </div>
-      {renderCard('weekday', 'Normal weekday')}
-      {renderCard('weekend', 'Normal weekend')}
+      {loadFailed ? (
+        // One message for the whole section: either read (settings or categories) can be the one that failed.
+        <Card>
+          <p className="text-sm" style={{ color: 'var(--text-2)' }}>Couldn&apos;t load your usual hours just now. Reload to try again.</p>
+        </Card>
+      ) : (
+        <>
+          {renderCard('weekday', 'Normal weekday')}
+          {renderCard('weekend', 'Normal weekend')}
+        </>
+      )}
     </section>
   );
 }

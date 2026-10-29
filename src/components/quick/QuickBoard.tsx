@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { ListChecks } from 'lucide-react';
 import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
 import { syncState, type SyncState } from '@/lib/quickSync';
-import { applyQueue, applyQueueItem, pruneDays } from '@/lib/quickApply';
+import { applyQueue, applyQueueItem, itemsForTile, pruneDays } from '@/lib/quickApply';
 import type { CatchUpStep } from '@/lib/quickWeek';
 import type { QuickPayload } from '@/lib/quickPayload';
 import { getLastEmail, loadOutbox, loadSnapshot, loadWelcomeHidden, saveSnapshot, saveWelcomeHidden, setLastEmail } from '@/lib/quickStore';
@@ -60,7 +60,7 @@ export default function QuickBoard() {
   const email = sessionEmail || lastEmail;
   // Only a confirmed session may send or fetch. The saved email is just a way to draw the board early.
   const confirmed = status === 'authenticated' && sessionEmail !== '';
-  const { queue, enqueue, persistOk } = useOutbox(email, confirmed);
+  const { queue, enqueue, discard, persistOk } = useOutbox(email, confirmed);
 
   const [today, setToday] = useState<string | null>(null);
   // Starts hidden so nobody sees it flash before this phone's choice is read.
@@ -422,6 +422,11 @@ export default function QuickBoard() {
           queued={queued}
           onSave={save}
           onClose={() => setSheet(null)}
+          failedKeys={itemsForTile(queue, sheet.key, sheet.date).filter((q) => q.state === 'failed').map((q) => q.key)}
+          onDiscard={(keys) => {
+            discard(keys);
+            setSheet(null);
+          }}
         />
       )}
     </div>

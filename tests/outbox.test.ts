@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { settleUnconfirmed, enqueue, classify, onResult, due, backoffMs, nextToSend } from '../src/lib/outbox.ts';
+import { settleUnconfirmed, enqueue, classify, onResult, due, backoffMs, nextToSend, discardKeys, cleanStored } from '../src/lib/outbox.ts';
 
 const mk = (key: string, body: unknown = {}) => ({ key, url: '/api/x', method: 'POST' as const, body });
 
@@ -165,4 +165,17 @@ test('nextToSend: at most one due item per group, none for groups in flight', ()
   assert.equal(out.find((x) => x.key.startsWith('hours:'))!.key, 'hours:2026-10-10'); // oldest first
   const busy = nextToSend(q, 5000, new Set(['hours:2026-10-10']));
   assert.deepEqual(busy.map((x) => x.key.split(':')[0]).sort(), ['log', 'mood']);
+});
+
+test('discardKeys drops only the named items', () => {
+  const q = enqueue(enqueue([], { key: 'mood:2026-10-28', url: '/api/moods', method: 'POST', body: { score: 5 } }, 1), { key: 'weight:2026-10-28', url: '/api/weights', method: 'POST', body: { weight: 70 } }, 2);
+  assert.deepEqual(discardKeys(q, ['mood:2026-10-28']).map((x) => x.key), ['weight:2026-10-28']);
+  assert.equal(discardKeys(q, []).length, 2);
+});
+
+test('cleanStored keeps well-formed items and drops broken ones', () => {
+  const good = { key: 'mood:2026-10-28', url: '/api/moods', method: 'POST', body: { score: 5 }, attempts: 0, nextAt: 0, state: 'pending', updatedAt: 1 };
+  const out = cleanStored([good, null, 'x', { ...good, key: 3 }, { ...good, state: 'odd' }, { ...good, method: 'DELETE' }, { ...good, url: 'https://evil.example/x' }]);
+  assert.deepEqual(out, [good]);
+  assert.deepEqual(cleanStored('not a list'), []);
 });

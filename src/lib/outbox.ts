@@ -132,3 +132,26 @@ export function settleUnconfirmed(q: OutboxItem[], sameUser: boolean): OutboxIte
     return rest;
   });
 }
+
+/** Drop items by key: a change that will never save (the tile's "Discard"). */
+export function discardKeys(q: OutboxItem[], keys: readonly string[]): OutboxItem[] {
+  if (!keys.length) return q;
+  const drop = new Set(keys);
+  return q.filter((x) => !drop.has(x.key));
+}
+
+/** A queue read from storage, keeping only well-formed items that post to this app's own /api. */
+export function cleanStored(v: unknown): OutboxItem[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is OutboxItem => {
+    if (!x || typeof x !== 'object') return false;
+    const o = x as Record<string, unknown>;
+    return typeof o.key === 'string'
+      && typeof o.url === 'string' && o.url.startsWith('/api/')
+      && (o.method === 'POST' || o.method === 'PUT')
+      && typeof o.attempts === 'number'
+      && typeof o.nextAt === 'number'
+      && (o.state === 'pending' || o.state === 'failed')
+      && typeof o.updatedAt === 'number';
+  });
+}

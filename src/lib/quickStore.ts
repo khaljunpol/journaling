@@ -1,7 +1,7 @@
 // Browser-only localStorage wrapper for the /quick snapshot and outbox.
 // Every key starts with 'quick:'. clearLocalCache() wipes them too, and signOutClean also calls clearQuick().
 import type { QuickPayload } from './quickPayload';
-import type { OutboxItem } from './outbox';
+import { cleanStored, type OutboxItem } from './outbox';
 import type { ItemKey } from './quickDay';
 
 const PREFIX = 'quick:';
@@ -81,8 +81,7 @@ export function saveSnapshot(email: string, payload: QuickPayload): boolean {
 }
 
 export function loadOutbox(email: string): OutboxItem[] {
-  const v = read<OutboxItem[]>(outKey(email));
-  return Array.isArray(v) ? v : [];
+  return cleanStored(read<unknown>(outKey(email)));
 }
 
 /** Like loadOutbox, but null when storage cannot be read (so callers skip merging instead of assuming empty). */
@@ -93,7 +92,7 @@ export function readOutbox(email: string): OutboxItem[] | null {
     const raw = s.getItem(outKey(email));
     if (!raw) return [];
     const v = JSON.parse(raw);
-    return Array.isArray(v) ? (v as OutboxItem[]) : [];
+    return cleanStored(v);
   } catch {
     return null;
   }
