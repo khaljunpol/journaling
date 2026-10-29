@@ -139,7 +139,7 @@ function DayModalContent({
             {logs.length > 0 && (
               <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: 'var(--surface-alt)' }}>
                 <div className="text-lg font-bold">{completedLogs.length}/{logs.length}</div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Activities</div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Habits</div>
               </div>
             )}
             {climbLogs.length > 0 && (
@@ -160,7 +160,7 @@ function DayModalContent({
         {/* Activities */}
         {logs.length > 0 && (
           <section>
-            <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Activities</div>
+            <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--muted-foreground)' }}>Habits</div>
             <div className="flex flex-wrap gap-1.5">
               {completedLogs.map((l) => (
                 <span key={l.activityId} className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}>

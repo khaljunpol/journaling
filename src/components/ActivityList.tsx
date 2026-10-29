@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import type { ActivityStatus, Activity } from '@/lib/types';
-import { normalizeStatus, toBackendStatus } from '@/lib/status';
+import type { Activity } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
@@ -32,7 +31,7 @@ export default function ActivityList() {
       const res = await fetch('/api/activities', { signal: actsCtrlRef.current.signal });
       if (!res.ok) { if (v === fetchVersionRef.current) setItems([]); return; }
       const data = await res.json();
-      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]).map((a) => ({ ...a, status: normalizeStatus(a.status as ActivityStatus) })) : [];
+      const arr: Activity[] = Array.isArray(data) ? (data as Activity[]) : [];
       if (v === fetchVersionRef.current) setItems(arr);
     } catch {
       if (v === fetchVersionRef.current) setItems([]);
@@ -48,7 +47,7 @@ export default function ActivityList() {
   async function add() {
     const nm = name.trim();
     if (!nm) return;
-    const res = await fetch('/api/activities', { method: 'POST', body: JSON.stringify({ name: nm, status: toBackendStatus('to continue') }), headers: { 'Content-Type': 'application/json' } });
+    const res = await fetch('/api/activities', { method: 'POST', body: JSON.stringify({ name: nm }), headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) return;
     setName('');
     showToast(`"${nm}" added`);
@@ -57,11 +56,6 @@ export default function ActivityList() {
 
   async function updateName(id: string, newName: string) {
     await fetch(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
-    refresh();
-  }
-
-  async function updateStatus(id: string, status: ActivityStatus) {
-    await fetch(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ status: toBackendStatus(status) }), headers: { 'Content-Type': 'application/json' } });
     refresh();
   }
 
@@ -81,9 +75,6 @@ export default function ActivityList() {
     setEditingId(null);
   }
 
-  const toContinue = items.filter((a) => (a.status || 'to continue') === 'to continue');
-  const toStop = items.filter((a) => (a.status || 'to continue') === 'to stop');
-
   const rowClass = 'flex items-center justify-between gap-3 rounded-[10px] px-4 py-3';
   const bar = (color: string) => <div className="h-5 w-1 rounded-full" style={{ background: color }} />;
 
@@ -100,19 +91,19 @@ export default function ActivityList() {
         </div>
       )}
 
-      <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Activities</h2>
+      <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Habits</h2>
 
       {/* Add */}
       <Card className="space-y-3">
         <div className="flex items-center gap-2">
           {bar('var(--accent)')}
-          <span className="text-[14px] font-medium">Add activity</span>
+          <span className="text-[14px] font-medium">Add habit</span>
         </div>
         <div className="flex gap-2">
           <Input
             className="flex-1"
-            aria-label="Activity name"
-            placeholder="Activity name"
+            aria-label="Habit name"
+            placeholder="Habit name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
@@ -121,22 +112,22 @@ export default function ActivityList() {
         </div>
       </Card>
 
-      {/* To continue */}
+      {/* Habits */}
       <Card className="space-y-3">
         <div className="flex items-center gap-2">
           {bar('var(--ok)')}
-          <span className="text-[14px] font-medium">To continue</span>
-          <Chip>{toContinue.length}</Chip>
+          <span className="text-[14px] font-medium">Tracking</span>
+          <Chip>{items.length}</Chip>
         </div>
-        {toContinue.length === 0 && <div className="text-[14px]" style={{ color: 'var(--text-2)' }}>No activities yet.</div>}
+        {items.length === 0 && <div className="text-[14px]" style={{ color: 'var(--text-2)' }}>No habits yet.</div>}
         <div className="space-y-2">
-          {toContinue.map((a) => (
+          {items.map((a) => (
             <div key={a.id} className={rowClass} style={{ background: 'var(--surface-2)' }}>
               <div className="min-w-0 flex-1">
                 {editingId === a.id ? (
                   <Input
                     className="min-w-0"
-                    aria-label="Activity name"
+                    aria-label="Habit name"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(a.id); if (e.key === 'Escape') setEditingId(null); }}
@@ -150,7 +141,6 @@ export default function ActivityList() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <Button variant="outline" small onClick={() => updateStatus(a.id, 'to stop')}>Stop</Button>
                 <Button variant="ghost" small onClick={() => remove(a.id)}>Delete</Button>
               </div>
             </div>
@@ -158,27 +148,6 @@ export default function ActivityList() {
         </div>
       </Card>
 
-      {/* To stop */}
-      {toStop.length > 0 && (
-        <Card className="space-y-3">
-          <div className="flex items-center gap-2">
-            {bar('var(--text-3)')}
-            <span className="text-[14px] font-medium">To stop</span>
-            <Chip>{toStop.length}</Chip>
-          </div>
-          <div className="space-y-2">
-            {toStop.map((a) => (
-              <div key={a.id} className={rowClass} style={{ background: 'var(--surface-2)' }}>
-                <span className="min-w-0 truncate text-[14px] font-medium line-through" style={{ color: 'var(--text-2)' }}>{a.name}</span>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button variant="outline" small onClick={() => updateStatus(a.id, 'to continue')}>Resume</Button>
-                  <Button variant="ghost" small onClick={() => remove(a.id)}>Delete</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </section>
   );
 }

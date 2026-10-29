@@ -130,7 +130,7 @@ test('templateMessage is calm and specific', () => {
 
 const acts = [{ id: 'a', status: 'active' }, { id: 'b' }, { id: 'c', status: 'stopped' }];
 
-test('habitFillPlan fills empty days up to today with true/false per active habit', () => {
+test('habitFillPlan fills empty days up to today with true/false per habit', () => {
   const days = [
     { date: '2026-10-19', logs: [] }, // Mon, empty
     { date: '2026-10-20', logs: [{ activityId: 'a', completed: false }] }, // has a row
@@ -141,6 +141,7 @@ test('habitFillPlan fills empty days up to today with true/false per active habi
   assert.deepEqual(plan.fills[0].rows, [
     { activityId: 'a', completed: true },
     { activityId: 'b', completed: false },
+    { activityId: 'c', completed: true },
   ]);
   assert.deepEqual(plan.missingKinds, []);
   assert.equal(plan.skippedHasLogs, 1);
@@ -156,9 +157,11 @@ test('habitFillPlan names a missing template and skips those days', () => {
   assert.deepEqual(plan.missingKinds, ['weekend']);
 });
 
-test('habitFillPlan treats a template of only stopped habits as missing', () => {
-  const plan = habitFillPlan([{ date: '2026-10-19', logs: [] }], '2026-10-26', { weekday: ['c'], weekend: null }, acts);
+test('habitFillPlan treats a template of only deleted habits as missing; an old stopped one still fills', () => {
+  const plan = habitFillPlan([{ date: '2026-10-19', logs: [] }], '2026-10-26', { weekday: ['gone'], weekend: null }, acts);
   assert.equal(plan.fills.length, 0);
+  const stopped = habitFillPlan([{ date: '2026-10-19', logs: [] }], '2026-10-26', { weekday: ['c'], weekend: null }, acts);
+  assert.equal(stopped.fills.length, 1);
   assert.deepEqual(plan.missingKinds, ['weekday']);
 });
 

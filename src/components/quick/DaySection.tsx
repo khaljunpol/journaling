@@ -136,7 +136,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
   const status = dayStatus(day, payload.ctx, { only });
   const missing = missingInOrder(status).length;
   const weekday = parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'short' });
-  const activeIds = payload.ctx.activities.filter((a) => a.status !== 'stopped').map((a) => a.id);
+  const activeIds = payload.ctx.activities.map((a) => a.id);
   const habitsDone = day.logs.filter((l) => l.completed && activeIds.includes(l.activityId)).length;
   const questsCount = payload.ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === payload.ctx.year,

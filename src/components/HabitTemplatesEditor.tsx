@@ -32,9 +32,9 @@ export default function HabitTemplatesEditor() {
         const a = await aRes.json();
         if (!alive) return;
         if (!Array.isArray(a)) throw new Error('load failed');
-        const active = (a as Activity[]).filter((x) => x.status !== 'stopped');
+        const active = a as Activity[];
         const ids = new Set(active.map((x) => x.id));
-        // Ids of stopped or deleted habits are dropped from the view.
+        // Ids of deleted habits are dropped from the view.
         const clean = (v: unknown): Ids => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && ids.has(x)) : []);
         const next = { weekday: clean(s?.habitTemplateWeekday), weekend: clean(s?.habitTemplateWeekend) };
         setActs(active);

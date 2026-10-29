@@ -31,7 +31,7 @@ export function dayStatus(
   ctx: Ctx,
   opts?: { only?: ItemKey[] },
 ): { items: ItemStatus[]; filled: number; total: number } {
-  const active = ctx.activities.filter((a) => a.status !== 'stopped');
+  const active = ctx.activities; // every activity is a habit (an old "stopped" status is ignored)
   const quests = ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === ctx.year,
   );
@@ -108,7 +108,7 @@ export function parseHabitTemplate(v: unknown): string[] | null {
   return v.every((x) => typeof x === 'string' && x !== '') ? (v as string[]) : null;
 }
 
-/** Starting ticks for the habits card. Logs win; on an empty day use the template (active habits only). */
+/** Starting ticks for the habits card. Logs win; on an empty day use the template (ids that still exist). */
 export function initialTicks(
   logs: Array<{ activityId: string; completed: boolean }>,
   template: string[] | null,
@@ -117,7 +117,7 @@ export function initialTicks(
   if (logs.length > 0) {
     return { ticked: new Set(logs.filter((l) => l.completed).map((l) => l.activityId)), fromTemplate: false };
   }
-  const active = new Set(activities.filter((a) => a.status !== 'stopped').map((a) => a.id));
+  const active = new Set(activities.map((a) => a.id));
   const ticked = new Set((template ?? []).filter((id) => active.has(id)));
   return { ticked, fromTemplate: ticked.size > 0 };
 }

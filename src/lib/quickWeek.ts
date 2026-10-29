@@ -138,7 +138,7 @@ export type HabitFillPlan = {
   skippedHasLogs: number;
 };
 
-/** Which days get their usual habits: up to today, no log rows at all, template has an active habit. */
+/** Which days get their usual habits: up to today, no log rows at all, template has a habit that still exists. */
 export function habitFillPlan(
   days: Array<{ date: string; logs: Array<{ activityId: string; completed: boolean }> }>,
   today: string,
@@ -147,7 +147,7 @@ export function habitFillPlan(
 ): HabitFillPlan {
   const fills: HabitFillPlan['fills'] = [];
   const missing = new Set<'weekday' | 'weekend'>();
-  const active = activities.filter((a) => a.status !== 'stopped');
+  const active = activities;
   let skippedHasLogs = 0;
   for (const d of days) {
     if (d.date > today) continue;

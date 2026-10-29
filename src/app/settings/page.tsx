@@ -16,7 +16,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { signOutClean } from '@/lib/signOut';
 
 const SECTIONS = [
-  { id: 'activities', label: 'Activities' },
+  { id: 'activities', label: 'Habits' },
   { id: 'time', label: 'Time categories' },
   { id: 'hours', label: 'Usual hours' },
   { id: 'habits', label: 'Usual habits' },

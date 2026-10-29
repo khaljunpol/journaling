@@ -72,7 +72,7 @@ test('habits filled when the day has at least one log row (true or false)', () =
   assert.equal(item(none, 'habits').filled, false);
 });
 
-test('stopped activity with a row is not required', () => {
+test('an old stopped status still counts as a habit', () => {
   const s = dayStatus(
     emptyDay({
       logs: [
@@ -198,7 +198,7 @@ test('parseHabitTemplate: array of non-empty strings, max 100, else null', () =>
   assert.equal(parseHabitTemplate(Array.from({ length: 100 }, (_, i) => `x${i}`))?.length, 100);
 });
 
-test('initialTicks: logs present -> logs; none -> template minus stopped; no template -> none', () => {
+test('initialTicks: logs present -> logs; none -> template minus deleted ids (an old stopped status is ignored); no template -> none', () => {
   const acts = [
     { id: 'a1', name: 'Read' },
     { id: 'a2', name: 'Walk' },
@@ -208,7 +208,7 @@ test('initialTicks: logs present -> logs; none -> template minus stopped; no tem
   assert.deepEqual([...withLogs.ticked], ['a2']);
   assert.equal(withLogs.fromTemplate, false);
   const fromTpl = initialTicks([], ['a1', 'a3', 'gone'], acts);
-  assert.deepEqual([...fromTpl.ticked], ['a1']);
+  assert.deepEqual([...fromTpl.ticked], ['a1', 'a3']);
   assert.equal(fromTpl.fromTemplate, true);
   const none = initialTicks([], null, acts);
   assert.equal(none.ticked.size, 0);

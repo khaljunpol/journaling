@@ -6,12 +6,7 @@ import type { EditorProps } from './types';
 
 export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
   const day = payload.days[date];
-  const active = payload.ctx.activities.filter((a) => a.status !== 'stopped');
-  // Archived habits that already have a row on this day stay visible.
-  const archived = payload.ctx.activities.filter(
-    (a) => a.status === 'stopped' && day?.logs.some((l) => l.activityId === a.id),
-  );
-  const list = [...active, ...archived];
+  const list = payload.ctx.activities;
   const kind = templateKind(date);
   const [start] = useState(() =>
     initialTicks(day?.logs ?? [], payload.habitTemplates?.[kind] ?? null, payload.ctx.activities),

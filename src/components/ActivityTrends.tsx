@@ -8,8 +8,7 @@ import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, parseLocalDate } from '@/lib/date';
 import { habitGrid, lastDates } from '@/lib/overview';
 import { addDaysISO } from '@/lib/quickWeek';
-import { normalizeStatus } from '@/lib/status';
-import type { Activity, ActivityStatus, Log } from '@/lib/types';
+import type { Activity, Log } from '@/lib/types';
 
 const CELL = 12;
 const GAP = 2;
@@ -59,7 +58,7 @@ export default function ActivityTrends() {
         const a: Activity[] = aRes.ok ? await aRes.json() : [];
         const l: Log[] = lRes.ok ? await lRes.json() : [];
         if (ctrl.signal.aborted) return;
-        const acts = Array.isArray(a) ? a.map((x) => ({ ...x, status: normalizeStatus(x.status as ActivityStatus) })) : [];
+        const acts = Array.isArray(a) ? a : [];
         setHabits(acts);
         setLogs(Array.isArray(l) ? l : []);
         try { setCache('activities', acts); setCache(key, Array.isArray(l) ? l : []); } catch { /* cache is optional */ }
@@ -71,8 +70,7 @@ export default function ActivityTrends() {
   }, [today]);
 
   const grid = useMemo(() => {
-    const active = (habits ?? []).filter((h) => h.status !== 'to stop');
-    return habitGrid(active, logs ?? [], days);
+    return habitGrid(habits ?? [], logs ?? [], days);
   }, [habits, logs, days]);
 
   // Start every strip at today (the right end), and keep them in step when one is scrolled.

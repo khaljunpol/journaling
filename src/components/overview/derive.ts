@@ -172,9 +172,7 @@ export function deriveOverview(args: {
   const hours = mergeHours(dash, args.hoursTail ?? null, quick);
 
   // Habits first: the mood fallback link needs the good-day map.
-  const activeList = quick
-    ? quick.ctx.activities.filter((a) => a.status !== 'stopped')
-    : (dash?.activities ?? []).filter((a) => String(a.status ?? '') !== 'stopped'); // same rule as Today (the type lists other words)
+  const activeList = quick ? quick.ctx.activities : (dash?.activities ?? []); // every activity is a habit, same as Today
   const activeIds = new Set(activeList.map((a) => a.id));
   const logs = mergeLogs(args.history ?? null, dash, quick);
 
