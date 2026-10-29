@@ -16,6 +16,8 @@ export default function ActivityList() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  // Delete takes two taps: the first one asks, in the row itself.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -59,8 +61,10 @@ export default function ActivityList() {
     refresh();
   }
 
-  async function remove(id: string) {
-    await fetch(`/api/activities/${id}`, { method: 'DELETE' });
+  async function remove(a: Activity) {
+    setConfirmId(null);
+    const res = await fetch(`/api/activities/${a.id}`, { method: 'DELETE' });
+    showToast(res.ok ? `"${a.name}" deleted` : "Couldn't delete. Try again.");
     refresh();
   }
 
@@ -121,7 +125,18 @@ export default function ActivityList() {
         </div>
         {items.length === 0 && <div className="text-[14px]" style={{ color: 'var(--text-2)' }}>No habits yet.</div>}
         <div className="space-y-2">
-          {items.map((a) => (
+          {items.map((a) => confirmId === a.id ? (
+            <div key={a.id} className={`${rowClass} flex-wrap`} style={{ background: 'var(--surface-2)', border: '1px solid var(--warn)' }} role="alertdialog" aria-label={`Delete ${a.name}?`}>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] font-medium" style={{ color: 'var(--text-1)' }}>Delete &quot;{a.name}&quot;?</p>
+                <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>Its ticks stay in your sheet but stop showing.</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button variant="ghost" small onClick={() => setConfirmId(null)} autoFocus>Keep</Button>
+                <Button variant="outline" small onClick={() => remove(a)}>Delete</Button>
+              </div>
+            </div>
+          ) : (
             <div key={a.id} className={rowClass} style={{ background: 'var(--surface-2)' }}>
               <div className="min-w-0 flex-1">
                 {editingId === a.id ? (
@@ -141,7 +156,7 @@ export default function ActivityList() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <Button variant="ghost" small onClick={() => remove(a.id)}>Delete</Button>
+                <Button variant="ghost" small onClick={() => setConfirmId(a.id)}>Delete</Button>
               </div>
             </div>
           ))}
