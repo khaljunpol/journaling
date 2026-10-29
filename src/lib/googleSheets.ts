@@ -5,6 +5,7 @@ import { range, TABS } from '@/lib/sheetLayout';
 import { localISO } from '@/lib/date';
 import { normalizeGrade } from '@/lib/climbing';
 import { withLock } from '@/lib/keyedLock';
+import { pickEmptyEntries } from '@/lib/widgetState';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
 
@@ -798,7 +799,12 @@ export async function deleteHourLog(sa: SheetAuth, id: string) {
   }
 }
 
-export async function upsertHourLogsBatch(sa: SheetAuth, entry: { date: string; entries: Array<{ hour: number; category: number }> }) {
+/** With `onlyEmpty`, hours that already hold a value in the sheet (fresh read, inside the lock) are kept; `count` is what was written. */
+export async function upsertHourLogsBatch(
+  sa: SheetAuth,
+  entry: { date: string; entries: Array<{ hour: number; category: number }> },
+  opts: { onlyEmpty?: boolean } = {},
+) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.hours;
@@ -818,7 +824,9 @@ export async function upsertHourLogsBatch(sa: SheetAuth, entry: { date: string; 
           rowHours[h] = (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : '';
         }
       }
-      for (const e of entry.entries) {
+      const toWrite = opts.onlyEmpty ? pickEmptyEntries(rowHours, entry.entries) : entry.entries;
+      if (opts.onlyEmpty && toWrite.length === 0) return { date: entry.date, count: 0 };
+      for (const e of toWrite) {
         if (Number.isFinite(e.hour) && e.hour >= 0 && e.hour <= 23 && Number.isFinite(e.category)) {
           rowHours[e.hour] = String(e.category);
         }
@@ -828,7 +836,7 @@ export async function upsertHourLogsBatch(sa: SheetAuth, entry: { date: string; 
       } else {
         await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:Y${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [rowHours] } });
       }
-      return { date: entry.date, count: entry.entries.length };
+      return { date: entry.date, count: toWrite.length };
     } finally {
       tabCache.invalidate(spreadsheetId, 'hours');
     }

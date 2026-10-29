@@ -38,3 +38,10 @@ test('only the exact reminder run path is public', () => {
   assert.equal(decideAccess({ pathname: '/api/reminders', email: null, allowed }), 'json-401');
   assert.equal(decideAccess({ pathname: '/api/push/subscribe', email: null, allowed }), 'json-401');
 });
+
+test('only the exact widget path is public; the key routes need a session', () => {
+  assert.equal(decideAccess({ pathname: '/api/widget', email: null, allowed }), 'next');
+  assert.equal(decideAccess({ pathname: '/api/widget/key', email: null, allowed }), 'json-401');
+  assert.equal(decideAccess({ pathname: '/api/widgetx', email: null, allowed }), 'json-401');
+  assert.equal(decideAccess({ pathname: '/api/widget/', email: null, allowed }), 'json-401');
+});

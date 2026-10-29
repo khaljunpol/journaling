@@ -7,6 +7,8 @@ import {
   readSheetConnection,
 } from '@/lib/server/sheetConnection';
 import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
+import { requireSheetContext } from '@/lib/sheetAuth';
+import { setSetting } from '@/lib/googleSheets';
 
 export async function GET() {
   try {
@@ -28,6 +30,13 @@ export async function DELETE() {
     const session = await auth();
     if (!getSessionUserKey(session)) return apiError('Unauthorized', 401);
 
+    // Disconnecting turns the widget off too. If that fails, still disconnect.
+    try {
+      const ctx = await requireSheetContext();
+      if (!('status' in ctx)) await setSetting(ctx.sheetAuth, 'widgetKeyHash', '');
+    } catch {
+      console.warn('[widget] could not clear key on disconnect');
+    }
     await clearSheetConnection();
     return NextResponse.json({ connected: false });
   } catch (error: unknown) {

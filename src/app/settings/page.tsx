@@ -8,6 +8,7 @@ import HabitTemplatesEditor from '@/components/HabitTemplatesEditor';
 import HourTemplatesEditor from '@/components/HourTemplatesEditor';
 import TimeCategoriesEditor from '@/components/TimeCategoriesEditor';
 import ReminderToggle from '@/components/settings/ReminderToggle';
+import WidgetKeyPanel from '@/components/settings/WidgetKeyPanel';
 import { disconnectSheet } from '@/components/shell/disconnectSheet';
 import { useTheme } from '@/components/shell/useTheme';
 import Button from '@/components/ui/Button';
@@ -21,6 +22,7 @@ const SECTIONS = [
   { id: 'hours', label: 'Usual hours' },
   { id: 'habits', label: 'Usual habits' },
   { id: 'reminder', label: 'Reminder' },
+  { id: 'widget', label: 'Widget' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'account', label: 'Account' },
 ] as const;
@@ -98,13 +100,14 @@ export default function SettingsPage() {
       </nav>
 
       <div className="min-w-0 space-y-3 lg:space-y-8">
-        <PageHeader title="Settings" context="Your lists, usual days, reminder and account." />
+        <PageHeader title="Settings" context="Your lists, usual days, reminder, widget and account." />
 
         {section('activities', <ActivityList />)}
         {section('time', <TimeCategoriesEditor />)}
         {section('hours', <HourTemplatesEditor />)}
         {section('habits', <HabitTemplatesEditor />)}
         {section('reminder', panel('Reminder', <ReminderToggle />))}
+        {section('widget', panel('Widget', <WidgetKeyPanel />))}
         {section(
           'appearance',
           panel(
