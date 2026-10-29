@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { Check, ChevronRight, Plus } from 'lucide-react';
+import {
+  Beer, BicepsFlexed, Bike, BookOpen, Brain, Check, ChevronRight, Cigarette, Coffee, Dumbbell, Flame, Footprints, Gamepad2,
+  GlassWater, Heart, Milk, Mountain, Music, PenLine, PersonStanding, Pill, Waves, Wine, type LucideProps,
+} from 'lucide-react';
 import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
 import { itemsForTile } from '@/lib/quickApply';
 import { moodEmoji } from '@/lib/mood';
+import { doneHabits, type HabitIcon } from '@/lib/habitIcons';
 import { parseLocalDate } from '@/lib/date';
 import type { QuickPayload } from '@/lib/quickPayload';
 import type { OutboxItem } from '@/lib/outbox';
@@ -23,6 +26,72 @@ const NAMES: Record<ItemKey, string> = {
   highlight: 'Highlight',
   climb: 'Climb',
 };
+
+/** Lucide has no racket, so this one is drawn in the same 24px, 2px-stroke style. */
+function Racket(props: LucideProps) {
+  const { size = 24, ...rest } = props;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...rest}>
+      <ellipse cx="14.5" cy="9.5" rx="5.5" ry="6.5" transform="rotate(45 14.5 9.5)" />
+      <path d="M10.5 13.5 4 20" />
+      <circle cx="19" cy="19" r="1.5" />
+    </svg>
+  );
+}
+
+const HABIT_ICONS: Record<HabitIcon, (p: LucideProps) => React.ReactNode> = {
+  gym: Dumbbell,
+  hiit: Flame,
+  bodyweight: BicepsFlexed,
+  racket: Racket,
+  climb: Mountain,
+  run: Footprints,
+  swim: Waves,
+  bike: Bike,
+  yoga: PersonStanding,
+  beer: Beer,
+  wine: Wine,
+  smoke: Cigarette,
+  coffee: Coffee,
+  water: GlassWater,
+  shake: Milk,
+  pill: Pill,
+  read: BookOpen,
+  meditate: Brain,
+  music: Music,
+  write: PenLine,
+  games: Gamepad2,
+  heart: Heart,
+};
+
+type DoneHabit = { id: string; label: string; icon: HabitIcon | null };
+const MAX_CHIPS = 4;
+
+/** What was done, readable without opening the editor: an icon when the name gives one, else just the name. */
+function HabitChips({ habits }: { habits: DoneHabit[] }) {
+  const shown = habits.slice(0, MAX_CHIPS);
+  const more = habits.length - shown.length;
+  return (
+    <span className="flex w-full flex-wrap items-center gap-1.5" aria-hidden="true">
+      {shown.map((h) => {
+        const Icon = h.icon ? HABIT_ICONS[h.icon] : null;
+        return (
+          <span
+            key={h.id}
+            className="inline-flex h-7 max-w-[9rem] items-center gap-1 rounded-full px-2.5 text-[13px] font-medium"
+            style={{ background: 'var(--surface-3)', color: 'var(--text-1)' }}
+          >
+            {Icon && <Icon size={14} style={{ color: 'var(--accent)' }} className="shrink-0" />}
+            <span className="truncate">{h.label}</span>
+          </span>
+        );
+      })}
+      {more > 0 && (
+        <span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>+{more}</span>
+      )}
+    </span>
+  );
+}
 
 /** One word that says what a tap will do. */
 const PROMPTS: Record<ItemKey, string> = {
@@ -61,8 +130,11 @@ function Tile(props: {
   pending: boolean;
   failed: boolean;
   onClick: () => void;
+  /** Habits tile only: done habits, shown as chips on a 2-slot-wide tile. */
+  chips?: DoneHabit[];
 }) {
-  const { name, prompt, value, big, filled, counts, pending, failed, onClick } = props;
+  const { name, prompt, value, big, filled, counts, pending, failed, onClick, chips } = props;
+  const withChips = !failed && !!chips && chips.length > 0;
   // Pop once when the tile becomes filled (not on first paint).
   const [prev, setPrev] = useState(filled);
   const [pop, setPop] = useState(false);
@@ -76,15 +148,20 @@ function Tile(props: {
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${name}: ${value || (filled ? 'done' : 'empty')}${pending ? ', saving' : ''}${failed ? ", didn't save" : ''}`}
-      className={`${TILE} ${pop ? 'quick-pop' : ''}`}
+      aria-label={`${name}: ${value || (filled ? 'done' : 'empty')}${withChips ? ` (${chips.map((h) => h.label).join(', ')})` : ''}${pending ? ', saving' : ''}${failed ? ", didn't save" : ''}`}
+      className={`${TILE} ${chips ? 'col-span-2' : ''} ${pop ? 'quick-pop' : ''}`}
       style={{ background: filled ? 'var(--surface-2)' : 'transparent', border: `1px ${border}` }}
     >
       <span className={LABEL} style={{ color: 'var(--text-3)' }}>
         {name}
+        {withChips && value && (
+          <span className="num ml-auto text-[13px] normal-case tracking-normal" style={{ color: 'var(--text-2)' }}>{value}</span>
+        )}
         {filled && !failed && <Check size={14} aria-hidden="true" style={{ color: 'var(--ok)' }} />}
       </span>
-      {failed ? (
+      {withChips ? (
+        <HabitChips habits={chips} />
+      ) : failed ? (
         <span className="w-full text-[13px] font-medium" style={{ color: 'var(--warn)' }}>
           Didn&apos;t save, tap to fix
         </span>
@@ -163,6 +240,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
   }
 
   const complete = status.total > 0 && missing === 0;
+  const done = doneHabits(day.logs, payload.ctx.activities, day.climbs);
 
   return (
     <section className="card space-y-3 p-4 sm:p-5" aria-label={label}>
@@ -178,36 +256,8 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
       </h2>
       <div className="grid grid-cols-3 gap-2">
         {status.items
-          .filter((i) => i.shown)
+          .filter((i) => i.shown && i.key !== 'climb') // climbs show as a chip on the habits tile
           .map((i) => {
-            if (i.key === 'climb') {
-              return (
-                <div
-                  key="climb"
-                  className={`${TILE} border`}
-                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
-                >
-                  <span className={LABEL} style={{ color: 'var(--text-3)' }}>
-                    Climb
-                    <Check size={14} aria-hidden="true" style={{ color: 'var(--ok)' }} />
-                  </span>
-                  <span className="num pr-9 text-[22px] font-semibold leading-none" style={{ color: 'var(--text-1)' }}>
-                    {day.climbs}{' '}
-                    <span className="text-[13px] font-normal" style={{ color: 'var(--text-2)' }}>
-                      {day.climbs === 1 ? 'send' : 'sends'}
-                    </span>
-                  </span>
-                  <Link
-                    href="/climbing?tab=log"
-                    aria-label="Add a climb"
-                    className="absolute bottom-0 right-0 flex h-11 w-11 items-center justify-center"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    <Plus size={18} aria-hidden="true" />
-                  </Link>
-                </div>
-              );
-            }
             const items = itemsForTile(queue, i.key, date);
             return (
               <Tile
@@ -221,6 +271,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
                 pending={items.some((q) => q.state === 'pending')}
                 failed={items.some((q) => q.state === 'failed')}
                 onClick={() => onOpen(date, i.key)}
+                chips={i.key === 'habits' ? done : undefined}
               />
             );
           })}
