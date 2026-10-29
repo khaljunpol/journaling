@@ -52,7 +52,7 @@ export function dayStatus(
       key: 'sidequests',
       shown: quests.length > 0,
       filled: quests.some((q) => questLogged.has(q.id)),
-      counts: quests.length > 0,
+      counts: false,
     },
     {
       key: 'hours',
@@ -60,12 +60,19 @@ export function dayStatus(
       filled: day.hours.length === 24 && day.hours.every((h) => h !== null && valid.has(h)),
       counts: true,
     },
-    { key: 'highlight', shown: true, filled: day.highlight.trim() !== '', counts: true },
+    { key: 'highlight', shown: true, filled: day.highlight.trim() !== '', counts: false },
     { key: 'climb', shown: day.climbs > 0, filled: day.climbs > 0, counts: false },
   ];
 
+  // By default mood, habits, weight and hours close the day; quests and the highlight are extras.
+  // A catch-up choice (`only`) replaces that list, so an extra can still be caught up when picked.
   const only = opts?.only;
-  if (only) for (const i of items) if (!only.includes(i.key)) i.counts = false;
+  if (only) {
+    for (const i of items) {
+      const applicable = i.key === 'habits' ? active.length > 0 : i.key === 'sidequests' ? quests.length > 0 : i.key !== 'climb';
+      i.counts = applicable && only.includes(i.key);
+    }
+  }
 
   const counted = items.filter((i) => i.counts);
   return { items, filled: counted.filter((i) => i.filled).length, total: counted.length };

@@ -62,9 +62,10 @@ test('datesUpTo drops days after today', () => {
   assert.equal(datesUpTo(weekDates('2026-10-12'), '2026-10-28').length, 7);
 });
 
-test('sanitizeChoice defaults to all kinds and drops junk', () => {
-  assert.deepEqual(sanitizeChoice(null), CATCHUP_KINDS);
-  assert.deepEqual(sanitizeChoice('x'), CATCHUP_KINDS);
+test('sanitizeChoice defaults to the daily kinds and drops junk', () => {
+  assert.deepEqual(sanitizeChoice(null), ['mood', 'habits', 'weight', 'hours']);
+  assert.deepEqual(sanitizeChoice('x'), ['mood', 'habits', 'weight', 'hours']);
+  assert.equal(CATCHUP_KINDS.length, 6);
   assert.deepEqual(sanitizeChoice(['hours', 'mood', 'nope', 'mood']), ['mood', 'hours']);
   assert.deepEqual(sanitizeChoice([]), []);
 });

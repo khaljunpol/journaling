@@ -40,15 +40,19 @@ const ctx = (over: Partial<Ctx> = {}): Ctx => ({
 
 const item = (s: ReturnType<typeof dayStatus>, key: string) => s.items.find((i) => i.key === key)!;
 
-test('empty day with activities and a count quest has 6 counted items', () => {
+test('by default mood, habits, weight and hours count; quests and highlight are extras', () => {
   const s = dayStatus(emptyDay(), ctx());
-  assert.equal(s.total, 6);
+  assert.equal(s.total, 4);
+  assert.equal(item(s, 'sidequests').shown, true);
+  assert.equal(item(s, 'sidequests').counts, false);
+  assert.equal(item(s, 'highlight').shown, true);
+  assert.equal(item(s, 'highlight').counts, false);
   assert.equal(s.filled, 0);
 });
 
-test('no activities and no quests gives total 4', () => {
+test('no activities and no quests gives total 3', () => {
   const s = dayStatus(emptyDay(), ctx({ activities: [], sidequests: [] }));
-  assert.equal(s.total, 4);
+  assert.equal(s.total, 3);
   assert.deepEqual(
     [item(s, 'habits').shown, item(s, 'habits').counts, item(s, 'sidequests').shown, item(s, 'sidequests').counts],
     [false, false, false, false],
@@ -80,7 +84,7 @@ test('stopped activity with a row is not required', () => {
     ctx(),
   );
   assert.equal(item(s, 'habits').filled, true);
-  assert.equal(s.total, 6);
+  assert.equal(s.total, 4);
 });
 
 test('hours filled only when all 24 slots are valid category ids', () => {
@@ -100,14 +104,14 @@ test('climb is shown only with climbs and never counts', () => {
   const some = dayStatus(emptyDay({ climbs: 2 }), ctx());
   assert.equal(item(some, 'climb').shown, true);
   assert.equal(item(some, 'climb').counts, false);
-  assert.equal(some.total, 6);
+  assert.equal(some.total, 4);
   assert.ok(!missingInOrder(some).includes('climb'));
 });
 
 test('sidequests: only count/timed, not completed, this year', () => {
   const milestone = dayStatus(emptyDay(), ctx({ sidequests: [{ id: 's', type: 'milestone', year: 2026 }] }));
-  assert.equal(item(milestone, 'sidequests').counts, false);
-  assert.equal(milestone.total, 5);
+  assert.equal(item(milestone, 'sidequests').shown, false);
+  assert.equal(milestone.total, 4);
   const ignored = dayStatus(
     emptyDay(),
     ctx({
@@ -117,25 +121,26 @@ test('sidequests: only count/timed, not completed, this year', () => {
       ],
     }),
   );
-  assert.equal(item(ignored, 'sidequests').counts, false);
+  assert.equal(item(ignored, 'sidequests').shown, false);
   const timed = dayStatus(emptyDay({ sidequestLogIds: ['s1'] }), ctx({ sidequests: [{ id: 's1', type: 'timed', year: 2026 }] }));
-  assert.equal(item(timed, 'sidequests').counts, true);
+  assert.equal(item(timed, 'sidequests').shown, true);
   assert.equal(item(timed, 'sidequests').filled, true);
+  // Picked in catch-up, an extra counts.
+  const picked = dayStatus(emptyDay(), ctx(), { only: ['sidequests', 'highlight'] });
+  assert.equal(picked.total, 2);
+  assert.deepEqual(missingInOrder(picked), ['sidequests', 'highlight']);
 });
 
 test('mood, weight and highlight fill', () => {
   const s = dayStatus(emptyDay({ mood: 4, weight: 70, highlight: 'Good day' }), ctx());
-  assert.equal(s.filled, 3);
-  assert.equal(dayStatus(emptyDay({ highlight: '   ' }), ctx()).filled, 0);
+  assert.equal(s.filled, 2);
+  assert.equal(item(s, 'highlight').filled, true);
+  assert.equal(item(dayStatus(emptyDay({ highlight: '   ' }), ctx()), 'highlight').filled, false);
 });
 
 test('missingInOrder keeps card order', () => {
-  assert.deepEqual(missingInOrder(dayStatus(emptyDay(), ctx())), [
-    'mood', 'habits', 'weight', 'sidequests', 'hours', 'highlight',
-  ]);
-  assert.deepEqual(missingInOrder(dayStatus(emptyDay({ mood: 3, weight: 70 }), ctx())), [
-    'habits', 'sidequests', 'hours', 'highlight',
-  ]);
+  assert.deepEqual(missingInOrder(dayStatus(emptyDay(), ctx())), ['mood', 'habits', 'weight', 'hours']);
+  assert.deepEqual(missingInOrder(dayStatus(emptyDay({ mood: 3, weight: 70 }), ctx())), ['habits', 'hours']);
 });
 
 test('templateKind reads the date as a local calendar date', () => {
@@ -168,7 +173,7 @@ test('dayStatus with only: unticked kinds are not counted', () => {
   const day = emptyDay({ mood: 3 });
   const all = dayStatus(day, ctx());
   const some = dayStatus(day, ctx(), { only: ['mood', 'weight'] });
-  assert.equal(all.total, 6);
+  assert.equal(all.total, 4);
   assert.equal(some.total, 2);
   assert.equal(some.filled, 1);
   assert.deepEqual(missingInOrder(some), ['weight']);

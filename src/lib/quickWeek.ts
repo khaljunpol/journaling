@@ -46,10 +46,12 @@ export function datesUpTo(dates: string[], today: string): string[] {
 // ---- Catch-up choice ----
 
 export const CATCHUP_KINDS: ItemKey[] = ['mood', 'habits', 'weight', 'sidequests', 'hours', 'highlight'];
+/** The kinds that close a day by default (same as dayStatus without a choice). */
+export const DAILY_KINDS: ItemKey[] = ['mood', 'habits', 'weight', 'hours'];
 
-/** A stored choice as a clean list, in card order. Anything that is not a list gives all kinds. */
+/** A stored choice as a clean list, in card order. Anything that is not a list gives the daily kinds. */
 export function sanitizeChoice(v: unknown): ItemKey[] {
-  if (!Array.isArray(v)) return [...CATCHUP_KINDS];
+  if (!Array.isArray(v)) return [...DAILY_KINDS];
   return CATCHUP_KINDS.filter((k) => v.includes(k));
 }
 

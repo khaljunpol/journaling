@@ -6,7 +6,7 @@ import { hoursEntries } from '@/lib/quickApply';
 import type { QuickPayload } from '@/lib/quickPayload';
 import { loadCatchup, saveCatchup } from '@/lib/quickStore';
 import {
-  CATCHUP_KINDS,
+  DAILY_KINDS,
   catchUpSteps,
   datesUpTo,
   habitFillPlan,
@@ -32,7 +32,7 @@ type Args = {
 
 /** The catch-up choice (kept on the phone), the steps of a week run, the week summary and the template fill. */
 export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown, dates, commit }: Args) {
-  const [choice, setChoice] = useState<ItemKey[]>(CATCHUP_KINDS);
+  const [choice, setChoice] = useState<ItemKey[]>(DAILY_KINDS);
   const [chosen, setChosen] = useState(false);
   const [tplMsg, setTplMsg] = useState<{ week: string; text: string } | null>(null);
   const [habitMsg, setHabitMsg] = useState<{ week: string; text: string } | null>(null);
@@ -54,7 +54,7 @@ export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown
     if (!today || !payload) return [];
     const days = upToToday.flatMap((date) => {
       const day = payload.days[date];
-      return day ? [{ date, missing: missingInOrder(dayStatus(day, payload.ctx)) }] : [];
+      return day ? [{ date, missing: missingInOrder(dayStatus(day, payload.ctx, { only: kinds })) }] : [];
     });
     return catchUpSteps(days, today, kinds);
   }
