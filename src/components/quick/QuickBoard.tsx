@@ -9,13 +9,15 @@ import { syncState, type SyncState } from '@/lib/quickSync';
 import { applyQueue, applyQueueItem, pruneDays } from '@/lib/quickApply';
 import type { CatchUpStep } from '@/lib/quickWeek';
 import type { QuickPayload } from '@/lib/quickPayload';
-import { getLastEmail, loadOutbox, loadSnapshot, saveSnapshot, setLastEmail } from '@/lib/quickStore';
+import { getLastEmail, loadOutbox, loadSnapshot, loadWelcomeHidden, saveSnapshot, saveWelcomeHidden, setLastEmail } from '@/lib/quickStore';
+import { showWelcome, welcomeSteps } from '@/lib/quickWelcome';
 import { localISO, localTodayISO, parseLocalDate, weekStartLocal } from '@/lib/date';
 import type { TimeCategory } from '@/lib/types';
 import { useOutbox } from './useOutbox';
 import { useWeek } from './useWeek';
 import { useCatchUp } from './useCatchUp';
 import WeekPanel from './WeekPanel';
+import WelcomeCard from './WelcomeCard';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection, { SkeletonDay } from './DaySection';
 import PageHeader from '@/components/ui/PageHeader';
@@ -61,6 +63,11 @@ export default function QuickBoard() {
   const { queue, enqueue, persistOk } = useOutbox(email, confirmed);
 
   const [today, setToday] = useState<string | null>(null);
+  // Starts hidden so nobody sees it flash before this phone's choice is read.
+  const [welcomeHidden, setWelcomeHidden] = useState(true);
+  useEffect(() => {
+    if (email) setWelcomeHidden(loadWelcomeHidden(email));
+  }, [email]);
   const [payload, setPayload] = useState<QuickPayload | null>(null);
   const [stale, setStale] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -326,6 +333,15 @@ export default function QuickBoard() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
+          {payload && today && showWelcome(payload, today, welcomeHidden) && (
+            <WelcomeCard
+              steps={welcomeSteps(payload, today)}
+              onHide={() => {
+                setWelcomeHidden(true);
+                if (email) saveWelcomeHidden(email);
+              }}
+            />
+          )}
           <section className="card p-3 sm:p-4" aria-label="Week">
             <WeekStrip
               days={stripDays}

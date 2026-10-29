@@ -39,6 +39,16 @@ function write(key: string, value: unknown): boolean {
 }
 
 const catchKey = (email: string) => `${PREFIX}catchup:${email.toLowerCase()}`;
+const welcomeKey = (email: string) => `${PREFIX}welcome:${email.toLowerCase()}`;
+
+/** True once the first-run welcome was hidden on this phone. */
+export function loadWelcomeHidden(email: string): boolean {
+  return read<unknown>(welcomeKey(email)) === true;
+}
+
+export function saveWelcomeHidden(email: string): boolean {
+  return write(welcomeKey(email), true);
+}
 
 /** Kinds the user ticked for catching up past days. Null when never chosen (caller defaults to all). */
 export function loadCatchup(email: string): ItemKey[] | null {
