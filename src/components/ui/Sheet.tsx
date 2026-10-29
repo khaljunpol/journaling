@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
@@ -32,7 +32,13 @@ type Props = {
 export default function Sheet({ open, onClose, title, subtitle, initialFocus = 'field', children }: Props) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
+  // The open animation is done: the panel's transform is free for dragging.
+  const [entered, setEntered] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  // Phone drag-to-close. `dismissed`: the drag already slid the panel out, so skip the close animation.
+  const drag = useRef<{ id: number; startY: number; startT: number; dy: number } | null>(null);
+  const dismissed = useRef(false);
   const openerRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
@@ -40,9 +46,15 @@ export default function Sheet({ open, onClose, title, subtitle, initialFocus = '
   useEffect(() => {
     if (open) {
       openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dismissed.current = false;
       setMounted(true);
       setClosing(false);
+      setEntered(false);
+      // Safety net: animationend never fires when animations are paused (background tab, animations off).
+      const t = setTimeout(() => setEntered(true), 300);
+      return () => clearTimeout(t);
     } else if (mounted) {
+      if (dismissed.current) { setMounted(false); return; }
       setClosing(true);
       const t = setTimeout(() => { setMounted(false); setClosing(false); }, 300); // safety net
       return () => clearTimeout(t);
@@ -104,11 +116,56 @@ export default function Sheet({ open, onClose, title, subtitle, initialFocus = '
     }
   }, []);
 
+  // ── Drag down to close (phone only; the handle and title row are the grip) ──
+  const isPhone = () => window.matchMedia('(max-width: 1023px)').matches;
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const setDrag = (dy: number, transition: string) => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    panel.style.transition = transition;
+    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+    if (backdropRef.current) {
+      backdropRef.current.style.transition = transition.replace('transform', 'opacity');
+      backdropRef.current.style.opacity = String(Math.max(0, 1 - dy / panel.offsetHeight));
+    }
+  };
+  function onGripDown(e: ReactPointerEvent<HTMLDivElement>) {
+    // One finger only; buttons in the title row keep their own tap.
+    if (drag.current || !entered || closing || !isPhone() || (e.target as HTMLElement).closest('button')) return;
+    drag.current = { id: e.pointerId, startY: e.clientY, startT: performance.now(), dy: 0 };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+  }
+  function onGripMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const raw = e.clientY - d.startY;
+    // Upward pull gets friction instead of a hard stop.
+    d.dy = raw >= 0 ? raw : -Math.sqrt(-raw) * 2;
+    setDrag(d.dy, 'none');
+  }
+  function onGripUp(e: ReactPointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const velocity = d.dy / Math.max(1, performance.now() - d.startT);
+    const ms = reduced() ? 0 : 200;
+    if (d.dy > panel.offsetHeight * 0.25 || (d.dy > 10 && velocity > 0.11)) {
+      // A flick is enough. Slide out from where the finger let go, then close.
+      dismissed.current = true;
+      setDrag(panel.offsetHeight, ms ? `transform ${ms}ms var(--ease-drawer)` : 'none');
+      setTimeout(() => closeRef.current(), ms);
+    } else {
+      setDrag(0, ms ? `transform ${ms}ms var(--ease-out)` : 'none');
+    }
+  }
+
   if (!mounted) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center lg:justify-end">
-      <div className={`absolute inset-0 bg-black/50 ${closing ? 'backdrop-out' : 'backdrop-in'}`} onClick={onClose} aria-hidden="true" />
+      <div ref={backdropRef} className={`absolute inset-0 bg-black/50 ${closing ? 'backdrop-out' : entered ? '' : 'backdrop-in'}`} onClick={onClose} aria-hidden="true" />
       <div
         ref={panelRef}
         role="dialog"
@@ -116,10 +173,20 @@ export default function Sheet({ open, onClose, title, subtitle, initialFocus = '
         aria-label={title}
         tabIndex={-1}
         onKeyDown={trap}
-        onAnimationEnd={() => { if (closing) { setMounted(false); setClosing(false); } }}
-        className={`relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-t-2xl border-t outline-none lg:h-full lg:max-h-none lg:max-w-[440px] lg:rounded-none lg:border-l lg:border-t-0 ${closing ? 'sheet-panel-out' : 'sheet-panel-in'}`}
+        onAnimationEnd={(e) => {
+          if (e.target !== e.currentTarget) return; // an animation inside the sheet
+          if (closing) { setMounted(false); setClosing(false); } else setEntered(true);
+        }}
+        className={`relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-t-2xl border-t outline-none lg:h-full lg:max-h-none lg:max-w-[440px] lg:rounded-none lg:border-l lg:border-t-0 ${closing ? 'sheet-panel-out' : entered ? '' : 'sheet-panel-in'}`}
         style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-pop)' }}
       >
+        <div
+          className="touch-none select-none lg:touch-auto"
+          onPointerDown={onGripDown}
+          onPointerMove={onGripMove}
+          onPointerUp={onGripUp}
+          onPointerCancel={onGripUp}
+        >
         <div className="mx-auto mt-2 h-1 w-9 rounded-full lg:hidden" style={{ background: 'var(--border-strong)' }} aria-hidden="true" />
         <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3 sm:px-5">
           <div className="min-w-0">
@@ -135,6 +202,7 @@ export default function Sheet({ open, onClose, title, subtitle, initialFocus = '
           >
             <X size={20} aria-hidden="true" />
           </button>
+        </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
           {children}
