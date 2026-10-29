@@ -94,6 +94,10 @@ describe('sleep', () => {
     const ids = findSleepIds([{ id: '0', name: ' Sleep ', color: '' }, { id: '4', name: 'sleeping in', color: '' }, { id: '1', name: 'work', color: '' }, { id: '9', name: 'nap sleep', color: '' }]);
     assert.deepEqual([...ids].sort(), ['0', '4']);
   });
+  it('findSleepIds: a saved group wins over the name', () => {
+    const ids = findSleepIds([{ id: '0', name: 'sleep', color: '', group: 'rest' }, { id: '9', name: 'nap', color: '', group: 'sleep' }]);
+    assert.deepEqual([...ids], ['9']);
+  });
   it('findSleepIds with no sleep category is empty', () => {
     assert.equal(findSleepIds([{ id: '1', name: 'work', color: '' }]).size, 0);
   });

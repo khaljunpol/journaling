@@ -64,8 +64,10 @@ export function dailySeries(rows: MoodRow[], today: string, n: number): Array<{ 
 }
 
 /** Ids of time categories whose trimmed, lower-case name starts with "sleep". */
-export function findSleepIds(cats: Cat[]): Set<string> {
-  return new Set(cats.filter((c) => c.name.trim().toLowerCase().startsWith('sleep')).map((c) => String(c.id)));
+export function findSleepIds(cats: Array<Cat & { group?: string }>): Set<string> {
+  // A saved group wins (Settings > Time categories); a blank one falls back to the name.
+  const isSleep = (c: Cat & { group?: string }) => (c.group ? c.group === 'sleep' : c.name.trim().toLowerCase().startsWith('sleep'));
+  return new Set(cats.filter(isSleep).map((c) => String(c.id)));
 }
 
 /**

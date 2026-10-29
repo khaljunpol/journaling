@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
-import type { ClimbLog, ClimbGoal, HourLog } from '@/lib/types';
+import type { ClimbLog, ClimbGoal, HourLog, TimeCategory } from '@/lib/types';
+import { parseGroup, type StoredGroup } from '@/lib/timeBalance';
 import { range, TABS } from '@/lib/sheetLayout';
 import { localISO } from '@/lib/date';
 import { normalizeGrade } from '@/lib/climbing';
@@ -831,7 +832,7 @@ export async function upsertHourLogsBatch(sa: SheetAuth, entry: { date: string; 
 
 // ── Time Categories ──────────────────────────────────────────
 
-export type TimeCategory = { id: string; name: string; color: string; order: number };
+export type { TimeCategory } from '@/lib/types';
 
 export async function listTimeCategories(sa: SheetAuth) {
   const { spreadsheetId } = sa;
@@ -849,17 +850,17 @@ export async function listTimeCategories(sa: SheetAuth) {
 }
 
 const DEFAULT_TIME_CATEGORIES: readonly TimeCategory[] = [
-  { id: '0', name: 'sleep', color: '#0ea5e9', order: 0 },
-  { id: '1', name: 'work', color: '#f59e0b', order: 1 },
-  { id: '2', name: 'hobbies / projects', color: '#22c55e', order: 2 },
-  { id: '3', name: 'freelance', color: '#a855f7', order: 3 },
-  { id: '4', name: 'exercise', color: '#ef4444', order: 4 },
-  { id: '5', name: 'friends', color: '#eab308', order: 5 },
-  { id: '6', name: 'relaxation and leisure', color: '#14b8a6', order: 6 },
-  { id: '7', name: 'partner', color: '#fb7185', order: 7 },
-  { id: '8', name: 'family', color: '#8b5cf6', order: 8 },
-  { id: '9', name: 'productive / chores', color: '#06b6d4', order: 9 },
-  { id: '10', name: 'travel', color: '#f97316', order: 10 },
+  { id: '0', name: 'sleep', color: '#0ea5e9', order: 0, group: 'sleep' },
+  { id: '1', name: 'work', color: '#f59e0b', order: 1, group: 'productive' },
+  { id: '2', name: 'hobbies / projects', color: '#22c55e', order: 2, group: 'productive' },
+  { id: '3', name: 'freelance', color: '#a855f7', order: 3, group: 'productive' },
+  { id: '4', name: 'exercise', color: '#ef4444', order: 4, group: 'productive' },
+  { id: '5', name: 'friends', color: '#eab308', order: 5, group: 'rest' },
+  { id: '6', name: 'relaxation and leisure', color: '#14b8a6', order: 6, group: 'rest' },
+  { id: '7', name: 'partner', color: '#fb7185', order: 7, group: 'rest' },
+  { id: '8', name: 'family', color: '#8b5cf6', order: 8, group: 'rest' },
+  { id: '9', name: 'productive / chores', color: '#06b6d4', order: 9, group: 'productive' },
+  { id: '10', name: 'travel', color: '#f97316', order: 10, group: 'productive' },
   { id: '11', name: 'misc', color: '#64748b', order: 11 },
 ];
 
@@ -869,45 +870,49 @@ const MISC_TIME_CATEGORY: TimeCategory = { id: '11', name: 'misc', color: '#6474
 function parseTimeCategories(values: readonly (readonly string[])[]): TimeCategory[] {
   return values
     .filter((r) => r && r[0])
-    .map(([id, name, color, order], i) => ({
-      id: String(id).trim(),
-      name: String(name || '').trim(),
-      color: String(color || '').trim() || '#888888',
-      order: Number.isFinite(parseInt(String(order ?? ''), 10)) ? parseInt(String(order ?? ''), 10) : i,
-    }))
+    .map(([id, name, color, order, group], i) => {
+      const g = parseGroup(group);
+      return {
+        id: String(id).trim(),
+        name: String(name || '').trim(),
+        color: String(color || '').trim() || '#888888',
+        order: Number.isFinite(parseInt(String(order ?? ''), 10)) ? parseInt(String(order ?? ''), 10) : i,
+        ...(g ? { group: g } : {}),
+      };
+    })
     .sort((a, b) => a.order - b.order);
 }
 
 async function seedTimeCategories(spreadsheetId: string): Promise<TimeCategory[]> {
   const sheets = getServiceSheets();
   const title = TABS.timeCategories;
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
   const values = res.data.values || [];
   if (values.length === 0) {
     const defaults = DEFAULT_TIME_CATEGORIES.map((c) => ({ ...c }));
     await sheets.spreadsheets.values.append({
-      spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW',
-      requestBody: { values: defaults.map((c) => [c.id, c.name, c.color, String(c.order)]) },
+      spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW',
+      requestBody: { values: defaults.map((c) => [c.id, c.name, c.color, String(c.order), c.group ?? '']) },
     });
     return defaults;
   }
   const rows = parseTimeCategories(values);
   if (!rows.some((r) => r.id === MISC_TIME_CATEGORY.id)) {
     const misc: TimeCategory = { ...MISC_TIME_CATEGORY };
-    await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW', requestBody: { values: [[misc.id, misc.name, misc.color, String(misc.order)]] } });
+    await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW', requestBody: { values: [[misc.id, misc.name, misc.color, String(misc.order)]] } });
     rows.push(misc);
     rows.sort((a, b) => a.order - b.order);
   }
   return rows;
 }
 
-export async function upsertTimeCategory(sa: SheetAuth, entry: { id?: string; name: string; color: string; order?: number }) {
+export async function upsertTimeCategory(sa: SheetAuth, entry: { id?: string; name: string; color: string; order?: number; group?: StoredGroup | '' }) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.timeCategories;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:E') });
       const values = res.data.values || [];
       let rowIndex = -1; let existingId = '';
       if (entry.id) {
@@ -919,12 +924,15 @@ export async function upsertTimeCategory(sa: SheetAuth, entry: { id?: string; na
       const name = String(entry.name || '').trim();
       const color = String(entry.color || '').trim() || '#888888';
       const order = Number.isFinite(entry.order) ? Number(entry.order) : (values.length + 1);
+      // group: undefined keeps what the sheet has; '' clears it (back to guessing from the name).
+      const kept = rowIndex === -1 ? undefined : parseGroup(values[rowIndex - 2]?.[4]);
+      const group = entry.group === undefined ? kept : entry.group || undefined;
       if (rowIndex === -1) {
-        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order)]] } });
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:E'), valueInputOption: 'RAW', requestBody: { values: [[id, name, color, String(order), group ?? '']] } });
       } else {
-        await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:D${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order)]] } });
+        await sheets.spreadsheets.values.update({ spreadsheetId, range: range(title, `B${rowIndex}:E${rowIndex}`), valueInputOption: 'RAW', requestBody: { values: [[name, color, String(order), group ?? '']] } });
       }
-      return { id, name, color, order } as TimeCategory;
+      return { id, name, color, order, ...(group ? { group } : {}) } as TimeCategory;
     } finally {
       tabCache.invalidate(spreadsheetId, 'timeCategories');
     }

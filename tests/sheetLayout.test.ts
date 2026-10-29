@@ -35,7 +35,7 @@ test('dataRange matches the ranges used today', () => {
     climbs: "'Climbs'!A2:H",
     climbGoals: "'ClimbGoals'!A2:E",
     hours: "'Hours'!A2:Y",
-    timeCategories: "'TimeCategories'!A2:D",
+    timeCategories: "'TimeCategories'!A2:E",
     sidequests: "'Sidequests'!A2:J",
     sidequestLogs: "'SidequestLogs'!A2:G",
     settings: "'Settings'!A2:B",

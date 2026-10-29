@@ -1,22 +1,40 @@
-// Productive / Rest / Sleep split for the Trends > Time tab. Moved here from overview/derive.ts
-// when the Overview dropped its groups; only TimeTrackerView uses it now.
+// Productive / Rest / Sleep split for the Trends > Time tab. Pure, no imports.
+// Each time category can carry a group (TimeCategories column E). Blank = guessed from the name.
 
-const PRODUCTIVE = ['work', 'hobbies / projects', 'exercise / sports', 'chores', 'travel', 'content'];
-const REST = ['relaxation / leisure', 'friends', 'wife', 'party', 'brain rot / misc'];
+export type TimeGroup = 'productive' | 'rest' | 'sleep';
+/** What the sheet stores: a group, or "none" to keep a category out of every group. */
+export type StoredGroup = TimeGroup | 'none';
 
-/** Weekly Productive / Rest / Sleep hours (one entry = one hour), by category name. */
+const GUESS: Array<[TimeGroup, RegExp]> = [
+  ['sleep', /\b(sleep\w*|nap\w*)\b/],
+  ['productive', /\b(work\w*|freelance|projects?|hobb\w*|exercise|sports?|gym|chores?|productive|travel|study|studying|content|learn\w*)\b/],
+  ['rest', /\b(relax\w*|leisure|friends?|partner|wife|husband|family|party|social|brain rot|games?|gaming|tv)\b/],
+];
+
+/** A stored group, cleaned. Anything unknown gives undefined (then the name decides). */
+export function parseGroup(v: unknown): StoredGroup | undefined {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === 'productive' || s === 'rest' || s === 'sleep' || s === 'none' ? s : undefined;
+}
+
+/** The category's group: the saved one, else a guess from the name. Null = in no group. */
+export function groupOf(cat: { name: string; group?: StoredGroup }): TimeGroup | null {
+  if (cat.group) return cat.group === 'none' ? null : cat.group;
+  const n = cat.name.toLowerCase();
+  for (const [group, re] of GUESS) if (re.test(n)) return group;
+  return null;
+}
+
+/** Weekly Productive / Rest / Sleep hours (one entry = one hour). */
 export function timeBalance(
   entries: Array<{ category: number | string }>,
-  cats: Array<{ id: string; name: string }>,
+  cats: Array<{ id: string; name: string; group?: StoredGroup }>,
 ): { productive: number; rest: number; sleep: number } {
-  const idsFor = (names: string[]) =>
-    new Set(names.map((n) => cats.find((c) => c.name.toLowerCase() === n)?.id).filter((x): x is string => x !== undefined).map(String));
-  const prod = idsFor(PRODUCTIVE);
-  const rest = idsFor(REST);
-  const sleepId = cats.find((c) => c.name.toLowerCase() === 'sleep')?.id;
-  return {
-    productive: entries.filter((t) => prod.has(String(t.category))).length,
-    rest: entries.filter((t) => rest.has(String(t.category))).length,
-    sleep: sleepId === undefined ? 0 : entries.filter((t) => String(t.category) === String(sleepId)).length,
-  };
+  const byId = new Map(cats.map((c) => [String(c.id), groupOf(c)]));
+  const out = { productive: 0, rest: 0, sleep: 0 };
+  for (const e of entries) {
+    const g = byId.get(String(e.category));
+    if (g) out[g] += 1;
+  }
+  return out;
 }

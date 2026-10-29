@@ -26,7 +26,7 @@ export const HEADERS: Record<TabKey, string[]> = {
   climbs: ['id', 'date', 'session', 'type', 'grade', 'attempts', 'location', 'notes'],
   climbGoals: ['id', 'year', 'type', 'grade', 'target'],
   hours: ['date', ...Array.from({ length: 24 }, (_, i) => `h${i + 1}`)],
-  timeCategories: ['id', 'name', 'color', 'order'],
+  timeCategories: ['id', 'name', 'color', 'order', 'group'],
   sidequests: ['id', 'title', 'type', 'year', 'unit', 'target', 'milestones', 'description', 'createdAt', 'completedAt'],
   sidequestLogs: ['id', 'sidequestId', 'date', 'value', 'value2', 'note', 'milestoneIndex'],
   settings: ['key', 'value'],

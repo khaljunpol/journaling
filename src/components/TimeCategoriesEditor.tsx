@@ -6,6 +6,16 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
 import Input, { Label } from '@/components/ui/Input';
+import { groupOf } from '@/lib/timeBalance';
+
+type GroupChoice = NonNullable<Category['group']>;
+/** Groups feed the Productive / Rest / Sleep split on Trends > Time. */
+const GROUP_CHOICES: Array<[GroupChoice, string]> = [
+  ['productive', 'Productive'],
+  ['rest', 'Rest'],
+  ['sleep', 'Sleep'],
+  ['none', 'No group'],
+];
 
 export default function TimeCategoriesEditor() {
   const [items, setItems] = useState<Category[]>([]);
@@ -54,7 +64,15 @@ export default function TimeCategoriesEditor() {
   async function saveEdit(it: Category, patch: Partial<Category>) {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/time/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, name: patch.name ?? it.name, color: patch.color ?? it.color, order: patch.order ?? it.order }) });
+      const body = {
+        id: it.id,
+        name: patch.name ?? it.name,
+        color: patch.color ?? it.color,
+        order: patch.order ?? it.order,
+        // Sent only when changed, so a rename or move never touches the saved group.
+        ...('group' in patch ? { group: patch.group ?? '' } : {}),
+      };
+      const res = await fetch('/api/time/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (res.ok) refresh();
     } finally {
       setIsSaving(false);
@@ -149,6 +167,18 @@ export default function TimeCategoriesEditor() {
                   if (curr) saveEdit(curr, { name: curr.name });
                 }}
               />
+              <select
+                aria-label={`Group for ${it.name}`}
+                className="input h-11 shrink-0 text-[14px]"
+                value={it.group ?? groupOf(it) ?? 'none'}
+                onChange={(e) => {
+                  const group = e.target.value as GroupChoice;
+                  updateItem(it.id, { group });
+                  saveEdit(it, { group });
+                }}
+              >
+                {GROUP_CHOICES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
               <div className="flex shrink-0 items-center gap-1">
                 <Button variant="outline" small aria-label={`Move ${it.name} up`} onClick={() => move(it, -1)} disabled={i === 0}>↑</Button>
                 <Button variant="outline" small aria-label={`Move ${it.name} down`} onClick={() => move(it, 1)} disabled={i === sorted.length - 1}>↓</Button>
