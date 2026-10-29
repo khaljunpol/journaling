@@ -253,6 +253,15 @@ export function lastHighlight(rows: Array<{ date: string; text: string }>, today
 }
 
 /** Sessions Mon..today (unique date+session pairs), plus the latest session date. Logs without `session` count as one per date. */
+/**
+ * Climb rows for the Overview line: this year's rows plus last year's rows from the 30-day read.
+ * Without these, the line goes blank in early January (this year's read is empty or too short).
+ */
+export function climbRows<T extends { date: string }>(year: T[], last30: T[], today: string): T[] {
+  const yStart = `${today.slice(0, 4)}-01-01`;
+  return [...year, ...last30.filter((l) => day(l.date) < yStart)];
+}
+
 export function climbWeek(
   logs: Array<{ date: string; session?: number }>,
   today: string,

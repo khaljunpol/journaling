@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  avgKnown, bestStreak, climbWeek, dailySeries, findSleepIds, habitDays, habitRate, habitStreak, hm, lastHighlight,
+  avgKnown, bestStreak, climbRows, climbWeek, dailySeries, findSleepIds, habitDays, habitRate, habitStreak, hm, lastHighlight,
   daySpan, monthAgo, moodSplit, moodWeek, sleepNights, timeCompare, weekWindow,
   type Cat, type HabitLog, type HourRow, type MoodRow,
 } from '../src/lib/overviewStats.ts';
@@ -277,6 +277,18 @@ describe('lastHighlight and climbWeek', () => {
   });
   it('climbWeek with no logs', () => {
     assert.deepEqual(climbWeek([], TODAY), { sessions: 0, last: null, daysSince: null });
+  });
+  it('climbRows adds last year\'s rows from the 30-day read, without doubles', () => {
+    const year = [{ date: '2027-01-02', session: 1 }];
+    const last30 = [{ date: '2026-12-29', session: 1 }, { date: '2027-01-02', session: 1 }];
+    const rows = climbRows(year, last30, '2027-01-03');
+    assert.deepEqual(rows.map((r) => r.date), ['2027-01-02', '2026-12-29']);
+    // Sunday 3 Jan: the week started Mon 28 Dec, so both sessions count.
+    assert.deepEqual(climbWeek(rows, '2027-01-03'), { sessions: 2, last: '2027-01-02', daysSince: 1 });
+  });
+  it('climbRows in early January with only December climbs still has a last session', () => {
+    const rows = climbRows([], [{ date: '2026-12-20', session: 1 }], '2027-01-05');
+    assert.deepEqual(climbWeek(rows, '2027-01-05'), { sessions: 0, last: '2026-12-20', daysSince: 16 });
   });
   it('climbWeek without session falls back to unique dates', () => {
     assert.equal(climbWeek([{ date: '2026-10-26' }, { date: '2026-10-26' }, { date: '2026-10-27' }], TODAY).sessions, 2);

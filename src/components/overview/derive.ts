@@ -4,6 +4,7 @@ import { lastDates } from '@/lib/overview';
 import {
   avgKnown,
   bestStreak,
+  climbRows,
   climbWeek,
   dailySeries,
   daySpan,
@@ -45,6 +46,7 @@ export type DashboardData = {
   timeCategories?: Array<{ id: string; name: string; color: string }>;
   timeY?: HourRow[];
   climbY?: Array<{ date: string; type: string; grade: string; session?: number }>;
+  climb30?: Array<{ date: string; type: string; grade: string; session?: number }>;
   goals?: Array<{ year: number; type: string; grade: string; target: number }>;
   sidequests?: Sidequest[];
 };
@@ -102,7 +104,7 @@ export type OverviewView = {
     /** failed = the read failed with no cache: the UI makes no claim about that day */
     monthAgo: { date: string; loaded: boolean; failed: boolean; mood: number | null; text: string | null };
   };
-  /** null = no climbing logs this year (or still loading: check hasDash) */
+  /** null = no climbing logs this year or in the last 30 days (or still loading: check hasDash) */
   climb: { sessions: number; last: string | null; daysSince: number | null } | null;
   quests: { active: number } | null;
 };
@@ -284,7 +286,8 @@ export function deriveOverview(args: {
     },
   };
 
-  const climb = dash?.climbY && dash.climbY.length ? climbWeek(dash.climbY, today) : null;
+  const climbs = climbRows(dash?.climbY ?? [], dash?.climb30 ?? [], today);
+  const climb = climbs.length ? climbWeek(climbs, today) : null;
   const quests = dash?.sidequests ? { active: dash.sidequests.filter((s) => !s.completedAt).length } : null;
 
   return { mood, habits, time, remember, climb, quests };
