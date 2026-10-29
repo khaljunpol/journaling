@@ -54,7 +54,9 @@ export function applyQueueItem(payload: QuickPayload, item: QueueLike): QuickPay
     next = { ...day, hours };
   } else if (kind === 'sq' && parts[2]) {
     const id = parts.slice(2).join(':');
-    if (!day.sidequestLogIds.includes(id)) next = { ...day, sidequestLogIds: [...day.sidequestLogIds, id] };
+    const ids = day.sidequestLogIds.includes(id) ? day.sidequestLogIds : [...day.sidequestLogIds, id];
+    const values = typeof body.value === 'number' ? { ...day.sidequestValues, [id]: body.value } : day.sidequestValues;
+    if (ids !== day.sidequestLogIds || values !== day.sidequestValues) next = { ...day, sidequestLogIds: ids, sidequestValues: values };
   }
   if (next === day) return payload;
   return { ...payload, days: { ...payload.days, [date]: next } };

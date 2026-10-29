@@ -35,6 +35,9 @@ test('applies log, hours and side quest', () => {
   assert.equal(p.days['2026-10-27'].hours[3], 1);
   p = applyQueueItem(p, q('sq:2026-10-27:s1', { value: 2 }));
   assert.deepEqual(p.days['2026-10-27'].sidequestLogIds, ['s1']);
+  assert.deepEqual(p.days['2026-10-27'].sidequestValues, { s1: 2 });
+  p = applyQueueItem(p, q('sq:2026-10-27:s1', { value: 4, replace: true }));
+  assert.deepEqual(p.days['2026-10-27'].sidequestValues, { s1: 4 });
 });
 
 test('unknown day or key leaves payload alone', () => {

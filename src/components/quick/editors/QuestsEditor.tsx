@@ -11,7 +11,9 @@ export default function QuestsEditor({ date, payload, quests, queued, onSave, su
     const init: Record<string, string> = {};
     for (const q of list) {
       const body = queued(`sq:${date}:${q.id}`) as { value?: number } | undefined;
+      const saved = payload.days[date]?.sidequestValues?.[q.id];
       if (body && typeof body.value === 'number') init[q.id] = String(body.value);
+      else if (typeof saved === 'number') init[q.id] = String(saved);
     }
     return init;
   });
@@ -26,7 +28,7 @@ export default function QuestsEditor({ date, payload, quests, queued, onSave, su
         key: `sq:${date}:${x.id}`,
         url: `/api/sidequests/${x.id}?action=log`,
         method: 'POST' as const,
-        body: { date, value: x.value },
+        body: { date, value: x.value, replace: true },
       })),
     );
   }

@@ -11,6 +11,7 @@ export type DayData = {
   hours: Array<number | null>; // length 24
   climbs: number; // count of climb rows
   sidequestLogIds: string[]; // sidequestIds logged that day
+  sidequestValues?: Record<string, number>; // sum of that day's value logs per quest (missing in old phone snapshots)
 };
 
 export type Ctx = {

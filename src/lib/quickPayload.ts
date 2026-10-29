@@ -11,7 +11,7 @@ export type QuickRows = {
   hours: Array<{ date: string; hour: number; category: number }>;
   climbs: Array<{ date: string }>;
   sidequests: Array<{ id: string; type: string; completedAt?: string; year: number }>;
-  sidequestLogs: Array<{ sidequestId: string; date: string }>;
+  sidequestLogs: Array<{ sidequestId: string; date: string; value?: number; milestoneIndex?: number }>;
   categories: Array<{ id: string }>;
 };
 
@@ -64,6 +64,7 @@ export function buildQuickPayload(
       hours: Array.from({ length: 24 }, () => null),
       climbs: 0,
       sidequestLogIds: [],
+      sidequestValues: {},
     };
     logMaps[date] = new Map();
     questSets[date] = new Set();
@@ -81,7 +82,14 @@ export function buildQuickPayload(
     if (days[h.date] && Number.isInteger(h.hour) && h.hour >= 0 && h.hour < 24) days[h.date].hours[h.hour] = h.category;
   }
   for (const c of rows.climbs) if (days[c.date]) days[c.date].climbs += 1;
-  for (const s of rows.sidequestLogs) if (days[s.date]) questSets[s.date].add(s.sidequestId);
+  for (const s of rows.sidequestLogs) {
+    if (!days[s.date]) continue;
+    questSets[s.date].add(s.sidequestId);
+    if (s.milestoneIndex == null && typeof s.value === 'number') {
+      const v = days[s.date].sidequestValues!;
+      v[s.sidequestId] = (v[s.sidequestId] ?? 0) + s.value;
+    }
+  }
   for (const date of dates) days[date].sidequestLogIds = [...questSets[date]];
 
   const ctx: Ctx = {

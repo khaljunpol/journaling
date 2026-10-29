@@ -43,7 +43,7 @@ test('hours map to 24 slots; categories, climbs, sidequest logs, highlights, wei
       hours: [{ date: '2026-10-26', hour: 3, category: 7 }],
       categories: [{ id: '7' }],
       climbs: [{ date: '2026-10-26' }, { date: '2026-10-26' }],
-      sidequestLogs: [{ sidequestId: 'q1', date: '2026-10-26' }, { sidequestId: 'q1', date: '2026-10-26' }],
+      sidequestLogs: [{ sidequestId: 'q1', date: '2026-10-26', value: 5 }, { sidequestId: 'q1', date: '2026-10-26', value: 3 }, { sidequestId: 'q1', date: '2026-10-26', milestoneIndex: 0 }],
       highlights: [{ date: '2026-10-26', text: 'hi' }],
       weights: [{ date: '2026-10-26', weight: 70.5 }],
       sidequests: [{ id: 'q1', type: 'count', year: 2026 }],
@@ -56,6 +56,7 @@ test('hours map to 24 slots; categories, climbs, sidequest logs, highlights, wei
   assert.deepEqual(p.ctx.categoryIds, [7]);
   assert.equal(d.climbs, 2);
   assert.deepEqual(d.sidequestLogIds, ['q1']);
+  assert.deepEqual(d.sidequestValues, { q1: 8 });
   assert.equal(d.highlight, 'hi');
   assert.equal(d.weight, 70.5);
   assert.deepEqual(p.ctx.sidequests, [{ id: 'q1', type: 'count', completedAt: undefined, year: 2026 }]);

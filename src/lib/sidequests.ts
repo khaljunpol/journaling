@@ -2,6 +2,7 @@ import { getServiceSheets, tabCache } from '@/lib/googleSheets';
 import type { SheetAuth } from '@/lib/googleSheets';
 import { range, TABS } from '@/lib/sheetLayout';
 import { withLock } from '@/lib/keyedLock';
+import { dayValueRows } from '@/lib/sidequestDay';
 import type { Sidequest, SidequestLog, SidequestMilestone, SidequestType } from '@/lib/types';
 
 // ── Sidequests CRUD ──────────────────────────────────────────
@@ -168,6 +169,46 @@ export async function addSidequestLog(sa: SheetAuth, entry: Omit<SidequestLog, '
         requestBody: { values: [row] },
       });
       return { ...entry, id };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'sidequestLogs');
+    }
+  });
+}
+
+/**
+ * Sets one quest's value for one day: updates that day's first value row, clears any extra ones,
+ * or appends a row when there is none. Milestone rows are never touched. Safe to replay.
+ */
+export async function setSidequestDayValue(
+  sa: SheetAuth, sidequestId: string, date: string, value: number,
+): Promise<SidequestLog> {
+  const sheets = getServiceSheets();
+  const { spreadsheetId } = sa;
+  const title = TABS.sidequestLogs;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:G') });
+      const values = res.data.values || [];
+      const [first, ...extra] = dayValueRows(values, sidequestId, date);
+      if (first === undefined) {
+        const id = String(Date.now());
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:G'), valueInputOption: 'RAW',
+          requestBody: { values: [[id, sidequestId, date, String(value), '', '', '']] },
+        });
+        return { id, sidequestId, date, value };
+      }
+      const existing = rowToLog(values[first - 2].map(String));
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: range(title, `D${first}`), valueInputOption: 'RAW',
+        requestBody: { values: [[String(value)]] },
+      });
+      if (extra.length) {
+        await sheets.spreadsheets.values.batchClear({
+          spreadsheetId, requestBody: { ranges: extra.map((r) => range(title, `A${r}:G${r}`)) },
+        });
+      }
+      return { ...existing, value };
     } finally {
       tabCache.invalidate(spreadsheetId, 'sidequestLogs');
     }

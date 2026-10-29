@@ -3,7 +3,7 @@ import { requireSheetContext } from '@/lib/sheetAuth';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import {
   getSidequest, updateSidequest, deleteSidequest,
-  listSidequestLogs, addSidequestLog, deleteSidequestLog,
+  listSidequestLogs, addSidequestLog, deleteSidequestLog, setSidequestDayValue,
 } from '@/lib/sidequests';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +64,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (action === 'log') {
       const body = await req.json();
       const today = new Date().toISOString().slice(0, 10);
+      // The Today check-in sends the day's total with replace: true, so a second save edits the row.
+      if (body.replace === true && body.milestoneIndex == null && body.complete !== true) {
+        const value = parseFloat(String(body.value));
+        if (!Number.isFinite(value)) return apiError('value required', 400);
+        const log = await setSidequestDayValue(ctx.sheetAuth, id, String(body.date || today), value);
+        return NextResponse.json(log);
+      }
       const log = await addSidequestLog(ctx.sheetAuth, {
         sidequestId: id,
         date: String(body.date || today),
