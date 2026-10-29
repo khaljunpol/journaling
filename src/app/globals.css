@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Hover only on a real pointer (not touch): use hover-fine:bg-... */
+@custom-variant hover-fine (@media (hover: hover) and (pointer: fine));
+
 /* Vantage tokens (docs/design/direction.md section 2-3). Dark is the default. */
 :root {
   color-scheme: dark;
@@ -34,6 +37,11 @@
   --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.55);
 
   --ring: rgba(155, 140, 255, 0.4);
+
+  /* Motion easing */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-rise: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* Type scale */
   --text-label: 12px;
@@ -127,25 +135,27 @@ body {
 }
 
 .btn {
-  @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium transition;
+  @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium;
   border-radius: var(--radius-inner);
   background: var(--accent-fill);
   color: var(--on-accent-fill);
 }
-.btn:hover { filter: brightness(0.95); }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { filter: brightness(0.95); }
+  .btn-outline:hover { background: var(--surface-2); }
+}
 .btn:disabled { @apply opacity-60; }
 
 .btn-outline {
-  @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium border transition;
+  @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium border;
   border-radius: var(--radius-inner);
   border-color: var(--border);
   color: var(--text);
   background: var(--surface);
 }
-.btn-outline:hover { background: var(--surface-2); }
 
 .input, select.input-select {
-  @apply border px-3 py-2 text-sm outline-none transition;
+  @apply border px-3 py-2 text-sm outline-none;
   border-radius: var(--radius-inner);
   background: var(--surface);
   color: var(--text);
@@ -182,6 +192,32 @@ a, button, .btn, .btn-outline, .input, select {
 }
 @keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+.modal-backdrop-in { animation: fade-in 200ms var(--ease-out) both; }
+.modal-backdrop-out { animation: fade-out 150ms var(--ease-out) both; }
+.modal-in { animation: modal-in 200ms var(--ease-out) both; }
+.modal-out { animation: modal-out 150ms var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop-in, .modal-in { animation: fade-in 120ms ease-out both; }
+  .modal-backdrop-out, .modal-out { animation: fade-out 120ms ease-out both; }
+}
+
+/* Press: scale .97 while held. Keeps the colour transitions of the global rule below. */
+.press {
+  transition: transform 120ms var(--ease-out), color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.press:active { transform: scale(0.97); }
+.press:disabled:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .press { transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+  .press:active { transform: none; }
+}
+
+/* Bars: full-size rounded element in an overflow-hidden rounded track; value set with transform (translateX(-(100-v)%) keeps the round cap, scaleY for columns). Moves only when the value changes. */
+.bar-y { transform-origin: bottom; transition: transform 240ms var(--ease-out); }
+.bar-x { transform-origin: left; transition: transform 240ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .bar-y, .bar-x { transition: none; }
+}
 
 /* Scroll lock — applied to body when a modal is open */
 .scroll-lock { overflow: hidden !important; }
@@ -226,10 +262,10 @@ a, button, .btn, .btn-outline, .input, select {
 .shell-main-anim { transition: padding-left 200ms ease-out; }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheet-down { from { transform: translateY(0); } to { transform: translateY(100%); } }
-.sheet-in { animation: sheet-up 240ms cubic-bezier(0.32, 0.72, 0, 1) both; }
-.sheet-out { animation: sheet-down 180ms cubic-bezier(0.32, 0.72, 0, 1) both; }
-.backdrop-in { animation: fade-in 200ms ease-out both; }
-.backdrop-out { animation: fade-out 180ms ease-out both; }
+.sheet-in { animation: sheet-up 240ms var(--ease-drawer) both; }
+.sheet-out { animation: sheet-down 180ms var(--ease-drawer) both; }
+.backdrop-in { animation: fade-in 200ms var(--ease-out) both; }
+.backdrop-out { animation: fade-out 180ms var(--ease-out) both; }
 .pop-in { animation: fade-in 120ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-anim, .shell-main-anim, .sidebar-label { transition: none; }
@@ -240,8 +276,8 @@ a, button, .btn, .btn-outline, .input, select {
 /* Sheet panel: bottom sheet on phone, side panel from 1024 px (240ms in / 180ms out) */
 @keyframes sheet-side-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes sheet-side-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
-.sheet-panel-in { animation: sheet-up 240ms cubic-bezier(0.32, 0.72, 0, 1) both; }
-.sheet-panel-out { animation: sheet-down 180ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.sheet-panel-in { animation: sheet-up 240ms var(--ease-drawer) both; }
+.sheet-panel-out { animation: sheet-down 180ms var(--ease-drawer) both; }
 @media (min-width: 1024px) {
   .sheet-panel-in { animation-name: sheet-side-in; }
   .sheet-panel-out { animation-name: sheet-side-out; }
@@ -251,14 +287,14 @@ a, button, .btn, .btn-outline, .input, select {
   .sheet-panel-out { animation: fade-out 120ms ease-out both; }
 }
 
-/* Overview: stagger once per tab (direction.md section 7), ring pop, sync pulse */
+/* Overview: stagger once per tab (direction.md section 7), ring pop, sync pulse. Skip the entrance by leaving ov-in off. */
 @keyframes ov-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes ov-fade { from { opacity: 0; } to { opacity: 1; } }
 .ov-in {
-  animation: ov-rise 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ov-rise 240ms var(--ease-rise) both;
   animation-delay: calc(min(var(--i, 0), 5) * 40ms);
 }
 @keyframes ring-pop {
@@ -266,15 +302,13 @@ a, button, .btn, .btn-outline, .input, select {
   50% { transform: scale(1.06); }
   100% { transform: scale(1); }
 }
+.ring-pop-play { transform-origin: center; transform-box: fill-box; animation: ring-pop 150ms var(--ease-out) 300ms both; }
 .ring-pop { transform-origin: center; transform-box: fill-box; animation: ring-pop 150ms ease-out 300ms; }
 @keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .sync-pulse { animation: sync-pulse 2s ease-in-out infinite; }
 .ring-arc { transition: stroke-dashoffset 300ms ease-out, stroke 300ms ease-out; }
-.feed-in { animation: feed-drop 180ms ease-out both; }
-@keyframes feed-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
   .ov-in { animation: ov-fade 120ms ease-out both; animation-delay: 0s; }
-  .ring-pop, .sync-pulse { animation: none; }
+  .ring-pop, .ring-pop-play, .sync-pulse { animation: none; }
   .ring-arc { transition: none; }
-  .feed-in { animation: ov-fade 120ms ease-out both; }
 }

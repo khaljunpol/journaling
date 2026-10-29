@@ -4,10 +4,11 @@ import { clearCacheByPrefix, getCache, setCache } from '@/lib/cache';
 import { localTodayISO, parseLocalDate, localISO as toLocalISO, weekStartLocal } from '@/lib/date';
 import type { ClimbGoal, ClimbLog } from '@/lib/types';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { vScaleToNumber, FRENCH_GRADES, frenchToIndex, normalizeGrade } from '@/lib/climbing';
 import { goalPace as calcGoalPace, weeklySeries as calcWeeklySeries, type GoalPace } from '@/lib/climbStats';
 import { COLORS } from '@/lib/colors';
+import { useFirstVisit } from '@/components/ui/useFirstVisit';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -27,6 +28,9 @@ import { QUESTION_CLASS, type DetailKind } from '@/components/climbing/overview/
 const GoalOverlay = dynamic(() => import('./GoalOverlay'), { ssr: false });
 
 export default function ClimbingView() {
+  const animate = useFirstVisit('climbing:entered');
+  // Entrance once per tab: index n steps the delay by 40 ms. Never blocks taps.
+  const enter = (i: number, extra = ''): { className: string; style: CSSProperties } => ({ className: `${animate ? 'ov-in ' : ''}${extra}`.trim(), style: { '--i': i } as CSSProperties });
   const today = useMemo(() => localTodayISO(), []);
   const [goals, setGoals] = useState<Array<ClimbGoal>>([]);
   // Every climb, loaded once; the per-year lists below are derived from it.
@@ -490,17 +494,22 @@ export default function ClimbingView() {
         <Button small variant="outline" className="ml-auto" onClick={() => { setStoryDate(null); setStoryStyle('year'); }}>Share</Button>
       </div>
 
-      {!loaded ? (
-        <Card><Skeleton className="h-6 w-2/3" /></Card>
-      ) : (
-        <LastSession logs={allLogs} onShare={(d) => { setStoryDate(d); setStoryStyle('story'); }} />
-      )}
+      <div {...enter(0, 'empty:hidden')}>
+        {!loaded ? (
+          <Card><Skeleton className="h-6 w-2/3" /></Card>
+        ) : (
+          <LastSession logs={allLogs} onShare={(d) => { setStoryDate(d); setStoryStyle('story'); }} />
+        )}
+      </div>
 
-      {loaded ? <StrongerSection logs={shownYearLogs} year={goalsYear} onOpen={openDetail} /> : <Card><Skeleton className="h-28 w-full" /></Card>}
+      <div {...enter(1)}>
+        {loaded ? <StrongerSection logs={shownYearLogs} year={goalsYear} onOpen={openDetail} /> : <Card><Skeleton className="h-28 w-full" /></Card>}
+      </div>
 
       {/* ── Sections 2 and 3, side by side from 1024 px ────── */}
       <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
         {/* ── Am I on track? ─────────────────────────────────── */}
+        <div {...enter(2, 'min-w-0 [&>*]:h-full')}>
         <Card>
           <div className="flex items-center gap-2">
             <h3 className={QUESTION_CLASS} style={{ color: 'var(--text-3)' }}>Am I on track?</h3>
@@ -513,7 +522,7 @@ export default function ClimbingView() {
                 <li key={g.id}>
                   <button
                     type="button"
-                    className="block min-h-11 w-full rounded-[10px] p-3 text-left hover:brightness-110"
+                    className="press block min-h-11 w-full rounded-[10px] p-3 text-left hover-fine:brightness-110"
                     style={{ background: 'var(--surface-2)' }}
                     onClick={() => setSelectedGoal({ id: g.id, year: g.year, type: g.type, grade: g.grade, target: g.target })}
                     aria-label={`${g.grade} ${g.type} goal, ${g.done} of ${g.target}. Open details`}
@@ -528,7 +537,7 @@ export default function ClimbingView() {
                       </span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--surface-3)' }}>
-                      <div className="h-2 rounded-full" style={{ width: `${g.pct}%`, background: g.done >= g.target ? 'var(--reward)' : 'var(--accent)' }} />
+                      <div className="bar-x h-2 w-full rounded-full" style={{ transform: `translateX(-${100 - Math.min(100, Math.max(0, g.pct))}%)`, background: g.done >= g.target ? 'var(--reward)' : 'var(--accent)' }} />
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 text-[13px]" style={{ color: 'var(--text-2)' }}>
                       <span className="num" style={g.done >= g.target ? { color: 'var(--reward-text)' } : undefined}>{g.pct}%</span>
@@ -540,18 +549,21 @@ export default function ClimbingView() {
             </ul>
           ) : null}
         </Card>
+        </div>
 
-        {loaded ? (
-          <EnoughSection allLogs={allLogs} yearLogs={shownYearLogs} year={goalsYear} asOf={asOf} onOpen={openDetail} />
-        ) : (
-          <Card><Skeleton className="h-28 w-full" /></Card>
-        )}
+        <div {...enter(3, 'min-w-0 [&>*]:h-full')}>
+          {loaded ? (
+            <EnoughSection allLogs={allLogs} yearLogs={shownYearLogs} year={goalsYear} asOf={asOf} onOpen={openDetail} />
+          ) : (
+            <Card><Skeleton className="h-28 w-full" /></Card>
+          )}
+        </div>
       </div>
 
       {/* ── Links to the bigger picture ────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className="flex min-h-11 items-center px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => openDetail('compare')}>This year vs last ›</button>
-        <button type="button" className="flex min-h-11 items-center px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => openDetail('gyms')}>Gyms ›</button>
+      <div {...enter(4, 'flex flex-wrap gap-2')}>
+        <button type="button" className="press flex min-h-11 items-center rounded-[10px] px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => openDetail('compare')}>This year vs last ›</button>
+        <button type="button" className="press flex min-h-11 items-center rounded-[10px] px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => openDetail('gyms')}>Gyms ›</button>
       </div>
 
       <StrongerSheet open={detail === 'stronger'} onClose={() => setDetail(null)} allLogs={allLogs} yearLogs={shownYearLogs} year={goalsYear} />

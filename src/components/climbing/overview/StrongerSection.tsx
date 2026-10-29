@@ -16,7 +16,7 @@ export default function StrongerSection({ logs, year, onOpen }: { logs: Log[]; y
     <Card>
       <div className="flex items-center gap-2">
         <h3 className={QUESTION_CLASS} style={{ color: 'var(--text-3)' }}>Am I getting stronger?</h3>
-        <button type="button" className="ml-auto flex min-h-11 items-center px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => onOpen('stronger')}>Details ›</button>
+        <button type="button" className="press ml-auto flex min-h-11 items-center rounded-[10px] px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => onOpen('stronger')}>Details ›</button>
       </div>
       {types.length === 0 ? (
         <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>No graded climbs in {year} yet.</p>

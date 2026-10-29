@@ -78,11 +78,8 @@ export default function Modal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50"
-        style={{
-          backdropFilter: 'blur(2px)',
-          animation: closing ? 'fade-out 150ms ease forwards' : 'fade-in 200ms ease',
-        }}
+        className={`fixed inset-0 z-40 bg-black/50 ${closing ? 'modal-backdrop-out' : 'modal-backdrop-in'}`}
+        style={{ backdropFilter: 'blur(2px)' }}
         onClick={handleClose}
         aria-hidden="true"
       />
@@ -95,12 +92,11 @@ export default function Modal({
         aria-labelledby={title ? 'modal-title' : undefined}
       >
         <div
-          className={`pointer-events-auto w-full ${sizeClass} ${rounding} max-h-[90dvh] overflow-y-auto p-5 ${className}`}
+          className={`pointer-events-auto w-full ${sizeClass} ${rounding} max-h-[90dvh] overflow-y-auto p-5 ${closing ? 'modal-out' : 'modal-in'} ${className}`}
           style={{
             background: 'var(--surface)',
             borderColor: 'var(--border)',
             border: '1px solid var(--border)',
-            animation: closing ? 'modal-out 150ms ease forwards' : 'modal-in 200ms ease',
           }}
           onClick={(e) => e.stopPropagation()}
         >

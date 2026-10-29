@@ -21,7 +21,7 @@ export default function BottomTabs() {
 
   useEffect(() => { setMoreOpen(false); }, [pathname]);
 
-  const tabClass = 'flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium';
+  const tabClass = 'press flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium';
 
   return (
     <>

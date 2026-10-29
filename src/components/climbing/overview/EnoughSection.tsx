@@ -26,7 +26,7 @@ export default function EnoughSection({ allLogs, yearLogs, year, asOf, onOpen }:
     <Card>
       <div className="flex items-center gap-2">
         <h3 className={QUESTION_CLASS} style={{ color: 'var(--text-3)' }}>Am I climbing enough?</h3>
-        <button type="button" className="ml-auto flex min-h-11 items-center px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => onOpen('habits')}>Habits ›</button>
+        <button type="button" className="press ml-auto flex min-h-11 items-center rounded-[10px] px-2 text-[14px] font-medium" style={{ color: 'var(--accent)' }} onClick={() => onOpen('habits')}>Habits ›</button>
       </div>
       <Answer
         parts={[

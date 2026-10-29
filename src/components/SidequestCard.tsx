@@ -53,8 +53,8 @@ function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
           <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: 'var(--accent)' }}
+            className="bar-x h-full w-full rounded-full"
+            style={{ transform: `translateX(-${100 - Math.min(100, Math.max(0, pct))}%)`, background: 'var(--accent)' }}
           />
         </div>
         <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--text-2)' }}>
@@ -71,7 +71,7 @@ function MilestoneCard({ sq, logs, onLog, onToggleComplete }: {
               key={i}
               onClick={() => !done && checkMilestone(i)}
               disabled={done}
-              className="flex items-center gap-1.5 min-h-11 rounded-full px-4 text-xs font-medium transition-all"
+              className="flex items-center gap-1.5 min-h-11 press rounded-full px-4 text-xs font-medium"
               style={done
                 ? { background: 'var(--accent)', color: 'var(--accent-foreground)', opacity: 0.9 }
                 : isNext
@@ -144,7 +144,7 @@ function PBCard({ sq, logs, onLog }: {
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="min-h-11 rounded-full px-4 text-xs font-medium transition-all"
+          className="min-h-11 press rounded-full px-4 text-xs font-medium"
           style={{ background: showForm ? 'var(--accent)' : 'var(--surface-2)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
         >
           + Log
@@ -251,7 +251,7 @@ function TimedCard({ sq, logs, onLog }: {
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="ml-auto min-h-11 rounded-full px-4 text-xs font-medium transition-all"
+          className="ml-auto min-h-11 press rounded-full px-4 text-xs font-medium"
           style={{ background: showForm ? 'var(--accent)' : 'var(--surface-2)', color: showForm ? 'var(--accent-foreground)' : 'var(--text)' }}
         >
           + Log run
@@ -334,8 +334,8 @@ function CountCard({ sq, logs, onLog }: {
           {target > 0 && (
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
               <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--ok)' : 'var(--accent)' }}
+                className="bar-x h-full w-full rounded-full"
+                style={{ transform: `translateX(-${100 - Math.min(100, Math.max(0, pct))}%)`, background: pct >= 100 ? 'var(--ok)' : 'var(--accent)' }}
               />
             </div>
           )}
@@ -343,7 +343,7 @@ function CountCard({ sq, logs, onLog }: {
         <button
           onClick={logOne}
           disabled={saving}
-          className="min-h-11 min-w-11 rounded-full px-4 text-sm font-medium transition-all active:scale-95"
+          className="min-h-11 min-w-11 rounded-full px-4 text-sm font-medium press"
           style={{ background: 'var(--accent)', color: 'var(--accent-foreground)' }}
         >
           {saving ? '…' : '+ 1'}
@@ -372,7 +372,7 @@ function OneoffCard({ sq, onLog, onToggleComplete }: {
       <button
         onClick={toggle}
         disabled={saving}
-        className="h-11 w-11 rounded-full flex items-center justify-center text-lg transition-all active:scale-90 shrink-0"
+        className="h-11 w-11 rounded-full flex items-center justify-center text-lg press shrink-0"
         style={done
           ? { background: 'var(--accent)', color: 'var(--accent-foreground)' }
           : { background: 'var(--surface-2)', border: '2px solid var(--border)', color: 'transparent' }

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import Donut from '@/components/overview/Donut';
-import { timeBalance } from '@/components/overview/derive';
+import { timeBalance } from '@/lib/timeBalance';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import { getCache, setCache } from '@/lib/cache';

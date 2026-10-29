@@ -37,7 +37,7 @@ function DayModal({
     <Modal open onClose={onClose} size="md" mobileSheet className="!p-0 overflow-hidden">
         {summary === 'loading' ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 px-6">
-            <div className="text-3xl animate-pulse">...</div>
+            <div className="text-3xl motion-safe:animate-pulse">...</div>
             <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Loading day summary</div>
           </div>
         ) : (
@@ -116,7 +116,7 @@ function DayModalContent({
             return (
               <div key={cd.dateISO} className="flex flex-col items-center gap-0.5" style={{ width: 28 }}>
                 <div
-                  className="w-3 rounded-full transition-all"
+                  className="w-3 rounded-full"
                   style={{
                     height: h,
                     background: cd.score !== null ? moodColor(cd.score) : 'var(--border)',
