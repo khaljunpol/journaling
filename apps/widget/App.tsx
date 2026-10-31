@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { dark } from '@journaling/design';
 import { connect, refresh, setPicked, snapshot, type Snapshot } from './src/sync';
-import { paintAll, tap } from './src/widgets/handler';
+import { paintAll, tapThenLeave } from './src/widgets/handler';
+import type { Action } from './src/logic/api';
 import { FACES } from './src/widgets/JournalWidgets';
 
 const MAX_PICKED = 6;
@@ -20,16 +21,13 @@ function routeOf(url: string | null | undefined): Route {
 
 function Btn({ label, on, onPress, big }: { label: string; on?: boolean; onPress: () => void; big?: boolean }) {
   return (
-    <Pressable onPress={onPress} style={[styles.btn, big && styles.btnBig, on && styles.btnOn]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.btn, big && styles.btnBig, (on || pressed) && styles.btnOn]}>
       <Text style={[styles.btnText, big && styles.btnTextBig]}>{label}</Text>
     </Pressable>
   );
 }
 
-async function saveAndLeave(action: Parameters<typeof tap>[0]) {
-  await tap(action);
-  BackHandler.exitApp();
-}
+const saveAndLeave = (action: Action) => tapThenLeave(action, () => BackHandler.exitApp());
 
 function Mood({ start }: { start: number | null }) {
   const [face, setFace] = useState(start);

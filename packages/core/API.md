@@ -7,10 +7,11 @@ The one door for devices that are not a browser: the phone widget and the Garmin
 - **`GET {url}/api/device`** → 200 `DeviceState`:
   `{ date: "YYYY-MM-DD", mood: number|null, weight: number|null, hours: number /* filled slots 0–24 */, progress: { filled, total }, habits: [{ id, name, icon: string|null, done }] }`. `date` is today in UTC; the device never sends a date.
 - **`POST {url}/api/device`** with JSON body (`DeviceRequest`), one of:
-  `{ "action": "mood", "score": 0–10 integer }` · `{ "action": "habit", "activityId": "<id>" }` (sets done) · `{ "action": "weight", "weight": 20–400 }` · `{ "action": "hours" }` (optional `"fill": "usual"`).
+  `{ "action": "mood", "score": 0–10 integer }` · `{ "action": "habit", "activityId": "<id>", "done": true|false }` (`done` defaults to true) · `{ "action": "highlight", "text": "≤300 chars" }` (empty clears) · `{ "action": "hours", "entries": [{ "hour": 0–23, "category": <id> }] }` (replaces those hours; an unknown category is 400) · `{ "action": "weight", "weight": 20–400 }` · `{ "action": "hours" }` (optional `"fill": "usual"`).
   → 200 with the new `DeviceState`; the hours action adds `filled: <hours written>` and, when 0, `reason: "no_template" | "all_filled"`.
 - **Errors:** 401 `{ "error": "key" }` → show "Key not valid" (see below). 404 `{ "error": "habit_gone" }` → drop that habit and refresh. 400 `{ "error": "Invalid action" }`. 413 when the declared body is over 2048 bytes (before the key check) or the real body is over 1024 bytes (after it). 5xx, including 503 `{ "error": "Try again" }` → keep the tap in the queue and retry.
 - **401 can be temporary.** It means a wrong, turned-off or unknown key or an owner who is no longer allowed, but also the read cap for unknown sheets, a sheet that could not be read, or a new key on another server instance (for up to 30 s). So on 401 a device keeps the key and any queued taps, shows the message, and retries on the next update.
+- **`GET {url}/api/device?include=hours`** adds `categories: [{ id, name, color }]` and `slots: (category id | null)[24]` for an hours screen. `DeviceState` also has `highlight`.
 - Every action is safe to repeat. After "Turn off" an old key can keep working for up to 30 s (per-instance sheet cache).
 - Replies stay small for watches: the habit list only, no history.
 

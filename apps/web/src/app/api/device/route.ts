@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
-import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth } from '@journaling/sheets/googleSheets';
+import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
-import { deviceState, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState } from '@journaling/core/deviceState';
+import { deviceState, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -47,12 +47,18 @@ async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceStat
   return deviceState(day, payload.ctx);
 }
 
-/** Today's device state. The server decides the date (the app's time zone). */
+/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots. */
 export async function GET(req: Request) {
   try {
     const auth = await authDevice(req);
     if (!auth) return refused();
     const today = appDateISO(new Date());
+    if (new URL(req.url).searchParams.get('include') === 'hours') {
+      const { payload, day } = await load(auth.sheetAuth, today);
+      const categories = (await listTimeCategories(auth.sheetAuth)).map((c) => ({ id: Number(c.id), name: c.name, color: c.color }));
+      const hours: DeviceHours = { categories, slots: day.hours };
+      return NextResponse.json({ ...deviceState(day, payload.ctx), ...hours }, { status: 200, headers: NO_STORE });
+    }
     return NextResponse.json(await stateFor(auth.sheetAuth, today), { status: 200, headers: NO_STORE });
   } catch (error: unknown) {
     return failed(error, 'GET /api/device');
@@ -94,7 +100,18 @@ export async function POST(req: Request) {
         tabCache.invalidate(sheetAuth.spreadsheetId, 'activities');
         const { payload } = await load(sheetAuth, today);
         if (!payload.ctx.activities.some((a) => a.id === action.activityId)) return fail('habit_gone', 404);
-        await upsertLog(sheetAuth, today, action.activityId, true);
+        await upsertLog(sheetAuth, today, action.activityId, action.done);
+        break;
+      }
+      case 'highlight':
+        await setHighlight(sheetAuth, today, action.text);
+        break;
+      case 'hourSet': {
+        const { payload } = await load(sheetAuth, today);
+        const known = new Set(payload.ctx.categoryIds);
+        if (!action.entries.every((e) => known.has(e.category))) return fail('Invalid action', 400);
+        // The person chose these hours, so they replace what is there.
+        await upsertHourLogsBatch(sheetAuth, { date: today, entries: action.entries });
         break;
       }
       case 'hours': {

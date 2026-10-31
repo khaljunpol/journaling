@@ -42,11 +42,10 @@ A push at 17:00 UTC (`vercel.json` cron) when today still has items to fill.
 The phone widget and other devices save through one key-protected door. Make a code in Settings → Devices. See [API.md](packages/core/API.md).
 
 ## Android widget
-Needs Android Studio. Windows' path limit breaks the native build from a deep folder, so build from a short drive:
-1. `subst J: <path to this repo>`
-2. In `J:\apps\widget`: `npx expo prebuild --platform android --no-install`
-3. In `android`, with `ANDROID_HOME` and `JAVA_HOME` set: `gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a`
-4. `adb install -r app\build\outputs\apk\release\app-release.apk`
+Needs Android Studio, with `ANDROID_HOME` and `JAVA_HOME` set. On Windows the C++ step hits the 260-character path limit in a deep folder, so also set `WIDGET_CXX_DIR` to a short folder such as `C:/jwcxx`.
+1. In `apps/widget`: `npx expo prebuild --platform android --no-install`
+2. In `apps/widget/android`: `gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a`
+3. `adb install -r app/build/outputs/apk/release/app-release.apk`
 
 ## Deploy to Vercel
 - Add the same env vars in the Vercel project settings (plus the reminder ones if you use it).

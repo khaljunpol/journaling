@@ -5,7 +5,7 @@ import { parseDeviceAction } from '../src/deviceState.ts';
 test('parseDeviceAction accepts the 4 shapes', () => {
   assert.deepEqual(parseDeviceAction({ action: 'mood', score: 0 }), { kind: 'mood', score: 0 });
   assert.deepEqual(parseDeviceAction({ action: 'mood', score: 10 }), { kind: 'mood', score: 10 });
-  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'abc' }), { kind: 'habit', activityId: 'abc' });
+  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'abc' }), { kind: 'habit', activityId: 'abc', done: true });
   assert.deepEqual(parseDeviceAction({ action: 'weight', weight: 72.4 }), { kind: 'weight', weight: 72.4 });
   assert.deepEqual(parseDeviceAction({ action: 'weight', weight: 20 }), { kind: 'weight', weight: 20 });
   assert.deepEqual(parseDeviceAction({ action: 'weight', weight: 400 }), { kind: 'weight', weight: 400 });
@@ -33,7 +33,7 @@ test('parseDeviceAction rejects bad habit ids', () => {
   assert.equal(parseDeviceAction({ action: 'habit', activityId: '   ' }), null);
   assert.equal(parseDeviceAction({ action: 'habit', activityId: 5 }), null);
   assert.equal(parseDeviceAction({ action: 'habit', activityId: 'x'.repeat(101) }), null);
-  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'x'.repeat(100) }), { kind: 'habit', activityId: 'x'.repeat(100) });
+  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'x'.repeat(100) }), { kind: 'habit', activityId: 'x'.repeat(100), done: true });
 });
 
 test('parseDeviceAction rejects junk', () => {
@@ -67,4 +67,26 @@ test('pickEmptyEntries treats whitespace and missing cells as empty', () => {
     { hour: 0, category: 1 },
     { hour: 5, category: 1 },
   ]);
+});
+
+test('parseDeviceAction: habit done defaults to true and can be false', () => {
+  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'a' }), { kind: 'habit', activityId: 'a', done: true });
+  assert.deepEqual(parseDeviceAction({ action: 'habit', activityId: 'a', done: false }), { kind: 'habit', activityId: 'a', done: false });
+  assert.equal(parseDeviceAction({ action: 'habit', activityId: 'a', done: 'no' }), null);
+});
+
+test('parseDeviceAction: hour entries', () => {
+  assert.deepEqual(parseDeviceAction({ action: 'hours', entries: [{ hour: 9, category: 1 }] }), { kind: 'hourSet', entries: [{ hour: 9, category: 1 }] });
+  assert.equal(parseDeviceAction({ action: 'hours', entries: [] }), null);
+  assert.equal(parseDeviceAction({ action: 'hours', entries: [{ hour: 24, category: 1 }] }), null);
+  assert.equal(parseDeviceAction({ action: 'hours', entries: [{ hour: 1, category: 1 }, { hour: 1, category: 2 }] }), null);
+  assert.equal(parseDeviceAction({ action: 'hours', entries: [{ hour: 1 }] }), null);
+  assert.deepEqual(parseDeviceAction({ action: 'hours' }), { kind: 'hours' });
+});
+
+test('parseDeviceAction: highlight is trimmed, may clear, and has a limit', () => {
+  assert.deepEqual(parseDeviceAction({ action: 'highlight', text: ' Good day ' }), { kind: 'highlight', text: 'Good day' });
+  assert.deepEqual(parseDeviceAction({ action: 'highlight', text: '' }), { kind: 'highlight', text: '' });
+  assert.equal(parseDeviceAction({ action: 'highlight', text: 'x'.repeat(301) }), null);
+  assert.equal(parseDeviceAction({ action: 'highlight' }), null);
 });

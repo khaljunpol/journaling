@@ -8,8 +8,15 @@ export type DeviceState = {
   mood: number | null;
   weight: number | null;
   hours: number;
+  highlight: string;
   progress: { filled: number; total: number };
   habits: DeviceHabit[];
+};
+
+/** Only with GET /api/device?include=hours, so everyday replies stay small for watches. */
+export type DeviceHours = {
+  categories: Array<{ id: number; name: string; color: string }>;
+  slots: Array<number | null>;
 };
 
 export function deviceState(day: DayData, ctx: Ctx): DeviceState {
@@ -21,6 +28,7 @@ export function deviceState(day: DayData, ctx: Ctx): DeviceState {
     mood: day.mood,
     weight: day.weight,
     hours: day.hours.filter((h) => h !== null).length,
+    highlight: day.highlight,
     progress: { filled, total },
     habits: ctx.activities.map((a) => ({
       id: a.id,
@@ -60,17 +68,23 @@ export function hoursFillReason(
 }
 
 /** The POST body a device sends. parseDeviceAction turns it into a DeviceAction. */
+const HIGHLIGHT_MAX = 300;
+
 export type DeviceRequest =
   | { action: 'mood'; score: number }
-  | { action: 'habit'; activityId: string }
+  | { action: 'habit'; activityId: string; done?: boolean }
   | { action: 'weight'; weight: number }
-  | { action: 'hours'; fill?: 'usual' };
+  | { action: 'hours'; fill?: 'usual' }
+  | { action: 'hours'; entries: Array<{ hour: number; category: number }> }
+  | { action: 'highlight'; text: string };
 
 export type DeviceAction =
   | { kind: 'mood'; score: number }
-  | { kind: 'habit'; activityId: string }
+  | { kind: 'habit'; activityId: string; done: boolean }
   | { kind: 'weight'; weight: number }
-  | { kind: 'hours' };
+  | { kind: 'hours' }
+  | { kind: 'hourSet'; entries: Array<{ hour: number; category: number }> }
+  | { kind: 'highlight'; text: string };
 
 /** Body of POST /api/device: { action: 'mood' | 'habit' | 'weight' | 'hours', ...fields }. Null for anything else. */
 export function parseDeviceAction(body: unknown): DeviceAction | null {
@@ -83,15 +97,26 @@ export function parseDeviceAction(body: unknown): DeviceAction | null {
     }
     case 'habit': {
       const id = b.activityId;
-      return typeof id === 'string' && id.trim() !== '' && id.length <= 100 ? { kind: 'habit', activityId: id } : null;
+      if (b.done !== undefined && typeof b.done !== 'boolean') return null;
+      return typeof id === 'string' && id.trim() !== '' && id.length <= 100 ? { kind: 'habit', activityId: id, done: b.done !== false } : null;
     }
     case 'weight': {
       const w = b.weight;
       return typeof w === 'number' && Number.isFinite(w) && w >= 20 && w <= 400 ? { kind: 'weight', weight: w } : null;
     }
-    case 'hours':
-      // The only fill there is: the usual template, empty slots only.
+    case 'hours': {
+      if (b.entries !== undefined) {
+        const e = b.entries;
+        if (!Array.isArray(e) || e.length === 0 || e.length > 24) return null;
+        const ok = e.every((x) => x && Number.isInteger(x.hour) && x.hour >= 0 && x.hour < 24 && Number.isInteger(x.category));
+        if (!ok || new Set(e.map((x) => x.hour)).size !== e.length) return null;
+        return { kind: 'hourSet', entries: e.map((x) => ({ hour: x.hour, category: x.category })) };
+      }
+      // Without entries: the usual template, empty slots only.
       return b.fill === undefined || b.fill === 'usual' ? { kind: 'hours' } : null;
+    }
+    case 'highlight':
+      return typeof b.text === 'string' && b.text.length <= HIGHLIGHT_MAX ? { kind: 'highlight', text: b.text.trim() } : null;
     default:
       return null;
   }

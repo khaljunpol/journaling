@@ -26,6 +26,12 @@ export async function snapshot(): Promise<Snapshot> {
   }
 }
 
+/** The phone's date, YYYY-MM-DD. Only used to skip a trip; the server still decides the real day. */
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const save = (s: Snapshot) => AsyncStorage.setItem(KEY, JSON.stringify(s));
 
 let chain: Promise<unknown> = Promise.resolve();
@@ -38,16 +44,19 @@ function oneAtATime<T>(job: () => Promise<T>): Promise<T> {
 /** Fresh day from the server, then every waiting tap in order. A 401 can pass, so the key and taps stay. */
 async function flush(s: Snapshot): Promise<Snapshot> {
   if (!s.conn) return s;
-  const first = await getState(s.conn);
-  if (first.kind === 'key') return { ...s, keyBad: true };
-  if (first.kind !== 'ok') return s;
-  let next: Snapshot = { ...s, keyBad: false, state: first.state, queue: sendable(s.queue, first.state.date) };
+  let next: Snapshot = s;
+  if (!s.queue.length || s.state?.date !== localDay()) {
+    const first = await getState(s.conn);
+    if (first.kind === 'key') return { ...s, keyBad: true };
+    if (first.kind !== 'ok') return s;
+    next = { ...s, keyBad: false, state: first.state, queue: sendable(s.queue, first.state.date) };
+  }
 
   for (const item of next.queue) {
     const r = await postAction(s.conn, item.action);
     if (r.kind === 'retry') break;
     if (r.kind === 'key') return { ...next, keyBad: true };
-    next = { ...next, queue: remove(next.queue, item.id) };
+    next = { ...next, keyBad: false, queue: remove(next.queue, item.id) };
     if (r.kind === 'ok') {
       next = { ...next, state: r.state };
       if (item.action.action === 'hours') next = { ...next, noUsualHours: r.reason === 'no_template' };
