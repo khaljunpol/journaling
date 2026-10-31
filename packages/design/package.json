@@ -1,0 +1,14 @@
+{
+  "name": "@journaling/design",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/tokens.ts",
+    "./tokens.css": "./tokens.css"
+  },
+  "scripts": {
+    "css": "node --experimental-strip-types src/write-css.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  }
+}

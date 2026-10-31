@@ -19,7 +19,8 @@
     "react-dom": "^19.2.3",
     "react-is": "^19.2.4",
     "recharts": "^3.5.1",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@journaling/design": "*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
