@@ -2,29 +2,35 @@
 
 Log your day in a few taps: mood, habits, weight, hours, a highlight, climbing and side quests. See how it adds up over time. Data is stored in Google Sheets; deploy to Vercel.
 
-## Tech
-- Next.js 16 (App Router, Turbopack)
-- React 19
-- Tailwind CSS v4 via `@tailwindcss/postcss`
-- Recharts for charts
-- Google Sheets via `googleapis`
+## Layout
+An npm workspaces monorepo.
+
+| Folder | What it is |
+|---|---|
+| `apps/web` | The Journal app: Next.js 16, React 19, Tailwind 4, Recharts |
+| `apps/widget` | Android home-screen widget: Expo + react-native-android-widget |
+| `packages/core` | Pure logic shared by the apps, and the device API contract ([API.md](packages/core/API.md)) |
+| `packages/sheets` | Google Sheets layer: client, tab cache, locks, reads and writes |
+| `packages/design` | Design tokens: colours, radii, easing. Generates the web app's CSS variables |
+
+Run `npm run dev`, `npm test`, `npm run lint` and `npm run build` from the repo root.
 
 ## Setup
 1. Google Cloud: create a service account with the Google Sheets API on, and make a JSON key.
 2. Google Cloud: create an OAuth client (web) for sign-in. Redirect URI: `http://localhost:3000/api/auth/callback/google` (and your Vercel URL).
-3. Copy `.env.example` to `.env.local` and fill in:
+3. In `apps/web`, copy `.env.example` to `.env.local` and fill in:
    - `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL`: the service account's email (the second is shown on the setup page)
    - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`: the key's `private_key` (use `\n` for newlines)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: the OAuth client
    - `AUTH_SECRET`: any long random string (sign-in cookies)
    - `ALLOWED_EMAILS`: who may sign in, comma separated. Empty means nobody.
-4. `npm install`, then `npm run dev` and open http://localhost:3000
+4. From the repo root: `npm install`, then `npm run dev`, and open http://localhost:3000
 5. Sign in, make an empty Google Sheet, share it with the service account email as Editor, and paste its link on the setup page. The app creates every tab it needs.
 
 ## Evening reminder (optional)
 A push at 17:00 UTC (`vercel.json` cron) when today still has items to fill.
 1. Make a key pair: `npx web-push generate-vapid-keys`
-2. Add to `.env.local` and to Vercel:
+2. Add to `apps/web/.env.local` and to Vercel:
    - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`: the public key
    - `VAPID_PRIVATE_KEY`: the private key (never share it)
    - `VAPID_SUBJECT`: `mailto:` plus your email
@@ -32,19 +38,19 @@ A push at 17:00 UTC (`vercel.json` cron) when today still has items to fill.
    - `REMINDER_SHEET_IDS`: the sheet ids to remind, comma separated
 3. Restart `npm run dev`, then Settings → Reminder → turn it on.
 
-## API
-- `GET /api/activities` — list activities
-- `POST /api/activities` — create `{ name }`
-- `PATCH /api/activities/:id` — update `{ name }`
-- `DELETE /api/activities/:id` — delete
-- `GET /api/logs?date=YYYY-MM-DD` — list logs for date
-- `POST /api/logs` — upsert `{ date, activityId, completed }`
-- `POST /api/highlights` — upsert `{ date, text }`
-- `GET /api/metrics` — weekly completion rate
+## Devices
+The phone widget and other devices save through one key-protected door. Make a code in Settings → Devices. See [API.md](packages/core/API.md).
+
+## Android widget
+Needs Android Studio. Windows' path limit breaks the native build from a deep folder, so build from a short drive:
+1. `subst J: <path to this repo>`
+2. In `J:\apps\widget`: `npx expo prebuild --platform android --no-install`
+3. In `android`, with `ANDROID_HOME` and `JAVA_HOME` set: `gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a`
+4. `adb install -r app\build\outputs\apk\release\app-release.apk`
 
 ## Deploy to Vercel
 - Add the same env vars in the Vercel project settings (plus the reminder ones if you use it).
-- Set the framework to Next.js; default build command is fine.
+- Set Root Directory to `apps/web`, framework Next.js. Default build command is fine.
 
 ## Notes
 - This design avoids 365+ columns by storing events row-wise.
