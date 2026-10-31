@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source not "../../widget";
 
 /* Hover only on a real pointer (not touch): use hover-fine:bg-... */
 @custom-variant hover-fine (@media (hover: hover) and (pointer: fine));
