@@ -59,7 +59,9 @@ export async function getHours(conn: Conn): Promise<DeviceHours | null> {
   try {
     const res = await fetch(`${conn.url}/api/device?include=hours`, { headers: { Authorization: `Bearer ${conn.key}` } });
     if (!res.ok) return null;
-    const v = (await res.json()) as DeviceHours;
+    const v = (await res.json()) as Partial<DeviceHours>;
+    // An older server answers without these: treat it as "can't read now" instead of crashing the window.
+    if (!Array.isArray(v.categories) || !Array.isArray(v.slots)) return null;
     return { categories: v.categories, slots: v.slots };
   } catch {
     return null;
