@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 import { inkOn } from '@journaling/core/contrast';
 
 const COLS = 6;

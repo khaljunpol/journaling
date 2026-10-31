@@ -7,7 +7,7 @@ import {
   type PromptPeriod,
 } from '@/lib/promptBuilder';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { listHourLogs, listTimeCategories } from '@/lib/googleSheets';
+import { listHourLogs, listTimeCategories } from '@journaling/sheets/googleSheets';
 
 function parsePeriod(value: string | null): PromptPeriod {
   return value === 'month' ? 'month' : 'week';

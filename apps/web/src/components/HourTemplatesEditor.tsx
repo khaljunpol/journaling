@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import SlotPainter from '@/components/quick/SlotPainter';
 import { applyTemplate } from '@journaling/core/quickDay';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';

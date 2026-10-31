@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { localISO as toLocalISO, parseLocalDate, weekStartLocal } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
 import { goalPace as calcGoalPace, weeklySeries as calcWeeklySeries } from '@journaling/core/climbStats';
-import type { ClimbLog } from '@/lib/types';
+import type { ClimbLog } from '@journaling/core/types';
 
 export type SelectedGoal = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };
 

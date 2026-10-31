@@ -1,13 +1,13 @@
 import { google } from 'googleapis';
-import type { ClimbLog, ClimbGoal, HourLog, TimeCategory } from '@/lib/types';
+import type { ClimbLog, ClimbGoal, HourLog, TimeCategory } from '@journaling/core/types';
 import { parseGroup, type StoredGroup } from '@journaling/core/timeBalance';
-import { range, TABS } from '@/lib/sheetLayout';
+import { range, TABS } from './sheetLayout.ts';
 import { localISO } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
-import { withLock } from '@/lib/keyedLock';
+import { withLock } from './keyedLock.ts';
 import { pickEmptyEntries } from '@journaling/core/widgetState';
-import type { TabsClient } from '@/lib/sheetTabs';
-import { createTabCache, type RangeReader } from '@/lib/sheetCache';
+import type { TabsClient } from './sheetTabs.ts';
+import { createTabCache, type RangeReader } from './sheetCache.ts';
 
 /** Row id for new rows. Random, so two saves in the same millisecond can't share one. */
 export function newId(): string {
@@ -23,10 +23,21 @@ export type SheetAuth = {
 // the JWT client (and its internally-managed access token) is reused across requests.
 const globalAuthKey = '__sheetsServiceClient';
 
-function getPrivateKey(): string {
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
-  // Vercel/env files store the PEM with literal "\n" sequences; restore real newlines.
-  return key.replace(/\\n/g, '\n');
+type Credentials = { email: string; privateKey: string };
+let credentials: Credentials | null = null;
+
+/** Set the service account in code. Without it, the GOOGLE_SERVICE_ACCOUNT_* env variables are used. */
+export function configureSheets(c: Credentials): void {
+  credentials = c;
+}
+
+function currentCredentials(): Credentials {
+  if (credentials) return credentials;
+  return {
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
+    // Vercel/env files store the PEM with literal backslash-n sequences; restore real newlines.
+    privateKey: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  };
 }
 
 export function getServiceSheets() {
@@ -34,9 +45,10 @@ export function getServiceSheets() {
     [globalAuthKey]?: ReturnType<typeof google.sheets>;
   };
   if (!g[globalAuthKey]) {
+    const { email, privateKey } = currentCredentials();
     const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: getPrivateKey(),
+      email,
+      key: privateKey,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
     g[globalAuthKey] = google.sheets({ version: 'v4', auth });
@@ -845,7 +857,7 @@ export async function upsertHourLogsBatch(
 
 // ── Time Categories ──────────────────────────────────────────
 
-export type { TimeCategory } from '@/lib/types';
+export type { TimeCategory } from '@journaling/core/types';
 
 export async function listTimeCategories(sa: SheetAuth) {
   const { spreadsheetId } = sa;

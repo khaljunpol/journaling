@@ -4,7 +4,7 @@ import Sheet from '@/components/ui/Sheet';
 import Button from '@/components/ui/Button';
 import type { ItemKey } from '@journaling/core/quickDay';
 import type { QuickPayload } from '@journaling/core/quickPayload';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 import MoodEditor from './editors/MoodEditor';
 import HabitsEditor from './editors/HabitsEditor';
 import WeightEditor from './editors/WeightEditor';

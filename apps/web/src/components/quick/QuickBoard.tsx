@@ -12,7 +12,7 @@ import type { QuickPayload } from '@journaling/core/quickPayload';
 import { getLastEmail, loadOutbox, loadSnapshot, loadWelcomeHidden, saveSnapshot, saveWelcomeHidden, setLastEmail } from '@/lib/quickStore';
 import { showWelcome, welcomeSteps } from '@/lib/quickWelcome';
 import { localISO, localTodayISO, parseLocalDate, weekStartLocal } from '@journaling/core/date';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 import { useOutbox } from './useOutbox';
 import { useWeek } from './useWeek';
 import { useCatchUp } from './useCatchUp';

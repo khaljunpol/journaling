@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { authWidget } from '@/lib/server/widgetAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
-import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth } from '@/lib/googleSheets';
+import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
 import { widgetState, usualHoursFill, hoursFillReason, parseWidgetAction, type WidgetState } from '@journaling/core/widgetState';
 

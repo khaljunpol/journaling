@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
-import { listSidequests, createSidequest, listSidequestLogs } from '@/lib/sidequests';
-import type { SidequestType } from '@/lib/types';
+import { listSidequests, createSidequest, listSidequestLogs } from '@journaling/sheets/sidequests';
+import type { SidequestType } from '@journaling/core/types';
 
 export async function GET(req: Request) {
   try {

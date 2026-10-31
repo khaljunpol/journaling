@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import type { Activity } from '@/lib/types';
+import type { Activity } from '@journaling/core/types';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';

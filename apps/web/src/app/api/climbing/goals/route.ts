@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listClimbGoals, upsertClimbGoal, deleteClimbGoal } from '@/lib/googleSheets';
+import { listClimbGoals, upsertClimbGoal, deleteClimbGoal } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

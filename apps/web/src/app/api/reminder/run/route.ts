@@ -3,7 +3,7 @@ import webpush from 'web-push';
 import { apiError } from '@/lib/apiHelpers';
 import { apiErrorBody } from '@/lib/server/apiError';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
-import { setSetting } from '@/lib/googleSheets';
+import { setSetting } from '@journaling/sheets/googleSheets';
 import { dayStatus } from '@journaling/core/quickDay';
 import { checkCronAuth, shouldRemind, appDateISO } from '@/lib/reminder';
 

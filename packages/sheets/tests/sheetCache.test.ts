@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createTabCache, type RangeReader } from '../src/lib/sheetCache.ts';
-import { dataRange } from '../src/lib/sheetLayout.ts';
+import { createTabCache, type RangeReader } from '../src/sheetCache.ts';
+import { dataRange } from '../src/sheetLayout.ts';
 
 function setup(opts: { fail?: boolean; gate?: boolean } = {}) {
   const calls: { id: string; ranges: string[] }[] = [];

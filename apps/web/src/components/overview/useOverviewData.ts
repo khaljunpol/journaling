@@ -11,7 +11,7 @@ import { applyQueue } from '@journaling/core/quickApply';
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { getLastEmail, loadOutbox, loadSnapshot } from '@/lib/quickStore';
-import type { MoodItem } from '@/lib/types';
+import type { MoodItem } from '@journaling/core/types';
 import { deriveOverview, type DashboardData } from './derive';
 
 /** GET a JSON array (or object) and keep it; any failure keeps the cached copy. */

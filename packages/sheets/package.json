@@ -1,0 +1,16 @@
+{
+  "name": "@journaling/sheets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@journaling/core": "*",
+    "googleapis": "^188.0.0"
+  }
+}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteActivity, updateActivity } from '@/lib/googleSheets';
+import { deleteActivity, updateActivity } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

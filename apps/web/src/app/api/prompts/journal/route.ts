@@ -13,7 +13,7 @@ import {
   getMoodsBetween,
   getWeightsBetween,
   listActivities,
-} from '@/lib/googleSheets';
+} from '@journaling/sheets/googleSheets';
 
 function parsePeriod(value: string | null): PromptPeriod {
   return value === 'month' ? 'month' : 'week';

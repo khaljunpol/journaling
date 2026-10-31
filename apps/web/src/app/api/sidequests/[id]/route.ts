@@ -4,7 +4,7 @@ import { apiError, apiFailure } from '@/lib/apiHelpers';
 import {
   getSidequest, updateSidequest, deleteSidequest,
   listSidequestLogs, addSidequestLog, deleteSidequestLog, setSidequestDayValue,
-} from '@/lib/sidequests';
+} from '@journaling/sheets/sidequests';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

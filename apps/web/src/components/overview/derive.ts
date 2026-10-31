@@ -28,7 +28,7 @@ import {
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { parseLocalDate } from '@journaling/core/date';
-import type { Activity, MoodItem, Sidequest } from '@/lib/types';
+import type { Activity, MoodItem, Sidequest } from '@journaling/core/types';
 import type { HabitRow } from './TrendTable';
 
 export type DashboardData = {

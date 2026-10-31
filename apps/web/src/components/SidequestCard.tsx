@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Chip from '@/components/ui/Chip';
-import type { Sidequest, SidequestLog } from '@/lib/types';
+import type { Sidequest, SidequestLog } from '@journaling/core/types';
 
 // ── Helpers ───────────────────────────────────────────────────
 

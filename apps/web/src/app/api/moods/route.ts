@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMood, setMood, getMoodsBetween } from '@/lib/googleSheets';
+import { getMood, setMood, getMoodsBetween } from '@journaling/sheets/googleSheets';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

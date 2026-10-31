@@ -4,8 +4,8 @@ import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { getSessionUserKey } from '@/lib/server/sheetContext';
 import { writeSheetConnection } from '@/lib/server/sheetConnection';
 import { parseSpreadsheetId } from '@/lib/setup';
-import { getServiceSheets, serviceTabsClient } from '@/lib/googleSheets';
-import { ensureCoreTabs } from '@/lib/sheetTabs';
+import { getServiceSheets, serviceTabsClient } from '@journaling/sheets/googleSheets';
+import { ensureCoreTabs } from '@journaling/sheets/sheetTabs';
 import { claimOrCheckOwner, ownedByAnother } from '@/lib/server/sheetOwner';
 
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';

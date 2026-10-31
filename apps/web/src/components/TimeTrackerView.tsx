@@ -11,7 +11,7 @@ import { getCache, setCache } from '@/lib/cache';
 import { AXIS_TICK, CHART_SERIES, TOOLTIP_STYLE } from '@/lib/chartTheme';
 import { localISO, localTodayISO, pad } from '@journaling/core/date';
 import { timeSplit } from '@journaling/core/overview';
-import type { TimeCategory, TimeEntry } from '@/lib/types';
+import type { TimeCategory, TimeEntry } from '@journaling/core/types';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 

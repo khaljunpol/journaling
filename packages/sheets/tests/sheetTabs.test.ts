@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ensureCoreTabs, ensureCoreTabsOnce, type TabsClient } from '../src/lib/sheetTabs.ts';
-import { HEADERS, TABS } from '../src/lib/sheetLayout.ts';
+import { ensureCoreTabs, ensureCoreTabsOnce, type TabsClient } from '../src/sheetTabs.ts';
+import { HEADERS, TABS } from '../src/sheetLayout.ts';
 
 type HeaderEntry = { title: string; header: string[] };
 

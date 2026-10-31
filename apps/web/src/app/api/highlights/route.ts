@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { setHighlight, getHighlight, getHighlightsBetween } from '@/lib/googleSheets';
+import { setHighlight, getHighlight, getHighlightsBetween } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

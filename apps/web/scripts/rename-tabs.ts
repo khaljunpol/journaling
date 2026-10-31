@@ -2,8 +2,8 @@
 // Never deletes or clears anything. Renames only with --apply.
 // Run: node --env-file=.env.local --experimental-strip-types scripts/rename-tabs.ts <spreadsheetId> [--account <name>] [--apply]
 import { google } from 'googleapis';
-import { findAccountSets, planTabRename } from '../src/lib/tabRename.ts';
-import { range } from '../src/lib/sheetLayout.ts';
+import { findAccountSets, planTabRename } from '@journaling/sheets/tabRename';
+import { range } from '@journaling/sheets/sheetLayout';
 
 const USAGE = 'Usage: node --env-file=.env.local --experimental-strip-types scripts/rename-tabs.ts <spreadsheetId> [--account <name>] [--apply]';
 

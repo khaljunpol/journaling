@@ -3,7 +3,7 @@ import { LEGACY_REDIRECTS } from './src/lib/routes';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@journaling/core'],
+  transpilePackages: ['@journaling/core', '@journaling/sheets'],
   // Basic hardening for every page and API route. No CSP yet: the inline theme script would need a nonce first.
   async headers() {
     return [{

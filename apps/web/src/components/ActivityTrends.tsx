@@ -8,7 +8,7 @@ import { getCache, setCache } from '@/lib/cache';
 import { localTodayISO, parseLocalDate } from '@journaling/core/date';
 import { habitGrid, lastDates } from '@journaling/core/overview';
 import { addDaysISO } from '@journaling/core/quickWeek';
-import type { Activity, Log } from '@/lib/types';
+import type { Activity, Log } from '@journaling/core/types';
 
 const CELL = 12;
 const GAP = 2;

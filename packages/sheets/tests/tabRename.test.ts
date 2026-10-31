@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findAccountSets, planTabRename } from '../src/lib/tabRename.ts';
+import { findAccountSets, planTabRename } from '../src/tabRename.ts';
 
 test('findAccountSets groups tabs by account and ignores other tabs', () => {
   const sets = findAccountSets(['Logs_Alex', 'Activities_Alex', 'Logs_default', 'Notes']);
@@ -30,7 +30,7 @@ test('account with no tabs gives an empty plan', () => {
 });
 
 test('BASES matches TABS', async () => {
-  const { BASES } = await import('../src/lib/tabRename.ts');
-  const { TABS } = await import('../src/lib/sheetLayout.ts');
+  const { BASES } = await import('../src/tabRename.ts');
+  const { TABS } = await import('../src/sheetLayout.ts');
   assert.deepEqual([...BASES].sort(), Object.values(TABS).sort());
 });

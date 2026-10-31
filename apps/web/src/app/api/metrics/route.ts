@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getConsistencyMetrics } from '@/lib/googleSheets';
+import { getConsistencyMetrics } from '@journaling/sheets/googleSheets';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

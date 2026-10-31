@@ -1,7 +1,7 @@
 "use client";
 
 import { localTodayISO } from '@journaling/core/date';
-import type { ClimbLog } from '@/lib/types';
+import type { ClimbLog } from '@journaling/core/types';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { goalPace as calcGoalPace } from '@journaling/core/climbStats';

@@ -18,8 +18,8 @@ function exportedFunctions(file: string): Map<string, string> {
 }
 
 const fns = new Map([
-  ...exportedFunctions('src/lib/googleSheets.ts'),
-  ...exportedFunctions('src/lib/sidequests.ts'),
+  ...exportedFunctions('../../packages/sheets/src/googleSheets.ts'),
+  ...exportedFunctions('../../packages/sheets/src/sidequests.ts'),
 ]);
 
 const READS = [

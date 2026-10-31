@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { getCache, setCache } from '@/lib/cache';
 import { localISO, localTodayISO, parseLocalDate } from '@journaling/core/date';
-import type { WeightPoint } from '@/lib/types';
+import type { WeightPoint } from '@journaling/core/types';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listClimbLogs, addClimbLog, updateClimbLog, deleteClimbLog } from '@/lib/googleSheets';
+import { listClimbLogs, addClimbLog, updateClimbLog, deleteClimbLog } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { parseClimbLogBody } from '@/lib/climbLogInput';
 import { requireSheetContext } from '@/lib/sheetAuth';

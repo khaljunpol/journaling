@@ -8,7 +8,7 @@ import { dayStatus } from '@journaling/core/quickDay';
 import type { CatchUpStep } from '@journaling/core/quickWeek';
 import { SLIDE_MS, canAdvance, cardsLeft, dotState, nextStep } from '@journaling/core/cardStack';
 import type { QuickPayload } from '@journaling/core/quickPayload';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 import { TITLES } from './ItemSheet';
 import MoodEditor from './editors/MoodEditor';
 import HabitsEditor from './editors/HabitsEditor';

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { setSetting } from '@/lib/googleSheets';
+import { setSetting } from '@journaling/sheets/googleSheets';
 import { isPushEndpoint } from '@/lib/reminder';
 
 export const dynamic = 'force-dynamic';

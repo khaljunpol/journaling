@@ -4,7 +4,7 @@ import { localISO as toLocalISO, parseLocalDate, weekStartLocal } from '@journal
 import { vScaleToNumber, FRENCH_GRADES, frenchToIndex } from '@journaling/core/climbing';
 import { weeklySeries as calcWeeklySeries } from '@journaling/core/climbStats';
 import { COLORS } from '@/lib/colors';
-import type { ClimbLog } from '@/lib/types';
+import type { ClimbLog } from '@journaling/core/types';
 
 export type OverlayGoal = { grade: string; type: string; done: number; target: number; pct: number };
 

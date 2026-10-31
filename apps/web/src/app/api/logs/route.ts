@@ -1,4 +1,4 @@
-import { upsertLog, getLogsBetween, getLogsForDate } from '@/lib/googleSheets';
+import { upsertLog, getLogsBetween, getLogsForDate } from '@journaling/sheets/googleSheets';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';

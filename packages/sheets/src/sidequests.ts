@@ -1,9 +1,9 @@
-import { getServiceSheets, newId, tabCache } from '@/lib/googleSheets';
-import type { SheetAuth } from '@/lib/googleSheets';
-import { range, TABS } from '@/lib/sheetLayout';
-import { withLock } from '@/lib/keyedLock';
+import { getServiceSheets, newId, tabCache } from './googleSheets.ts';
+import type { SheetAuth } from './googleSheets.ts';
+import { range, TABS } from './sheetLayout.ts';
+import { withLock } from './keyedLock.ts';
 import { dayValueRows } from '@journaling/core/sidequestDay';
-import type { Sidequest, SidequestLog, SidequestMilestone, SidequestType } from '@/lib/types';
+import type { Sidequest, SidequestLog, SidequestMilestone, SidequestType } from '@journaling/core/types';
 
 // ── Sidequests CRUD ──────────────────────────────────────────
 // Tab names come from lib/sheetLayout.ts; the tabs are created by ensureCoreTabs.

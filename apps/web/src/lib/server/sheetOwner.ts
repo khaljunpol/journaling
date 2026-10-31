@@ -1,4 +1,4 @@
-import { getSettings, setSetting } from '@/lib/googleSheets';
+import { getSettings, setSetting } from '@journaling/sheets/googleSheets';
 import { ownerCheck } from './sheetContextCore.ts';
 
 const OWNER_KEY = 'ownerEmail';

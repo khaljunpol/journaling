@@ -1,7 +1,7 @@
 import { apiError } from '@/lib/apiHelpers';
 import { getSheetContext } from '@/lib/server/sheetContext';
-import { serviceTabsClient, type SheetAuth } from '@/lib/googleSheets';
-import { ensureCoreTabsOnce } from '@/lib/sheetTabs';
+import { serviceTabsClient, type SheetAuth } from '@journaling/sheets/googleSheets';
+import { ensureCoreTabsOnce } from '@journaling/sheets/sheetTabs';
 import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
 
 export type { SheetAuth };

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@/lib/googleSheets';
+import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@journaling/sheets/googleSheets';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { parseTimeEntry } from '@/lib/time';

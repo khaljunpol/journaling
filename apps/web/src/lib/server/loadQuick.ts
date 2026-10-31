@@ -10,8 +10,8 @@ import {
   getSettings,
   tabCache,
   type SheetAuth,
-} from '@/lib/googleSheets';
-import { listSidequests, listSidequestLogs } from '@/lib/sidequests';
+} from '@journaling/sheets/googleSheets';
+import { listSidequests, listSidequestLogs } from '@journaling/sheets/sidequests';
 import { buildQuickPayload, type QuickPayload } from '@journaling/core/quickPayload';
 
 /** Read a date range from one sheet and build the board payload. Shared by /api/quick and the reminder. */

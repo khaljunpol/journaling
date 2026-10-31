@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, Suspense } from 'react';
-import type { Sidequest, SidequestLog } from '@/lib/types';
+import type { Sidequest, SidequestLog } from '@journaling/core/types';
 import SidequestCard from '@/components/SidequestCard';
 import SidequestForm from '@/components/SidequestForm';
 import { localTodayISO } from '@journaling/core/date';

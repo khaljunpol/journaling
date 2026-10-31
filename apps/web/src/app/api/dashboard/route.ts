@@ -15,8 +15,8 @@ import {
   listClimbLogs,
   listClimbGoals,
   tabCache,
-} from '@/lib/googleSheets';
-import { listSidequests } from '@/lib/sidequests';
+} from '@journaling/sheets/googleSheets';
+import { listSidequests } from '@journaling/sheets/sidequests';
 
 export async function GET() {
   try {

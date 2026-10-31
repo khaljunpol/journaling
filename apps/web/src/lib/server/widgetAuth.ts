@@ -1,4 +1,4 @@
-import { getSettings, type SheetAuth } from '@/lib/googleSheets';
+import { getSettings, type SheetAuth } from '@journaling/sheets/googleSheets';
 import { allowedEmails } from '@/lib/auth';
 import { parseKey, decideWidgetKey, keyLooksValid, makeReadGate } from '@/lib/widgetKey';
 

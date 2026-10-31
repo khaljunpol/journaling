@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import { fieldBase, fieldClass } from '@/components/ui/Input';
-import type { Sidequest, SidequestMilestone, SidequestType } from '@/lib/types';
+import type { Sidequest, SidequestMilestone, SidequestType } from '@journaling/core/types';
 
 const TYPE_OPTIONS: { value: SidequestType; label: string; desc: string }[] = [
   { value: 'oneoff', label: 'One-off', desc: 'A single task to complete' },

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createActivity, listActivities } from '@/lib/googleSheets';
+import { createActivity, listActivities } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

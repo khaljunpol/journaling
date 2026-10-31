@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getWeight, setWeight, getWeightsBetween } from '@/lib/googleSheets';
+import { getWeight, setWeight, getWeightsBetween } from '@journaling/sheets/googleSheets';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 

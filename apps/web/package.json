@@ -21,7 +21,8 @@
     "recharts": "^3.5.1",
     "web-push": "^3.6.7",
     "@journaling/design": "*",
-    "@journaling/core": "*"
+    "@journaling/core": "*",
+    "@journaling/sheets": "*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -3,7 +3,7 @@
 import { Star } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import type { Sidequest } from '@/lib/types';
+import type { Sidequest } from '@journaling/core/types';
 
 /** Ember pill: sidequests completed this year. Hidden until the count is known. */
 export default function LevelChip({ compact = false }: { compact?: boolean }) {

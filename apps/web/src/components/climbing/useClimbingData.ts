@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearCacheByPrefix, getCache, setCache } from '@/lib/cache';
-import type { ClimbGoal, ClimbLog } from '@/lib/types';
+import type { ClimbGoal, ClimbLog } from '@journaling/core/types';
 
 const GOALS_KEY = 'climb:goals';
 const ALL_KEY = 'climb:year:all';

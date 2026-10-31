@@ -1,5 +1,5 @@
 import type { QuickPayload } from '@journaling/core/quickPayload';
-import type { TimeCategory } from '@/lib/types';
+import type { TimeCategory } from '@journaling/core/types';
 
 /** One write for the outbox. */
 export type SaveSpec = { key: string; url: string; method: 'POST'; body: unknown };

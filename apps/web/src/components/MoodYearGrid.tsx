@@ -3,7 +3,7 @@
 import { getCache, setCache } from '@/lib/cache';
 import { localISO } from '@journaling/core/date';
 import { MOODS, moodBackground, moodColor, moodEmoji } from '@journaling/core/mood';
-import type { MoodItem, DaySummary } from '@/lib/types';
+import type { MoodItem, DaySummary } from '@journaling/core/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/components/Modal';
 import Heatmap from '@/components/overview/Heatmap';

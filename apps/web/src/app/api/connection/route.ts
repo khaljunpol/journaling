@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/sheetConnection';
 import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { setSetting } from '@/lib/googleSheets';
+import { setSetting } from '@journaling/sheets/googleSheets';
 
 export async function GET() {
   try {
