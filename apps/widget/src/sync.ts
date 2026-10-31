@@ -1,6 +1,6 @@
 // The widget's saved state and its trip to Journal. One job at a time, because taps can arrive fast.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connFromCode, getHistory, getHours, getState, getWeek, postAction, type Action, type Conn, type DeviceHistoryDay, type DeviceHours, type DeviceState, type DeviceWeekDay } from './logic/api';
+import { connFromCode, getHistory, getHours, getInsights, getState, getWeek, postAction, type Action, type Conn, type DeviceHistoryDay, type DeviceHours, type DeviceInsights, type DeviceState, type DeviceWeekDay } from './logic/api';
 import { applyLocal, enqueue, remove, sendable, type QueueItem } from './logic/queue';
 
 const KEY = 'journal-widget';
@@ -20,10 +20,12 @@ export type Snapshot = {
   week: DeviceWeekDay[] | null;
   /** The mood and weight widgets' days, as last read. */
   history: DeviceHistoryDay[] | null;
+  /** The overview widget's answers, as last read. */
+  insights: DeviceInsights | null;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -139,6 +141,19 @@ export function refreshHistory(): Promise<Snapshot> {
   });
 }
 
+/** Reads the Overview's answers and saves them. Keeps the last good copy when they can't be read. */
+export function refreshInsights(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const insights = await getInsights(s.conn);
+    if (!insights) return s;
+    const next = { ...s, insights };
+    await save(next);
+    return next;
+  });
+}
+
 /** Stores the connection when the code is good and Journal accepts it. */
 export function connect(code: string): Promise<'ok' | 'bad-code' | 'refused' | 'offline'> {
   return oneAtATime(async () => {
@@ -148,7 +163,7 @@ export function connect(code: string): Promise<'ok' | 'bad-code' | 'refused' | '
     if (r.kind === 'key') return 'refused';
     if (r.kind !== 'ok') return 'offline';
     const s = await snapshot();
-    await save({ ...s, conn, state: r.state, keyBad: false, week: null, history: null, queue: [] });
+    await save({ ...s, conn, state: r.state, keyBad: false, week: null, history: null, insights: null, queue: [] });
     return 'ok';
   });
 }

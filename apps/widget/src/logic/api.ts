@@ -1,10 +1,11 @@
 // Talks to Journal's /api/device. No React Native imports, so tests can load it.
 
+import type { DeviceInsights } from '@journaling/core/deviceInsights';
 import type { DeviceHistoryDay, DeviceHours, DeviceRequest, DeviceState, DeviceWeekDay } from '@journaling/core/deviceState';
 
 export type Conn = { url: string; key: string };
 export type Action = DeviceRequest;
-export type { DeviceHistoryDay, DeviceHours, DeviceState, DeviceWeekDay };
+export type { DeviceHistoryDay, DeviceHours, DeviceInsights, DeviceState, DeviceWeekDay };
 export type Result =
   | { kind: 'ok'; state: DeviceState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"
@@ -87,6 +88,18 @@ export async function getHistory(conn: Conn): Promise<DeviceHistoryDay[] | null>
     if (!res.ok) return null;
     const v = (await res.json()) as { history?: unknown };
     return Array.isArray(v.history) ? (v.history as DeviceHistoryDay[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The Overview's answers. Null when they can't be read now, or the server is older. */
+export async function getInsights(conn: Conn): Promise<DeviceInsights | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=insights`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as { insights?: DeviceInsights };
+    return v.insights ?? null;
   } catch {
     return null;
   }

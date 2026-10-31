@@ -301,3 +301,46 @@ export function JournalWeight({ s, width, height }: Size) {
   const latest = weights.filter((v) => v !== null).pop();
   return <ValueStrip width={width} height={height} icon="scale" value={weightText(latest)} uri="journalwidget://weight" svg={(w, h) => weightSvg(weights, w, h)} />;
 }
+
+/** One answer: what it is, the number, and a small note. */
+function Tile({ w, h, gap = 0, label, value, note }: { w: number; h: number; gap?: number; label: string; value: string; note?: string }) {
+  return (
+    <FlexWidget style={{ width: w, height: h, marginLeft: gap, borderRadius: 20, backgroundColor: c['surface-2'], paddingHorizontal: 14, justifyContent: 'center' }}>
+      <TextWidget text={label} maxLines={1} style={{ fontSize: 12, color: c['text-2'] }} />
+      <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <TextWidget text={value} style={{ fontSize: 20, fontWeight: '600', color: c['text-1'] }} />
+        {note ? <TextWidget text={note} maxLines={1} style={{ marginLeft: 6, fontSize: 12, color: c['text-2'] }} /> : null}
+      </FlexWidget>
+    </FlexWidget>
+  );
+}
+
+const signed = (d: number) => (d > 0 ? `+${d}` : d < 0 ? `\u2212${Math.abs(d)}` : undefined);
+
+/** The overview widget: the same answers as the Overview page. Tap to open it. */
+export function JournalOverview({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const w = Math.min(width, 420);
+  const gap = 8;
+  const tileW = Math.floor((w - INSET * 2 - gap) / 2);
+  const tileH = Math.max(52, Math.min(68, Math.floor((height - INSET * 2 - gap) / 2)));
+  const i = s.insights;
+  const none = '\u2013';
+  const delta = i?.mood.delta == null ? undefined : signed(i.mood.delta);
+  const streak = i?.habits.streak ?? 0;
+  return (
+    <Centre>
+      <FlexWidget {...clickOf({ uri: `${s.conn?.url}/` })} style={{ width: w, height: tileH * 2 + gap + INSET * 2, borderRadius: 28, backgroundColor: c.surface, padding: INSET }}>
+        <FlexWidget style={{ flexDirection: 'row' }}>
+          <Tile w={tileW} h={tileH} label="Mood this week" value={i?.mood.avg == null ? none : String(i.mood.avg)} note={delta} />
+          <Tile w={tileW} h={tileH} gap={gap} label="Sleep a night" value={i?.sleep == null ? none : `${i.sleep}h`} />
+        </FlexWidget>
+        <FlexWidget style={{ flexDirection: 'row', marginTop: gap }}>
+          <Tile w={tileW} h={tileH} label="Habits, 14 days" value={i?.habits.rate == null ? none : `${i.habits.rate}%`} note={streak >= 2 ? `${streak} days` : undefined} />
+          <Tile w={tileW} h={tileH} gap={gap} label={i?.time ? `Most time: ${i.time.name}` : 'Most time'} value={i?.time ? `${i.time.hours}h` : none} />
+        </FlexWidget>
+      </FlexWidget>
+    </Centre>
+  );
+}

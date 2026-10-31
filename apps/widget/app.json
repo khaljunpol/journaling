@@ -81,6 +81,17 @@
               "targetCellHeight": 1,
               "resizeMode": "horizontal|vertical",
               "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "JournalOverview",
+              "label": "Journal (overview)",
+              "description": "Your week: mood, sleep, habits and time",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
             }
           ]
         }

@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
-import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight } from '@journaling/sheets/googleSheets';
+import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight, getLogsBetween, getMoodsBetween, listHourLogs } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
 import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
+import { deviceInsights } from '@journaling/core/deviceInsights';
+import { weekWindow } from '@journaling/core/overviewStats';
 import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +50,7 @@ async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceStat
   return deviceState(day, payload.ctx);
 }
 
-/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight. */
+/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight; ?include=insights adds the Overview's answers. */
 export async function GET(req: Request) {
   try {
     const auth = await authDevice(req);
@@ -62,6 +64,20 @@ export async function GET(req: Request) {
     if (include === 'history') {
       const { payload, day } = await load(auth.sheetAuth, today, addDaysISO(today, 1 - HISTORY_DAYS));
       return NextResponse.json({ ...deviceState(day, payload.ctx), history: deviceHistory(payload.days, today) }, { status: 200, headers: NO_STORE });
+    }
+    if (include === 'insights') {
+      const { payload, day } = await load(auth.sheetAuth, today);
+      const { prevFrom } = weekWindow(today);
+      const [moods, hours, logs, cats] = await Promise.all([
+        getMoodsBetween(auth.sheetAuth, prevFrom, today),
+        listHourLogs(auth.sheetAuth, prevFrom, today),
+        // Streaks reach back to the start of last year, same as the Overview.
+        getLogsBetween(auth.sheetAuth, `${Number(today.slice(0, 4)) - 1}-01-01`, today),
+        listTimeCategories(auth.sheetAuth),
+      ]);
+      const activeIds = new Set(payload.ctx.activities.map((a) => a.id));
+      const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds });
+      return NextResponse.json({ ...deviceState(day, payload.ctx), insights }, { status: 200, headers: NO_STORE });
     }
     if (include === 'hours') {
       const { payload, day } = await load(auth.sheetAuth, today);
