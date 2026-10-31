@@ -1,9 +1,12 @@
 import React from 'react';
+import { Vibration } from 'react-native';
 import { requestWidgetUpdate, type WidgetInfo, type WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { nextLine, record, refresh, refreshClimb, refreshHistory, refreshInsights, refreshWeek, snapshot, type Snapshot } from '../sync';
 import type { Action } from '../logic/api';
 import { Journal, JournalClimb, JournalInsight, JournalMood, JournalOverview, JournalWeek, JournalWeight } from './JournalWidgets';
 
+/** One short tick when a log is saved. */
+const TICK_MS = 15;
 const NAMES = ['JournalLarge', 'JournalSmall', 'JournalWeek', 'JournalMood', 'JournalWeight', 'JournalOverview', 'JournalInsight', 'JournalClimb'];
 /** The extra read each widget needs. Only those widgets pay for it. */
 const READS: Record<string, (() => Promise<Snapshot>) | undefined> = { JournalWeek: refreshWeek, JournalMood: refreshHistory, JournalWeight: refreshHistory, JournalOverview: refreshInsights, JournalInsight: refreshInsights, JournalClimb: refreshClimb };
@@ -26,12 +29,14 @@ export async function paintAll(s: Snapshot): Promise<void> {
 
 /** Save a tap: draw it at once, then reach the server and draw the truth. Also used by the popups. */
 export async function tap(action: Action): Promise<void> {
+  Vibration.vibrate(TICK_MS);
   await paintAll(await record(action));
   await paintAll(await refresh());
 }
 
 /** For the popups: the save carries on after the popup has closed. */
 export async function tapThenLeave(action: Action, leave: () => void): Promise<void> {
+  Vibration.vibrate(TICK_MS);
   await paintAll(await record(action));
   leave();
   await paintAll(await refresh());

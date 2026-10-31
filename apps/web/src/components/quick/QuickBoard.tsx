@@ -222,6 +222,7 @@ export default function QuickBoard() {
 
   /** One save path for the sheet and the card stack: queue it and update the board right away. */
   function commit(specs: SaveSpec[]) {
+    if (specs.length) navigator.vibrate?.(10); // Android only; other browsers skip it
     let next = payloadRef.current;
     for (const s of specs) {
       enqueue({ key: s.key, url: s.url, method: s.method, body: s.body });

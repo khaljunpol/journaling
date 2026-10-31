@@ -17,7 +17,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.journaling.widget"
+      "package": "com.journaling.widget",
+      "permissions": ["android.permission.VIBRATE"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
