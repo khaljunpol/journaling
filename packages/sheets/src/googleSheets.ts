@@ -5,7 +5,7 @@ import { range, TABS } from './sheetLayout.ts';
 import { localISO } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
 import { withLock } from './keyedLock.ts';
-import { pickEmptyEntries } from '@journaling/core/widgetState';
+import { pickEmptyEntries } from '@journaling/core/deviceState';
 import type { TabsClient } from './sheetTabs.ts';
 import { createTabCache, type RangeReader } from './sheetCache.ts';
 

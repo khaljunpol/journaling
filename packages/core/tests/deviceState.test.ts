@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { widgetState, usualHoursFill } from '../src/widgetState.ts';
+import { deviceState, usualHoursFill } from '../src/deviceState.ts';
 import { dayStatus, type DayData, type Ctx } from '../src/quickDay.ts';
 import { habitIcon } from '../src/habitIcons.ts';
 
@@ -29,7 +29,7 @@ const ctx = (over: Partial<Ctx> = {}): Ctx => ({
 
 test('empty day: nothing done, progress from dayStatus, icons set', () => {
   const day = emptyDay();
-  const s = widgetState(day, ctx());
+  const s = deviceState(day, ctx());
   const st = dayStatus(day, ctx());
   assert.equal(s.date, '2026-10-26');
   assert.equal(s.mood, null);
@@ -48,7 +48,7 @@ test('empty day: nothing done, progress from dayStatus, icons set', () => {
 });
 
 test('habit done only when its log is completed', () => {
-  const s = widgetState(
+  const s = deviceState(
     emptyDay({ logs: [{ activityId: 'a', completed: true }, { activityId: 'b', completed: false }] }),
     ctx(),
   );
@@ -57,7 +57,7 @@ test('habit done only when its log is completed', () => {
 
 test('hours counts non-null slots; mood and weight pass through', () => {
   const hours = Array.from({ length: 24 }, (_, i) => (i < 5 ? 1 : null));
-  const s = widgetState(emptyDay({ hours, mood: 4, weight: 70.5 }), ctx());
+  const s = deviceState(emptyDay({ hours, mood: 4, weight: 70.5 }), ctx());
   assert.equal(s.hours, 5);
   assert.equal(s.mood, 4);
   assert.equal(s.weight, 70.5);
@@ -96,7 +96,7 @@ test('usualHoursFill skips ids not in categoryIds', () => {
 });
 
 test('hoursFillReason: no template, all filled, or null when something can be written', async () => {
-  const { hoursFillReason } = await import('../src/widgetState.ts');
+  const { hoursFillReason } = await import('../src/deviceState.ts');
   const cats = [1, 2];
   const full = Array.from({ length: 24 }, () => 1);
   const tpl = { weekday: Array.from({ length: 24 }, () => 1), weekend: null };

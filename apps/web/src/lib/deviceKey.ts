@@ -1,7 +1,7 @@
 import { isEmailAllowed } from './allowlist.ts';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 
-/** New widget secret: 32 random bytes, base64url. */
+/** New device secret: 32 random bytes, base64url. */
 export function makeSecret(): string {
   return randomBytes(32).toString('base64url');
 }
@@ -75,9 +75,41 @@ export function makeReadGate(opts: { limit: number; windowMs: number; now: () =>
   };
 }
 
-/** Key decision from the sheet's settings: a stored hash, a matching secret, and an owner who is still allowed. */
-export function decideWidgetKey(settings: Record<string, string>, secret: string, allowed: string[]): boolean {
-  const hash = settings.widgetKeyHash ?? '';
+/** One connected device, as stored in the sheet's `deviceKeys` setting. Only the hash of its secret is kept. */
+export type StoredKey = { id: string; name: string; hash: string; createdAt: string };
+
+export const MAX_DEVICE_KEYS = 10;
+
+/** The stored list. Tolerant: bad JSON gives [], rows without an id, name or hash are dropped. */
+export function parseDeviceKeys(raw: string | undefined): StoredKey[] {
+  if (!raw) return [];
+  let rows: unknown;
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(rows)) return [];
+  const out: StoredKey[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const { id, name, hash, createdAt } = row as Record<string, unknown>;
+    if (typeof id !== 'string' || typeof name !== 'string' || typeof hash !== 'string') continue;
+    if (!id || !name || !hash) continue;
+    out.push({ id, name, hash, createdAt: typeof createdAt === 'string' ? createdAt : '' });
+  }
+  return out;
+}
+
+/**
+ * The stored key this secret belongs to, or null. The owner must still be allowed (fails closed).
+ * Every hash is compared, with no early return, so timing does not reveal the position.
+ */
+export function findDeviceKey(settings: Record<string, string>, secret: string, allowed: string[]): StoredKey | null {
+  let found: StoredKey | null = null;
+  for (const key of parseDeviceKeys(settings.deviceKeys)) {
+    if (secretMatches(key.hash, secret)) found = key;
+  }
   const owner = (settings.ownerEmail ?? '').trim().toLowerCase();
-  return !!hash && secretMatches(hash, secret) && isEmailAllowed(owner, allowed);
+  return found && isEmailAllowed(owner, allowed) ? found : null;
 }

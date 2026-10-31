@@ -1,18 +1,18 @@
-// Pure model for the Android home-screen widget: what one day shows. Relative imports only.
+// Pure model for a connected device (phone widget, watch): what one day shows. Relative imports only.
 import { dayStatus, templateKind, applyTemplate, type DayData, type Ctx } from './quickDay.ts';
 import { habitIcon, type HabitIcon } from './habitIcons.ts';
 
-export type WidgetHabit = { id: string; name: string; icon: HabitIcon | null; done: boolean };
-export type WidgetState = {
+export type DeviceHabit = { id: string; name: string; icon: HabitIcon | null; done: boolean };
+export type DeviceState = {
   date: string;
   mood: number | null;
   weight: number | null;
   hours: number;
   progress: { filled: number; total: number };
-  habits: WidgetHabit[];
+  habits: DeviceHabit[];
 };
 
-export function widgetState(day: DayData, ctx: Ctx): WidgetState {
+export function deviceState(day: DayData, ctx: Ctx): DeviceState {
   const { filled, total } = dayStatus(day, ctx);
   // buildQuickPayload already keeps one row per habit (the last one wins), so this is that row's value.
   const doneIds = new Set(day.logs.filter((l) => l.completed).map((l) => l.activityId));
@@ -59,21 +59,21 @@ export function hoursFillReason(
   return usualHoursFill(day, templates, categoryIds).length === 0 ? 'all_filled' : null;
 }
 
-/** The POST body a device sends. parseWidgetAction turns it into a WidgetAction. */
-export type WidgetRequest =
+/** The POST body a device sends. parseDeviceAction turns it into a DeviceAction. */
+export type DeviceRequest =
   | { action: 'mood'; score: number }
   | { action: 'habit'; activityId: string }
   | { action: 'weight'; weight: number }
   | { action: 'hours'; fill?: 'usual' };
 
-export type WidgetAction =
+export type DeviceAction =
   | { kind: 'mood'; score: number }
   | { kind: 'habit'; activityId: string }
   | { kind: 'weight'; weight: number }
   | { kind: 'hours' };
 
-/** Body of POST /api/widget: { action: 'mood' | 'habit' | 'weight' | 'hours', ...fields }. Null for anything else. */
-export function parseWidgetAction(body: unknown): WidgetAction | null {
+/** Body of POST /api/device: { action: 'mood' | 'habit' | 'weight' | 'hours', ...fields }. Null for anything else. */
+export function parseDeviceAction(body: unknown): DeviceAction | null {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
   const b = body as Record<string, unknown>;
   switch (b.action) {

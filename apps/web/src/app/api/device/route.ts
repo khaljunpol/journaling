@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
-import { authWidget } from '@/lib/server/widgetAuth';
+import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
-import { widgetState, usualHoursFill, hoursFillReason, parseWidgetAction, type WidgetState } from '@journaling/core/widgetState';
+import { deviceState, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState } from '@journaling/core/deviceState';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +20,17 @@ function fail(message: string, status: number) {
   return res;
 }
 
+/**
+ * apiFailure keeps its logging and its 429/5xx. Google's own 401/403/404 become 503:
+ * a device reads 401 as a bad key and 404 as a deleted habit, and neither is true here.
+ */
+function failed(error: unknown, context: string) {
+  const res = apiFailure(error, context);
+  if ([401, 403, 404].includes(res.status)) return fail('Try again', 503);
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}
+
 function refused() {
   return NextResponse.json({ error: 'key' }, { status: 401, headers: NO_STORE });
 }
@@ -31,20 +42,20 @@ async function load(sheetAuth: SheetAuth, today: string) {
   return { payload, day };
 }
 
-async function stateFor(sheetAuth: SheetAuth, today: string): Promise<WidgetState> {
+async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceState> {
   const { payload, day } = await load(sheetAuth, today);
-  return widgetState(day, payload.ctx);
+  return deviceState(day, payload.ctx);
 }
 
-/** Today's widget state. The server decides the date (the app's time zone). */
+/** Today's device state. The server decides the date (the app's time zone). */
 export async function GET(req: Request) {
   try {
-    const auth = await authWidget(req);
+    const auth = await authDevice(req);
     if (!auth) return refused();
     const today = appDateISO(new Date());
     return NextResponse.json(await stateFor(auth.sheetAuth, today), { status: 200, headers: NO_STORE });
   } catch (error: unknown) {
-    return apiFailure(error, 'GET /api/widget');
+    return failed(error, 'GET /api/device');
   }
 }
 
@@ -55,19 +66,19 @@ export async function POST(req: Request) {
     const declared = Number(req.headers.get('content-length') ?? 0);
     if (declared > MAX_HEADER_BYTES) return fail('Action is too large', 413);
     // Key next: nothing is read from the body or the sheet before it passes.
-    const auth = await authWidget(req);
+    const auth = await authDevice(req);
     if (!auth) return refused();
     const { sheetAuth } = auth;
 
     const raw = await req.text();
-    if (raw.length > MAX_BYTES) return fail('Action is too large', 413);
+    if (Buffer.byteLength(raw) > MAX_BYTES) return fail('Action is too large', 413);
     let body: unknown;
     try {
       body = JSON.parse(raw);
     } catch {
       return fail('Invalid action', 400);
     }
-    const action = parseWidgetAction(body);
+    const action = parseDeviceAction(body);
     if (!action) return fail('Invalid action', 400);
 
     const today = appDateISO(new Date());
@@ -93,7 +104,7 @@ export async function POST(req: Request) {
           // No usual template for today's kind, or every slot is already filled.
           const reason = hoursFillReason(day, payload.templates, payload.ctx.categoryIds);
           return NextResponse.json(
-            { ...widgetState(day, payload.ctx), filled: 0, reason },
+            { ...deviceState(day, payload.ctx), filled: 0, reason },
             { status: 200, headers: NO_STORE },
           );
         }
@@ -112,6 +123,6 @@ export async function POST(req: Request) {
     // The writers invalidate tabCache, so this re-read sees the new value.
     return NextResponse.json(await stateFor(sheetAuth, today), { status: 200, headers: NO_STORE });
   } catch (error: unknown) {
-    return apiFailure(error, 'POST /api/widget');
+    return failed(error, 'POST /api/device');
   }
 }

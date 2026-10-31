@@ -31,14 +31,13 @@ export async function GET() {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     const s = await getSettings(ctx.sheetAuth);
-    // Only these keys leave the server. pushSubscription and widgetKeyHash are never returned.
+    // Only these keys leave the server. pushSubscription and deviceKeys are never returned.
     return NextResponse.json({
       hourTemplateWeekday: readTemplate(s.hourTemplateWeekday),
       hourTemplateWeekend: readTemplate(s.hourTemplateWeekend),
       habitTemplateWeekday: readHabits(s.habitTemplateWeekday),
       habitTemplateWeekend: readHabits(s.habitTemplateWeekend),
       reminderEnabled: s.reminderEnabled === '1',
-      widgetEnabled: !!s.widgetKeyHash,
     }, { status: 200 });
   } catch (error: unknown) {
     return apiFailure(error, 'GET /api/settings');

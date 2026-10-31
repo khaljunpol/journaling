@@ -1,6 +1,6 @@
 import { getSettings, type SheetAuth } from '@journaling/sheets/googleSheets';
 import { allowedEmails } from '@/lib/auth';
-import { parseKey, decideWidgetKey, keyLooksValid, makeReadGate } from '@/lib/widgetKey';
+import { parseKey, findDeviceKey, keyLooksValid, makeReadGate } from '@/lib/deviceKey';
 
 // A real key is ~90 chars (sheet id + 43-char secret). Anything far longer is junk.
 const MAX_HEADER = 512;
@@ -28,18 +28,18 @@ async function check(req: Request): Promise<{ sheetAuth: SheetAuth } | null> {
   } catch {
     return null;
   }
-  if (!decideWidgetKey(settings, parsed.secret, allowedEmails)) return null;
+  if (!findDeviceKey(settings, parsed.secret, allowedEmails)) return null;
   readGate.trust(parsed.spreadsheetId);
   return { sheetAuth };
 }
 
 /**
- * Widget key check: `Authorization: Bearer <spreadsheetId>.<secret>`.
- * Passes only when that sheet stores a matching widgetKeyHash and its owner is still allowed.
+ * Device key check: `Authorization: Bearer <spreadsheetId>.<secret>`.
+ * Passes only when that sheet stores a matching device key and its owner is still allowed.
  * Any failure, including a sheet that cannot be read or the read cap, is null. Never logs the key or the sheet id.
  */
-export async function authWidget(req: Request): Promise<{ sheetAuth: SheetAuth } | null> {
+export async function authDevice(req: Request): Promise<{ sheetAuth: SheetAuth } | null> {
   const result = await check(req);
-  if (!result) console.warn('[widget] key refused');
+  if (!result) console.warn('[device] key refused');
   return result;
 }

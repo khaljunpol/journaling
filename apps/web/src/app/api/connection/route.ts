@@ -30,12 +30,12 @@ export async function DELETE() {
     const session = await auth();
     if (!getSessionUserKey(session)) return apiError('Unauthorized', 401);
 
-    // Disconnecting turns the widget off too. If that fails, still disconnect.
+    // Disconnecting turns every device off too. If that fails, still disconnect.
     try {
       const ctx = await requireSheetContext();
-      if (!('status' in ctx)) await setSetting(ctx.sheetAuth, 'widgetKeyHash', '');
+      if (!('status' in ctx)) await setSetting(ctx.sheetAuth, 'deviceKeys', '');
     } catch {
-      console.warn('[widget] could not clear key on disconnect');
+      console.warn('[device] could not clear keys on disconnect');
     }
     await clearSheetConnection();
     return NextResponse.json({ connected: false });

@@ -9,8 +9,8 @@ function isPublicPath(pathname: string): boolean {
     pathname === '/manifest.webmanifest' ||
     // The route itself checks CRON_SECRET. Exact match only.
     pathname === '/api/reminder/run' ||
-    // The route itself checks the widget key. Exact match only: /api/widget/key needs a session.
-    pathname === '/api/widget' ||
+    // The route itself checks the device key. Exact match only: /api/device/keys needs a session.
+    pathname === '/api/device' ||
     pathname.startsWith('/sw') ||
     pathname.startsWith('/icon')
   );

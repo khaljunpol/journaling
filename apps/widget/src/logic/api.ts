@@ -1,12 +1,12 @@
-// Talks to Journal's /api/widget. No React Native imports, so tests can load it.
+// Talks to Journal's /api/device. No React Native imports, so tests can load it.
 
-import type { WidgetRequest, WidgetState } from '@journaling/core/widgetState';
+import type { DeviceRequest, DeviceState } from '@journaling/core/deviceState';
 
 export type Conn = { url: string; key: string };
-export type Action = WidgetRequest;
-export type { WidgetState };
+export type Action = DeviceRequest;
+export type { DeviceState };
 export type Result =
-  | { kind: 'ok'; state: WidgetState; reason?: 'no_template' | 'all_filled' }
+  | { kind: 'ok'; state: DeviceState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"
   | { kind: 'gone' } // the habit no longer exists
   | { kind: 'bad' } // the server refuses this action for good
@@ -14,7 +14,7 @@ export type Result =
 
 const TIMEOUT_MS = 8000;
 
-/** The code from Journal → Settings → Widget. Null for anything else. */
+/** The code from Journal → Settings → Devices. Null for anything else. */
 export function connFromCode(code: string): Conn | null {
   try {
     const v = JSON.parse(atob(code.trim())) as { url?: unknown; key?: unknown };
@@ -31,7 +31,7 @@ async function readResult(res: Response): Promise<Result> {
   if (res.status === 404) return { kind: 'gone' };
   if (res.status >= 500 || res.status === 429) return { kind: 'retry' };
   if (!res.ok) return { kind: 'bad' };
-  const body = (await res.json()) as WidgetState & { reason?: 'no_template' | 'all_filled' };
+  const body = (await res.json()) as DeviceState & { reason?: 'no_template' | 'all_filled' };
   return { kind: 'ok', state: body, reason: body.reason };
 }
 
@@ -39,7 +39,7 @@ async function call(conn: Conn, init: RequestInit): Promise<Result> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${conn.url}/api/widget`, {
+    const res = await fetch(`${conn.url}/api/device`, {
       ...init,
       signal: ctrl.signal,
       headers: { Authorization: `Bearer ${conn.key}`, 'Content-Type': 'application/json' },

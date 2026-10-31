@@ -1,5 +1,5 @@
 // Pure offline queue: taps wait here until they reach Journal.
-import type { Action, WidgetState } from './api';
+import type { Action, DeviceState } from './api';
 
 /** `date` is the day the tap was made for. The server always saves to its own today. */
 export type QueueItem = { id: string; action: Action; date: string };
@@ -24,7 +24,7 @@ export function remove(q: QueueItem[], id: string): QueueItem[] {
 }
 
 /** What the widget shows right after a tap. Hours wait for the server's answer. */
-export function applyLocal(s: WidgetState, a: Action): WidgetState {
+export function applyLocal(s: DeviceState, a: Action): DeviceState {
   switch (a.action) {
     case 'mood':
       return { ...s, mood: a.score };
