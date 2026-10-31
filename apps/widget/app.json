@@ -51,7 +51,9 @@
             }
           ]
         }
-      ]
-    ]
+      ],
+      "./plugins/with-short-cxx-dir.js"
+    ],
+    "scheme": "journalwidget"
   }
 }
