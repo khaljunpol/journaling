@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { welcomeSteps, showWelcome } from '../src/lib/quickWelcome.ts';
-import type { QuickPayload } from '../src/lib/quickPayload.ts';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 
 const TODAY = '2026-10-29';
 const day = (date: string, over = {}) => ({

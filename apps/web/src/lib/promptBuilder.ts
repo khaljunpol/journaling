@@ -1,4 +1,4 @@
-import { localISO, parseLocalDate, weekStartLocal } from './date.ts';
+import { localISO, parseLocalDate, weekStartLocal } from '@journaling/core/date';
 import type { TimeCategory } from './types';
 
 export type PromptPeriod = 'week' | 'month';

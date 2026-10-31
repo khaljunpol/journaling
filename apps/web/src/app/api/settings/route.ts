@@ -2,7 +2,7 @@ import { getSettings, setSetting } from '@/lib/googleSheets';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { parseTemplate, parseHabitTemplate } from '@/lib/quickDay';
+import { parseTemplate, parseHabitTemplate } from '@journaling/core/quickDay';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyQueue, applyQueueItem, itemsForTile } from '../src/lib/quickApply.ts';
-import type { QuickPayload } from '../src/lib/quickPayload.ts';
+import { applyQueue, applyQueueItem, itemsForTile } from '../src/quickApply.ts';
+import type { QuickPayload } from '../src/quickPayload.ts';
 
 const day = (date: string) => ({
   date, mood: null, weight: null, highlight: '', logs: [],
@@ -52,7 +52,7 @@ test('itemsForTile matches by date', () => {
   assert.equal(itemsForTile(items, 'mood', '2026-10-27').length, 1);
 });
 
-import { hoursEntries, pruneDays } from '../src/lib/quickApply.ts';
+import { hoursEntries, pruneDays } from '../src/quickApply.ts';
 
 test('hoursEntries drops empty slots', () => {
   const h: Array<number | null> = Array.from({ length: 24 }, () => null);

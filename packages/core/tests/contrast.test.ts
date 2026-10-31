@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inkOn } from '../src/lib/contrast.ts';
+import { inkOn } from '../src/contrast.ts';
 
 test('dark text on light colours, light text on dark ones', () => {
   assert.equal(inkOn('#ffff66'), 'dark'); // yellow

@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
-import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE } from '@/lib/climbing';
+import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE } from '@journaling/core/climbing';
 import { dayLabel, fallsLabel, gradesFor, type ClimbType } from './types';
 
 const KEY = 'climb:quicklog:v1';

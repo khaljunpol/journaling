@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import SlotPainter from '../SlotPainter';
-import { applyTemplate, templateKind } from '@/lib/quickDay';
-import { hoursEntries } from '@/lib/quickApply';
+import { applyTemplate, templateKind } from '@journaling/core/quickDay';
+import { hoursEntries } from '@journaling/core/quickApply';
 import type { HoursEditorProps } from './types';
 
 export default function HoursEditor({ date, payload, categories, onSave, submitLabel }: HoursEditorProps) {

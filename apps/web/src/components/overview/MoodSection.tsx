@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Answer from '@/components/climbing/overview/Answer';
-import { parseLocalDate } from '@/lib/date';
-import { hm } from '@/lib/overviewStats';
+import { parseLocalDate } from '@journaling/core/date';
+import { hm } from '@journaling/core/overviewStats';
 import type { MoodLink, OverviewView } from './derive';
 import { Section, SectionSkeleton, SubLine, signed } from './Section';
 import TrendChip from './TrendChip';

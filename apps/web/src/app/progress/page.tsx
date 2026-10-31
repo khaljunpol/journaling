@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, Suspense } from 'react';
 import type { Sidequest, SidequestLog } from '@/lib/types';
 import SidequestCard from '@/components/SidequestCard';
 import SidequestForm from '@/components/SidequestForm';
-import { localTodayISO } from '@/lib/date';
+import { localTodayISO } from '@journaling/core/date';
 import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import PageHeader from '@/components/ui/PageHeader';

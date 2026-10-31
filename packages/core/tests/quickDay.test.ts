@@ -10,7 +10,7 @@ import {
   initialTicks,
   type DayData,
   type Ctx,
-} from '../src/lib/quickDay.ts';
+} from '../src/quickDay.ts';
 
 const full24 = (id: number): Array<number | null> => Array.from({ length: 24 }, () => id);
 

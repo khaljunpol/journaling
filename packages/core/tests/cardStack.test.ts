@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextStep, cardsLeft, dotState, canAdvance } from '../src/lib/cardStack.ts';
+import { nextStep, cardsLeft, dotState, canAdvance } from '../src/cardStack.ts';
 
 test('nextStep moves on and finishes at the end', () => {
   assert.deepEqual(nextStep(0, 3), { index: 1, finished: false });

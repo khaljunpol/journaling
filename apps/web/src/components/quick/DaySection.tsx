@@ -5,12 +5,12 @@ import {
   Beer, BicepsFlexed, Bike, BookOpen, Brain, Check, ChevronRight, Cigarette, Coffee, Dumbbell, Flame, Footprints, Gamepad2,
   GlassWater, Heart, Milk, Mountain, Music, PenLine, PersonStanding, Pill, Waves, Wine, type LucideProps,
 } from 'lucide-react';
-import { dayStatus, missingInOrder, type ItemKey } from '@/lib/quickDay';
-import { itemsForTile } from '@/lib/quickApply';
-import { moodEmoji } from '@/lib/mood';
-import { doneHabits, type HabitIcon } from '@/lib/habitIcons';
-import { parseLocalDate } from '@/lib/date';
-import type { QuickPayload } from '@/lib/quickPayload';
+import { dayStatus, missingInOrder, type ItemKey } from '@journaling/core/quickDay';
+import { itemsForTile } from '@journaling/core/quickApply';
+import { moodEmoji } from '@journaling/core/mood';
+import { doneHabits, type HabitIcon } from '@journaling/core/habitIcons';
+import { parseLocalDate } from '@journaling/core/date';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 import type { OutboxItem } from '@/lib/outbox';
 import Chip from '@/components/ui/Chip';
 import Button from '@/components/ui/Button';

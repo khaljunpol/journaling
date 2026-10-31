@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import LevelChip from '@/components/shell/LevelChip';
 import Skeleton from '@/components/ui/Skeleton';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 import type { OverviewView } from './derive';
 
 const ROW = 'card press flex min-h-14 min-w-0 items-center gap-2 px-4 py-3 text-[15px] sm:px-5';

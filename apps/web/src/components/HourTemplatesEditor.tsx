@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import SlotPainter from '@/components/quick/SlotPainter';
-import { applyTemplate } from '@/lib/quickDay';
+import { applyTemplate } from '@journaling/core/quickDay';
 import type { TimeCategory } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';

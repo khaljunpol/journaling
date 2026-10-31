@@ -5,7 +5,7 @@ import {
   avgKnown, bestStreak, climbRows, climbWeek, dailySeries, findSleepIds, habitDays, habitRate, habitStreak, hm, lastHighlight,
   daySpan, monthAgo, moodSplit, moodWeek, sleepNights, timeCompare, weekWindow,
   type Cat, type HabitLog, type HourRow, type MoodRow,
-} from '../src/lib/overviewStats.ts';
+} from '../src/overviewStats.ts';
 
 const TODAY = '2026-10-28'; // Wednesday; week starts Mon 2026-10-26
 const cats: Cat[] = [

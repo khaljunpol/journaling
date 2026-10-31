@@ -4,7 +4,7 @@ import { apiError } from '@/lib/apiHelpers';
 import { apiErrorBody } from '@/lib/server/apiError';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setSetting } from '@/lib/googleSheets';
-import { dayStatus } from '@/lib/quickDay';
+import { dayStatus } from '@journaling/core/quickDay';
 import { checkCronAuth, shouldRemind, appDateISO } from '@/lib/reminder';
 
 export const dynamic = 'force-dynamic';

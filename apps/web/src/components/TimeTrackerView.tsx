@@ -4,13 +4,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import Donut from '@/components/overview/Donut';
-import { timeBalance } from '@/lib/timeBalance';
+import { timeBalance } from '@journaling/core/timeBalance';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import { getCache, setCache } from '@/lib/cache';
 import { AXIS_TICK, CHART_SERIES, TOOLTIP_STYLE } from '@/lib/chartTheme';
-import { localISO, localTodayISO, pad } from '@/lib/date';
-import { timeSplit } from '@/lib/overview';
+import { localISO, localTodayISO, pad } from '@journaling/core/date';
+import { timeSplit } from '@journaling/core/overview';
 import type { TimeCategory, TimeEntry } from '@/lib/types';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];

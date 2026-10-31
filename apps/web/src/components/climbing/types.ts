@@ -1,4 +1,4 @@
-import { BOULDER_GRADES, FRENCH_GRADES } from '@/lib/climbing';
+import { BOULDER_GRADES, FRENCH_GRADES } from '@journaling/core/climbing';
 
 export type ClimbType = 'boulder' | 'rope';
 export type LogEntry = { id: string; date: string; session: number; type: ClimbType; grade: string; attempts: number; location?: string; notes?: string };

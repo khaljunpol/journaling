@@ -1,11 +1,11 @@
 import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog, TimeCategory } from '@/lib/types';
-import { parseGroup, type StoredGroup } from '@/lib/timeBalance';
+import { parseGroup, type StoredGroup } from '@journaling/core/timeBalance';
 import { range, TABS } from '@/lib/sheetLayout';
-import { localISO } from '@/lib/date';
-import { normalizeGrade } from '@/lib/climbing';
+import { localISO } from '@journaling/core/date';
+import { normalizeGrade } from '@journaling/core/climbing';
 import { withLock } from '@/lib/keyedLock';
-import { pickEmptyEntries } from '@/lib/widgetState';
+import { pickEmptyEntries } from '@journaling/core/widgetState';
 import type { TabsClient } from '@/lib/sheetTabs';
 import { createTabCache, type RangeReader } from '@/lib/sheetCache';
 

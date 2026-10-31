@@ -59,6 +59,13 @@ export function hoursFillReason(
   return usualHoursFill(day, templates, categoryIds).length === 0 ? 'all_filled' : null;
 }
 
+/** The POST body a device sends. parseWidgetAction turns it into a WidgetAction. */
+export type WidgetRequest =
+  | { action: 'mood'; score: number }
+  | { action: 'habit'; activityId: string }
+  | { action: 'weight'; weight: number }
+  | { action: 'hours'; fill?: 'usual' };
+
 export type WidgetAction =
   | { kind: 'mood'; score: number }
   | { kind: 'habit'; activityId: string }

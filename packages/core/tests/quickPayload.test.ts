@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildQuickPayload } from '../src/lib/quickPayload.ts';
+import { buildQuickPayload } from '../src/quickPayload.ts';
 
 const empty = {
   activities: [], logs: [], moods: [], weights: [], highlights: [],

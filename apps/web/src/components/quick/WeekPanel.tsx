@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { CATCHUP_KINDS, toggleKind } from '@/lib/quickWeek';
-import type { ItemKey } from '@/lib/quickDay';
+import { CATCHUP_KINDS, toggleKind } from '@journaling/core/quickWeek';
+import type { ItemKey } from '@journaling/core/quickDay';
 import Button from '@/components/ui/Button';
 
 const NAMES: Partial<Record<ItemKey, string>> = {

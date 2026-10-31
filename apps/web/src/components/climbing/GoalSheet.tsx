@@ -6,7 +6,7 @@ import Input, { Label } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Sheet from '@/components/ui/Sheet';
 import { useToast } from '@/components/ui/Toast';
-import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE, normalizeGrade } from '@/lib/climbing';
+import { DEFAULT_BOULDER_GRADE, DEFAULT_ROPE_GRADE, normalizeGrade } from '@journaling/core/climbing';
 import { gradesFor, type ClimbType } from './types';
 
 type ExistingGoal = { id: string; year: number; type: ClimbType; grade: string; target: number };

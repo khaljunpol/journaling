@@ -2,8 +2,8 @@
 
 import Sheet from '@/components/ui/Sheet';
 import Button from '@/components/ui/Button';
-import type { ItemKey } from '@/lib/quickDay';
-import type { QuickPayload } from '@/lib/quickPayload';
+import type { ItemKey } from '@journaling/core/quickDay';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 import type { TimeCategory } from '@/lib/types';
 import MoodEditor from './editors/MoodEditor';
 import HabitsEditor from './editors/HabitsEditor';

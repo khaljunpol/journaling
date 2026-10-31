@@ -1,4 +1,4 @@
-import type { QuickPayload } from '@/lib/quickPayload';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 import type { TimeCategory } from '@/lib/types';
 
 /** One write for the outbox. */

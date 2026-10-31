@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react';
 import Sheet from '@/components/ui/Sheet';
-import { frenchToIndex, vScaleToNumber } from '@/lib/climbing';
-import { byGym, daysSince, firstSends, gradePyramid, gradeTable, sessionRecords, sessionsCount, weekdayCounts, yearOverYear, type ClimbType, type Log } from '@/lib/climbStats';
-import { localISO, parseLocalDate } from '@/lib/date';
+import { frenchToIndex, vScaleToNumber } from '@journaling/core/climbing';
+import { byGym, daysSince, firstSends, gradePyramid, gradeTable, sessionRecords, sessionsCount, weekdayCounts, yearOverYear, type ClimbType, type Log } from '@journaling/core/climbStats';
+import { localISO, parseLocalDate } from '@journaling/core/date';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

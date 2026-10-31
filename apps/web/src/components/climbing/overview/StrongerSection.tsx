@@ -1,8 +1,8 @@
 "use client";
 
 import { Card } from '@/components/ui/Card';
-import { frenchToIndex, vScaleToNumber } from '@/lib/climbing';
-import { flashGrade, gradePyramid, hardestByMonth, hardestSend, type ClimbType, type Log } from '@/lib/climbStats';
+import { frenchToIndex, vScaleToNumber } from '@journaling/core/climbing';
+import { flashGrade, gradePyramid, hardestByMonth, hardestSend, type ClimbType, type Log } from '@journaling/core/climbStats';
 import Answer from './Answer';
 import { QUESTION_CLASS, type DetailKind } from './types';
 

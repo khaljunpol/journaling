@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { weekdayInitial } from '../src/lib/date.ts';
+import { weekdayInitial } from '../src/date.ts';
 
 describe('date helpers', () => {
   it('returns single-letter weekday initials', () => {

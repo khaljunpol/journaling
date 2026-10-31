@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { widgetState, usualHoursFill } from '../src/lib/widgetState.ts';
-import { dayStatus, type DayData, type Ctx } from '../src/lib/quickDay.ts';
-import { habitIcon } from '../src/lib/habitIcons.ts';
+import { widgetState, usualHoursFill } from '../src/widgetState.ts';
+import { dayStatus, type DayData, type Ctx } from '../src/quickDay.ts';
+import { habitIcon } from '../src/habitIcons.ts';
 
 const emptyDay = (over: Partial<DayData> = {}): DayData => ({
   date: '2026-10-26', // Monday
@@ -96,7 +96,7 @@ test('usualHoursFill skips ids not in categoryIds', () => {
 });
 
 test('hoursFillReason: no template, all filled, or null when something can be written', async () => {
-  const { hoursFillReason } = await import('../src/lib/widgetState.ts');
+  const { hoursFillReason } = await import('../src/widgetState.ts');
   const cats = [1, 2];
   const full = Array.from({ length: 24 }, () => 1);
   const tpl = { weekday: Array.from({ length: 24 }, () => 1), weekend: null };

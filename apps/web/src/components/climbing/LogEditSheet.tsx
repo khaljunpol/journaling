@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button';
 import Input, { Label, Textarea } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Sheet from '@/components/ui/Sheet';
-import { normalizeGrade } from '@/lib/climbing';
+import { normalizeGrade } from '@journaling/core/climbing';
 import { fallsLabel, gradesFor, type LogEntry } from './types';
 
 type Props = {

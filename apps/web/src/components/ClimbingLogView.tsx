@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { localTodayISO, parseLocalDate } from '@/lib/date';
+import { localTodayISO, parseLocalDate } from '@journaling/core/date';
 import { clearCacheByPrefix } from '@/lib/cache';
 import { logMatchesGoal } from '@/lib/climbStory';
 import Link from 'next/link';

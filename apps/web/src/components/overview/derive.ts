@@ -1,7 +1,7 @@
 // Turns the API payloads into the numbers the Overview questions show. Numbers only: the copy lives in the UI.
 // Pure maths is in lib/overviewStats.ts; this file joins the sources (dashboard, Today, 90-day reads).
 // Value imports stay relative with .ts so tests/derive.test.ts can load it with node --test.
-import { lastDates } from '../../lib/overview.ts';
+import { lastDates } from '@journaling/core/overview';
 import {
   avgKnown,
   bestStreak,
@@ -24,10 +24,10 @@ import {
   type HourRow,
   type MoodRow,
   type TimeRow,
-} from '../../lib/overviewStats.ts';
-import type { QuickPayload } from '@/lib/quickPayload';
-import { addDaysISO } from '../../lib/quickWeek.ts';
-import { parseLocalDate } from '../../lib/date.ts';
+} from '@journaling/core/overviewStats';
+import type { QuickPayload } from '@journaling/core/quickPayload';
+import { addDaysISO } from '@journaling/core/quickWeek';
+import { parseLocalDate } from '@journaling/core/date';
 import type { Activity, MoodItem, Sidequest } from '@/lib/types';
 import type { HabitRow } from './TrendTable';
 

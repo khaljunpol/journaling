@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { canGoNext, mondayOf, shiftWeek, weekDates, weekRange } from '@/lib/quickWeek';
+import { canGoNext, mondayOf, shiftWeek, weekDates, weekRange } from '@journaling/core/quickWeek';
 
 /** Which week the strip shows, which day was tapped, and loading a past week from the server. */
 export function useWeek(

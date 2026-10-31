@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { QUESTION_CLASS } from '@/components/climbing/overview/types';
 import Skeleton from '@/components/ui/Skeleton';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 import type { OverviewView } from './derive';
 import { NextLink } from './Section';
 

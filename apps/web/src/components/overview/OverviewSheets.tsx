@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import Sheet from '@/components/ui/Sheet';
-import { parseLocalDate } from '@/lib/date';
-import { hm } from '@/lib/overviewStats';
+import { parseLocalDate } from '@journaling/core/date';
+import { hm } from '@journaling/core/overviewStats';
 import { SLEEP_CUT, type OverviewView } from './derive';
 import { signed } from './Section';
 import TrendTable from './TrendTable';

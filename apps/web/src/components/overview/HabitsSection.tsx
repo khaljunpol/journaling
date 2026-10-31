@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Answer from '@/components/climbing/overview/Answer';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 import type { OverviewView } from './derive';
 import { NextLink, PlainAnswer, Section, SectionSkeleton, signed } from './Section';
 import TrendChip from './TrendChip';

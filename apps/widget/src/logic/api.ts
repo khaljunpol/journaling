@@ -1,20 +1,10 @@
 // Talks to Journal's /api/widget. No React Native imports, so tests can load it.
 
+import type { WidgetRequest, WidgetState } from '@journaling/core/widgetState';
+
 export type Conn = { url: string; key: string };
-export type WidgetHabit = { id: string; name: string; icon: string | null; done: boolean };
-export type WidgetState = {
-  date: string;
-  mood: number | null;
-  weight: number | null;
-  hours: number;
-  progress: { filled: number; total: number };
-  habits: WidgetHabit[];
-};
-export type Action =
-  | { action: 'mood'; score: number }
-  | { action: 'habit'; activityId: string }
-  | { action: 'weight'; weight: number }
-  | { action: 'hours' };
+export type Action = WidgetRequest;
+export type { WidgetState };
 export type Result =
   | { kind: 'ok'; state: WidgetState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"

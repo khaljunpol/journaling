@@ -1,4 +1,4 @@
-import type { TimeSlice } from '@/lib/overview';
+import type { TimeSlice } from '@journaling/core/overview';
 
 /** Time split. Own SVG ring with the total in the middle and a legend. Colours are the category colours. */
 export default function Donut({

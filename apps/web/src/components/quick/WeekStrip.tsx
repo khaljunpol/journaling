@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 
 export type StripDay = { date: string; filled: number; total: number } | { date: string; filled: null; total: null };
 

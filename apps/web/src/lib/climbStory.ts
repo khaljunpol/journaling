@@ -1,6 +1,6 @@
 // Pure data for the climbing story image (1080 x 1920). No React, no canvas.
-import { FRENCH_GRADES, frenchToIndex, normalizeGrade, vScaleToNumber } from './climbing.ts';
-import { localISO, parseLocalDate, weekStartLocal } from './date.ts';
+import { FRENCH_GRADES, frenchToIndex, normalizeGrade, vScaleToNumber } from '@journaling/core/climbing';
+import { localISO, parseLocalDate, weekStartLocal } from '@journaling/core/date';
 
 export type StoryLog = { id: string; date: string; session: number; type: 'boulder' | 'rope'; grade: string; attempts: number };
 export type StoryGoal = { id: string; year: number; type: 'boulder' | 'rope'; grade: string; target: number };

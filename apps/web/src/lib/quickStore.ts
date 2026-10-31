@@ -1,8 +1,8 @@
 // Browser-only localStorage wrapper for the /quick snapshot and outbox.
 // Every key starts with 'quick:'. clearLocalCache() wipes them too, and signOutClean also calls clearQuick().
-import type { QuickPayload } from './quickPayload';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 import { cleanStored, type OutboxItem } from './outbox';
-import type { ItemKey } from './quickDay';
+import type { ItemKey } from '@journaling/core/quickDay';
 
 const PREFIX = 'quick:';
 const snapKey = (email: string) => `${PREFIX}snapshot:${email.toLowerCase()}`;

@@ -5,9 +5,9 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
 import Skeleton from '@/components/ui/Skeleton';
 import { getCache, setCache } from '@/lib/cache';
-import { localTodayISO, parseLocalDate } from '@/lib/date';
-import { habitGrid, lastDates } from '@/lib/overview';
-import { addDaysISO } from '@/lib/quickWeek';
+import { localTodayISO, parseLocalDate } from '@journaling/core/date';
+import { habitGrid, lastDates } from '@journaling/core/overview';
+import { addDaysISO } from '@journaling/core/quickWeek';
 import type { Activity, Log } from '@/lib/types';
 
 const CELL = 12;

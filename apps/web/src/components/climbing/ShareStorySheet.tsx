@@ -7,7 +7,7 @@ import Input, { Label } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Sheet from '@/components/ui/Sheet';
 import { buildClimbCard, buildOverlay, buildStory, dayGoals, buildYearStats, buildYearStory, chooseGoal, climbsOn, latestSessionDate, type StoryGoal, type StoryLog } from '@/lib/climbStory';
-import { localTodayISO } from '@/lib/date';
+import { localTodayISO } from '@journaling/core/date';
 import { canvasToBlob, renderClimbCard, renderOverlay, renderStory, renderYearStats, renderYearStory } from './storyImage';
 
 type Props = {

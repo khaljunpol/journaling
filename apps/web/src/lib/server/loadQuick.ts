@@ -12,7 +12,7 @@ import {
   type SheetAuth,
 } from '@/lib/googleSheets';
 import { listSidequests, listSidequestLogs } from '@/lib/sidequests';
-import { buildQuickPayload, type QuickPayload } from '@/lib/quickPayload';
+import { buildQuickPayload, type QuickPayload } from '@journaling/core/quickPayload';
 
 /** Read a date range from one sheet and build the board payload. Shared by /api/quick and the reminder. */
 export async function loadQuickPayload(sheetAuth: SheetAuth, from: string, to: string): Promise<{

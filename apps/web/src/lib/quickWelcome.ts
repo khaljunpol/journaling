@@ -1,6 +1,6 @@
 // Pure rules for the first-run welcome on Today. Imports only types, so tests can load it.
-import type { QuickPayload } from './quickPayload.ts';
-import type { DayData } from './quickDay.ts';
+import type { QuickPayload } from '@journaling/core/quickPayload';
+import type { DayData } from '@journaling/core/quickDay';
 
 export type WelcomeStep = { key: 'habits' | 'log' | 'reminder'; done: boolean };
 

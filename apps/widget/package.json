@@ -9,7 +9,9 @@
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
     "react-native": "0.88.1",
-    "react-native-android-widget": "^0.26.0"
+    "react-native-android-widget": "^0.26.0",
+    "@journaling/core": "*",
+    "@journaling/design": "*"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",

@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import PageHeader from '@/components/ui/PageHeader';
 import { useFirstVisit } from '@/components/ui/useFirstVisit';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 import HabitsSection from './HabitsSection';
 import { ClimbLine, LineSkeleton, ProgressLine } from './LinesRow';
 import MoodSection from './MoodSection';

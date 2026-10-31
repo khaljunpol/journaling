@@ -4,7 +4,7 @@ import { authWidget } from '@/lib/server/widgetAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth } from '@/lib/googleSheets';
 import { appDateISO } from '@/lib/reminder';
-import { widgetState, usualHoursFill, hoursFillReason, parseWidgetAction, type WidgetState } from '@/lib/widgetState';
+import { widgetState, usualHoursFill, hoursFillReason, parseWidgetAction, type WidgetState } from '@journaling/core/widgetState';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { apiErrorBody } from '@/lib/server/apiError';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { localISO, weekStartLocal } from '@/lib/date';
+import { localISO, weekStartLocal } from '@journaling/core/date';
 import {
   listActivities,
   getLogsBetween,

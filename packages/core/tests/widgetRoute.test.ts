@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseWidgetAction } from '../src/lib/widgetState.ts';
+import { parseWidgetAction } from '../src/widgetState.ts';
 
 test('parseWidgetAction accepts the 4 shapes', () => {
   assert.deepEqual(parseWidgetAction({ action: 'mood', score: 0 }), { kind: 'mood', score: 0 });
@@ -42,7 +42,7 @@ test('parseWidgetAction rejects junk', () => {
   }
 });
 
-import { pickEmptyEntries } from '../src/lib/widgetState.ts';
+import { pickEmptyEntries } from '../src/widgetState.ts';
 
 test('pickEmptyEntries keeps only hours whose cell is empty', () => {
   const row = new Array(24).fill('');

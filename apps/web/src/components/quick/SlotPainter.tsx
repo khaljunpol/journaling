@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TimeCategory } from '@/lib/types';
-import { inkOn } from '@/lib/contrast';
+import { inkOn } from '@journaling/core/contrast';
 
 const COLS = 6;
 

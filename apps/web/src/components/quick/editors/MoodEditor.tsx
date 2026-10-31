@@ -1,6 +1,6 @@
 'use client';
 
-import { MOODS } from '@/lib/mood';
+import { MOODS } from '@journaling/core/mood';
 import type { EditorProps } from './types';
 
 export default function MoodEditor({ date, payload, onSave }: EditorProps) {

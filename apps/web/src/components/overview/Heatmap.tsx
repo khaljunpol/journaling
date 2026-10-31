@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
-import { moodColor, moodLabel } from '@/lib/mood';
-import { addDaysISO, mondayOf } from '@/lib/quickWeek';
+import { moodColor, moodLabel } from '@journaling/core/mood';
+import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 const CELL = 10;
 const GAP = 3;

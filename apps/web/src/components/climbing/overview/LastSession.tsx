@@ -2,7 +2,7 @@
 
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { newBest, hardestSend, type Log } from '@/lib/climbStats';
+import { newBest, hardestSend, type Log } from '@journaling/core/climbStats';
 import { latestSessionDate } from '@/lib/climbStory';
 import { dayLabel } from '@/components/climbing/types';
 import Answer from './Answer';

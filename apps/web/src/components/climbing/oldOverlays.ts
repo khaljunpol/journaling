@@ -1,8 +1,8 @@
 // The "Year (old)" and "Goals (old)" share images: transparent 1080x1920 PNGs drawn on a canvas.
 // Kept as "More styles" in the share sheet. Numbers are worked out only when one is made.
-import { localISO as toLocalISO, parseLocalDate, weekStartLocal } from '@/lib/date';
-import { vScaleToNumber, FRENCH_GRADES, frenchToIndex } from '@/lib/climbing';
-import { weeklySeries as calcWeeklySeries } from '@/lib/climbStats';
+import { localISO as toLocalISO, parseLocalDate, weekStartLocal } from '@journaling/core/date';
+import { vScaleToNumber, FRENCH_GRADES, frenchToIndex } from '@journaling/core/climbing';
+import { weeklySeries as calcWeeklySeries } from '@journaling/core/climbStats';
 import { COLORS } from '@/lib/colors';
 import type { ClimbLog } from '@/lib/types';
 

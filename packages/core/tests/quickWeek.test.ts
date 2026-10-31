@@ -17,7 +17,7 @@ import {
   templateMessage,
   habitFillPlan,
   habitMessage,
-} from '../src/lib/quickWeek.ts';
+} from '../src/quickWeek.ts';
 
 const empty = Array.from({ length: 24 }, () => null);
 

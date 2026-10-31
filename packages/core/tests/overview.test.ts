@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lastDates, timeSplit } from '../src/lib/overview.ts';
+import { lastDates, timeSplit } from '../src/overview.ts';
 
 test('timeSplit: counts hours in range, merges the small ones into Other', () => {
   const cats = [1, 2, 3].map((i) => ({ id: String(i), name: `c${i}`, color: '#111' }));
@@ -21,7 +21,7 @@ test('lastDates: n dates ending today', () => {
 });
 
 test('habitGrid: sorts by 30-day rate and gives week rates', async () => {
-  const { habitGrid } = await import('../src/lib/overview.ts');
+  const { habitGrid } = await import('../src/overview.ts');
   const days = lastDates('2026-10-27', 14);
   const logs = [
     ...days.slice(-7).map((date) => ({ date, activityId: 'a', completed: true })),
@@ -37,7 +37,7 @@ test('habitGrid: sorts by 30-day rate and gives week rates', async () => {
 });
 
 test('habitGrid: window ends today and fills exactly the logged days', async () => {
-  const { habitGrid } = await import('../src/lib/overview.ts');
+  const { habitGrid } = await import('../src/overview.ts');
   const days = lastDates('2026-10-27', 84);
   const logs = [
     { date: '2026-10-27', activityId: 'a', completed: true },

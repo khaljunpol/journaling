@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { habitIcon, doneHabits } from '../src/lib/habitIcons.ts';
+import { habitIcon, doneHabits } from '../src/habitIcons.ts';
 
 test('habitIcon reads the habit name', () => {
   assert.equal(habitIcon('Gym'), 'gym');

@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
 import Input, { Label } from '@/components/ui/Input';
-import { groupOf } from '@/lib/timeBalance';
+import { groupOf } from '@journaling/core/timeBalance';
 
 type GroupChoice = NonNullable<Category['group']>;
 /** Groups feed the Productive / Rest / Sleep split on Trends > Time. */

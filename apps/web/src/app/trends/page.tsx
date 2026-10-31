@@ -13,7 +13,7 @@ import Sheet from '@/components/ui/Sheet';
 import Tabs, { TabPanel } from '@/components/ui/Tabs';
 import { useRouteTab } from '@/components/shell/RouteTabs';
 import WeightTrendChart from '@/components/WeightTrendChart';
-import { localTodayISO } from '@/lib/date';
+import { localTodayISO } from '@journaling/core/date';
 
 const TABS = [
   { id: 'mood', label: 'Mood' },

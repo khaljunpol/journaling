@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
-import { localTodayISO } from '@/lib/date';
+import { localTodayISO } from '@journaling/core/date';
 import {
   buildTimePrompt,
   getPromptPeriod,

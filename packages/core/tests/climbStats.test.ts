@@ -5,7 +5,7 @@ import {
   byGym, daysSince, firstSends, flashGrade, goalPace, gradePyramid, gradeTable, groupBySession, hardestByMonth, hardestFlash, hardestSend,
   newBest, sendsPerWeek, sessionRecords, sessionsCount, weekStreak, weekdayCounts, weeklySeries, yearOverYear,
   type Log,
-} from '../src/lib/climbStats.ts';
+} from '../src/climbStats.ts';
 
 let n = 0;
 const log = (date: string, grade = 'V4', attempts = 1, session = 1, type: 'boulder' | 'rope' = 'boulder', location?: string): Log =>

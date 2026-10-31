@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { listTimeCategories, upsertTimeCategory, deleteTimeCategory } from '@/lib/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
-import { parseGroup } from '@/lib/timeBalance';
+import { parseGroup } from '@journaling/core/timeBalance';
 
 export async function GET() {
   try {

@@ -1,10 +1,10 @@
 "use client";
 
-import { localTodayISO } from '@/lib/date';
+import { localTodayISO } from '@journaling/core/date';
 import type { ClimbLog } from '@/lib/types';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
-import { goalPace as calcGoalPace } from '@/lib/climbStats';
+import { goalPace as calcGoalPace } from '@journaling/core/climbStats';
 import { useFirstVisit } from '@/components/ui/useFirstVisit';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';

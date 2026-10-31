@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import type { GoalPace } from '@/lib/climbStats';
+import type { GoalPace } from '@journaling/core/climbStats';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';

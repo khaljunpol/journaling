@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, type MutableRefObject } from 'react';
-import { dayStatus, habitLogSpecs, missingInOrder, type ItemKey } from '@/lib/quickDay';
-import { hoursEntries } from '@/lib/quickApply';
-import type { QuickPayload } from '@/lib/quickPayload';
+import { dayStatus, habitLogSpecs, missingInOrder, type ItemKey } from '@journaling/core/quickDay';
+import { hoursEntries } from '@journaling/core/quickApply';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 import { loadCatchup, saveCatchup } from '@/lib/quickStore';
 import {
   DAILY_KINDS,
@@ -16,7 +16,7 @@ import {
   templateFillPlan,
   templateMessage,
   type CatchUpStep,
-} from '@/lib/quickWeek';
+} from '@journaling/core/quickWeek';
 import type { SaveSpec } from './editors/types';
 
 type Args = {

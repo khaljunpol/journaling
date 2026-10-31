@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { habitLogSpecs, initialTicks, templateKind } from '@/lib/quickDay';
+import { habitLogSpecs, initialTicks, templateKind } from '@journaling/core/quickDay';
 import type { EditorProps } from './types';
 
 export default function HabitsEditor({ date, payload, onSave }: EditorProps) {

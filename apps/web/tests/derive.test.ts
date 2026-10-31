@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveOverview, type DashboardData } from '../src/components/overview/derive.ts';
-import type { QuickPayload } from '../src/lib/quickPayload.ts';
+import type { QuickPayload } from '@journaling/core/quickPayload';
 
 const TODAY = '2026-10-28'; // Wednesday; this week Mon 26 to Wed 28, last week's same days 19 to 21
 

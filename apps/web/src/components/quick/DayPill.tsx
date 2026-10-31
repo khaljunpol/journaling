@@ -1,7 +1,7 @@
 'use client';
 
 import { CalendarDays } from 'lucide-react';
-import { parseLocalDate } from '@/lib/date';
+import { parseLocalDate } from '@journaling/core/date';
 
 /** Which day an editor writes to. Today stays quiet; any other day gets the accent so it can't be missed. */
 export default function DayPill({ date, today, yesterday }: { date: string; today: string | null; yesterday: string | null }) {

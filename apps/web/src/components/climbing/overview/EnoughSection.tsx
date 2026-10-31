@@ -1,8 +1,8 @@
 "use client";
 
 import { Card } from '@/components/ui/Card';
-import { sendsPerWeek, sessionsCount, weekStreak, weekdayCounts, weeklySeries, type Log } from '@/lib/climbStats';
-import { weekStartLocal, localISO, parseLocalDate } from '@/lib/date';
+import { sendsPerWeek, sessionsCount, weekStreak, weekdayCounts, weeklySeries, type Log } from '@journaling/core/climbStats';
+import { weekStartLocal, localISO, parseLocalDate } from '@journaling/core/date';
 import Answer from './Answer';
 import { QUESTION_CLASS, type DetailKind } from './types';
 

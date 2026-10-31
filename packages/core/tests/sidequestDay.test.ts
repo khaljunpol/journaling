@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayValueRows } from '../src/lib/sidequestDay.ts';
+import { dayValueRows } from '../src/sidequestDay.ts';
 
 // Sheet rows: id, sidequestId, date, value, value2, note, milestoneIndex
 const rows = [

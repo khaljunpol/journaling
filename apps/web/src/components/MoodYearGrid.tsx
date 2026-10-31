@@ -1,8 +1,8 @@
 "use client";
 
 import { getCache, setCache } from '@/lib/cache';
-import { localISO } from '@/lib/date';
-import { MOODS, moodBackground, moodColor, moodEmoji } from '@/lib/mood';
+import { localISO } from '@journaling/core/date';
+import { MOODS, moodBackground, moodColor, moodEmoji } from '@journaling/core/mood';
 import type { MoodItem, DaySummary } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/components/Modal';

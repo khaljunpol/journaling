@@ -2,7 +2,7 @@
 
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { groupBySession } from '@/lib/climbStats';
+import { groupBySession } from '@journaling/core/climbStats';
 import { dayLabel, fallsLabel, type LogEntry } from './types';
 
 const label = 'text-[12px] font-medium uppercase tracking-[0.04em]';

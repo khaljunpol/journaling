@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupOf, parseGroup, timeBalance } from '../src/lib/timeBalance.ts';
+import { groupOf, parseGroup, timeBalance } from '../src/timeBalance.ts';
 
 test('groupOf uses the saved group first', () => {
   assert.equal(groupOf({ name: 'work', group: 'rest' }), 'rest');
