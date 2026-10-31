@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { connFromCode } from '../src/logic/api.ts';
-import { applyLocal, enqueue, remove, sendable, shownHabits, shownHistory, shownWeek, sparkPoints } from '../src/logic/queue.ts';
+import { applyLocal, enqueue, remove, sendable, shownHabits, shownHistory, shownLine, shownWeek, sparkPoints } from '../src/logic/queue.ts';
 
 const state = {
   date: '2026-10-31', mood: null, weight: null, hours: 3, highlight: '', progress: { filled: 0, total: 4 },
@@ -113,4 +113,13 @@ test('spark: one value or equal values sit in the middle', () => {
 
 test('spark: nothing to draw', () => {
   assert.deepEqual(sparkPoints([null, null], 100, 20), []);
+});
+
+test('line: cycles through and wraps, and copes with nothing', () => {
+  const a = { text: 'a', tone: 'good' as const };
+  const b = { text: 'b', tone: 'bad' as const };
+  assert.equal(shownLine([a, b], 0), a);
+  assert.equal(shownLine([a, b], 3), b);
+  assert.equal(shownLine([], 2), null);
+  assert.equal(shownLine(undefined, 2), null);
 });

@@ -14,7 +14,7 @@ The one door for devices that are not a browser: the phone widget and the Garmin
 - **`GET {url}/api/device?include=hours`** adds `categories: [{ id, name, color }]` and `slots: (category id | null)[24]` for an hours screen. `DeviceState` also has `highlight`.
 - **`GET {url}/api/device?include=week`** adds `week: [{ date, filled, total }]`, Monday to Sunday. Days after today are 0 of 0.
 - **`GET {url}/api/device?include=history`** adds `history: [{ date, mood, weight }]`, the last 30 days, oldest first. A day with nothing logged has `null`.
-- **`GET {url}/api/device?include=insights`** adds `insights: { mood: { avg, delta }, sleep, habits: { rate, streak }, time: { name, hours } | null }`, the same answers as the Overview page. A `null` number means nothing to show yet.
+- **`GET {url}/api/device?include=insights`** adds `insights: { mood: { avg, delta }, sleep, habits: { rate, streak }, time: { name, hours } | null, lines: [{ text, tone }] }`, the same answers as the Overview page. `lines` are short sentences, most telling first; `tone` is `good`, `bad` or `neutral`. A `null` number means nothing to show yet.
 - Every action is safe to repeat. After "Turn off" an old key can keep working for up to 30 s (per-instance sheet cache).
 - Replies stay small for watches: the habit list only, no history.
 

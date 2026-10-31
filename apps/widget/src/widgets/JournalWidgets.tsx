@@ -3,7 +3,7 @@ import React from 'react';
 import { FlexWidget, SvgWidget, TextWidget, type ColorProp } from 'react-native-android-widget';
 import { moodColor } from '@journaling/core/mood';
 import { dark } from '@journaling/design';
-import { shownHabits, shownHistory, shownWeek, sparkPoints } from '../logic/queue';
+import { shownHabits, shownHistory, shownLine, shownWeek, sparkPoints } from '../logic/queue';
 import type { Snapshot } from '../sync';
 import { iconSvg, type IconName } from './icons';
 
@@ -303,13 +303,13 @@ export function JournalWeight({ s, width, height }: Size) {
 }
 
 /** One answer: what it is, the number, and a small note. */
-function Tile({ w, h, gap = 0, label, value, note }: { w: number; h: number; gap?: number; label: string; value: string; note?: string }) {
+function Tile({ w, h, gap = 0, label, value, note, small }: { w: number; h: number; gap?: number; label: string; value: string; note?: string; small?: boolean }) {
   return (
-    <FlexWidget style={{ width: w, height: h, marginLeft: gap, borderRadius: 20, backgroundColor: c['surface-2'], paddingHorizontal: 14, justifyContent: 'center' }}>
-      <TextWidget text={label} maxLines={1} style={{ fontSize: 12, color: c['text-2'] }} />
+    <FlexWidget style={{ width: w, height: h, marginLeft: gap, borderRadius: small ? 16 : 20, backgroundColor: c['surface-2'], paddingHorizontal: small ? 10 : 14, justifyContent: 'center' }}>
+      <TextWidget text={label} maxLines={1} style={{ fontSize: small ? 11 : 12, color: c['text-2'] }} />
       <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <TextWidget text={value} style={{ fontSize: 20, fontWeight: '600', color: c['text-1'] }} />
-        {note ? <TextWidget text={note} maxLines={1} style={{ marginLeft: 6, fontSize: 12, color: c['text-2'] }} /> : null}
+        <TextWidget text={value} style={{ fontSize: small ? 15 : 20, fontWeight: '600', color: c['text-1'] }} />
+        {note ? <TextWidget text={note} maxLines={1} style={{ marginLeft: small ? 4 : 6, fontSize: small ? 11 : 12, color: c['text-2'] }} /> : null}
       </FlexWidget>
     </FlexWidget>
   );
@@ -329,6 +329,23 @@ export function JournalOverview({ s, width, height }: Size) {
   const none = '\u2013';
   const delta = i?.mood.delta == null ? undefined : signed(i.mood.delta);
   const streak = i?.habits.streak ?? 0;
+  if (height < 110) {
+    const h = Math.max(44, Math.min(58, height));
+    const small = Math.floor((w - INSET * 2 - 4 * 3) / 4);
+    const tile = { w: small, h: h - 12, small: true };
+    return (
+      <Centre>
+        <FlexWidget {...clickOf({ uri: `${s.conn?.url}/` })} style={{ width: w, height: h }}>
+          <Capsule w={w} h={h}>
+            <Tile {...tile} label="Mood" value={i?.mood.avg == null ? none : String(i.mood.avg)} note={delta} />
+            <Tile {...tile} gap={4} label="Sleep" value={i?.sleep == null ? none : `${i.sleep}h`} />
+            <Tile {...tile} gap={4} label="Habits" value={i?.habits.rate == null ? none : `${i.habits.rate}%`} note={streak >= 2 ? `${streak}d` : undefined} />
+            <Tile {...tile} gap={4} label={i?.time?.name ?? 'Time'} value={i?.time ? `${i.time.hours}h` : none} />
+          </Capsule>
+        </FlexWidget>
+      </Centre>
+    );
+  }
   return (
     <Centre>
       <FlexWidget {...clickOf({ uri: `${s.conn?.url}/` })} style={{ width: w, height: tileH * 2 + gap + INSET * 2, borderRadius: 28, backgroundColor: c.surface, padding: INSET }}>
@@ -339,6 +356,26 @@ export function JournalOverview({ s, width, height }: Size) {
         <FlexWidget style={{ flexDirection: 'row', marginTop: gap }}>
           <Tile w={tileW} h={tileH} label="Habits, 14 days" value={i?.habits.rate == null ? none : `${i.habits.rate}%`} note={streak >= 2 ? `${streak} days` : undefined} />
           <Tile w={tileW} h={tileH} gap={gap} label={i?.time ? `Most time: ${i.time.name}` : 'Most time'} value={i?.time ? `${i.time.hours}h` : none} />
+        </FlexWidget>
+      </FlexWidget>
+    </Centre>
+  );
+}
+
+/** The insight widget: one sentence to read. Green is good news, red is bad. Tap for the next one. */
+export function JournalInsight({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const w = Math.min(width, 420);
+  const h = Math.max(44, Math.min(64, height));
+  const line = shownLine(s.insights?.lines, s.lineAt);
+  const dot = line?.tone === 'good' ? c.ok : line?.tone === 'bad' ? c.warn : c['text-3'];
+  return (
+    <Centre>
+      <FlexWidget clickAction="NEXT_LINE" style={{ width: w, height: h }}>
+        <FlexWidget style={{ width: w, height: h, borderRadius: ROUND, backgroundColor: c.surface, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center' }}>
+          <FlexWidget style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot }} />
+          <TextWidget text={line?.text ?? 'Keep logging. Insights show up here.'} maxLines={2} style={{ marginLeft: 12, fontSize: 15, fontWeight: '600', color: line ? c['text-1'] : c['text-2'] }} />
         </FlexWidget>
       </FlexWidget>
     </Centre>

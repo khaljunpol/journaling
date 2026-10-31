@@ -85,3 +85,8 @@ export function sparkPoints(values: Array<number | null>, w: number, h: number):
     v === null ? [] : [{ x: last > 0 ? (i / last) * w : w, y: range > 0 ? h - ((v - min) / range) * h : h / 2 }],
   );
 }
+
+/** The sentence to show. `at` only ever grows, so it wraps around the list. */
+export function shownLine<T>(lines: T[] | undefined, at: number): T | null {
+  return lines?.length ? lines[at % lines.length] : null;
+}

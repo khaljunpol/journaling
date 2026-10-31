@@ -22,10 +22,12 @@ export type Snapshot = {
   history: DeviceHistoryDay[] | null;
   /** The overview widget's answers, as last read. */
   insights: DeviceInsights | null;
+  /** Which sentence the insight widget is on. Only ever grows. */
+  lineAt: number;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, lineAt: 0, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -149,6 +151,16 @@ export function refreshInsights(): Promise<Snapshot> {
     const insights = await getInsights(s.conn);
     if (!insights) return s;
     const next = { ...s, insights };
+    await save(next);
+    return next;
+  });
+}
+
+/** The next sentence: on a tap, and on each timed update so it stays fresh. */
+export function nextLine(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    const next = { ...s, lineAt: s.lineAt + 1 };
     await save(next);
     return next;
   });

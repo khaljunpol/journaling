@@ -6,7 +6,6 @@ import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type Shee
 import { appDateISO } from '@/lib/reminder';
 import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
 import { deviceInsights } from '@journaling/core/deviceInsights';
-import { weekWindow } from '@journaling/core/overviewStats';
 import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 export const dynamic = 'force-dynamic';
@@ -67,10 +66,10 @@ export async function GET(req: Request) {
     }
     if (include === 'insights') {
       const { payload, day } = await load(auth.sheetAuth, today);
-      const { prevFrom } = weekWindow(today);
+      const from90 = addDaysISO(today, -89);
       const [moods, hours, logs, cats] = await Promise.all([
-        getMoodsBetween(auth.sheetAuth, prevFrom, today),
-        listHourLogs(auth.sheetAuth, prevFrom, today),
+        getMoodsBetween(auth.sheetAuth, from90, today),
+        listHourLogs(auth.sheetAuth, from90, today),
         // Streaks reach back to the start of last year, same as the Overview.
         getLogsBetween(auth.sheetAuth, `${Number(today.slice(0, 4)) - 1}-01-01`, today),
         listTimeCategories(auth.sheetAuth),
