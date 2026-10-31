@@ -4,7 +4,8 @@ import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
-import { deviceState, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
+import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
+import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,8 +36,8 @@ function refused() {
   return NextResponse.json({ error: 'key' }, { status: 401, headers: NO_STORE });
 }
 
-async function load(sheetAuth: SheetAuth, today: string) {
-  const { payload } = await loadQuickPayload(sheetAuth, today, today);
+async function load(sheetAuth: SheetAuth, today: string, from = today) {
+  const { payload } = await loadQuickPayload(sheetAuth, from, today);
   const day = payload.days[today];
   if (!day) throw new Error('Day missing from payload');
   return { payload, day };
@@ -47,13 +48,22 @@ async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceStat
   return deviceState(day, payload.ctx);
 }
 
-/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots. */
+/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight. */
 export async function GET(req: Request) {
   try {
     const auth = await authDevice(req);
     if (!auth) return refused();
     const today = appDateISO(new Date());
-    if (new URL(req.url).searchParams.get('include') === 'hours') {
+    const include = new URL(req.url).searchParams.get('include');
+    if (include === 'week') {
+      const { payload, day } = await load(auth.sheetAuth, today, mondayOf(today));
+      return NextResponse.json({ ...deviceState(day, payload.ctx), week: deviceWeek(payload.days, payload.ctx, today) }, { status: 200, headers: NO_STORE });
+    }
+    if (include === 'history') {
+      const { payload, day } = await load(auth.sheetAuth, today, addDaysISO(today, 1 - HISTORY_DAYS));
+      return NextResponse.json({ ...deviceState(day, payload.ctx), history: deviceHistory(payload.days, today) }, { status: 200, headers: NO_STORE });
+    }
+    if (include === 'hours') {
       const { payload, day } = await load(auth.sheetAuth, today);
       const categories = (await listTimeCategories(auth.sheetAuth)).map((c) => ({ id: Number(c.id), name: c.name, color: c.color }));
       const hours: DeviceHours = { categories, slots: day.hours };

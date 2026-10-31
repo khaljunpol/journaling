@@ -1,16 +1,24 @@
 import React from 'react';
 import { requestWidgetUpdate, type WidgetInfo, type WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { record, refresh, snapshot, type Snapshot } from '../sync';
+import { record, refresh, refreshHistory, refreshWeek, snapshot, type Snapshot } from '../sync';
 import type { Action } from '../logic/api';
-import { Journal } from './JournalWidgets';
+import { Journal, JournalMood, JournalWeek, JournalWeight } from './JournalWidgets';
+
+const NAMES = ['JournalLarge', 'JournalSmall', 'JournalWeek', 'JournalMood', 'JournalWeight'];
+/** The extra read each widget needs. Only those widgets pay for it. */
+const READS: Record<string, (() => Promise<Snapshot>) | undefined> = { JournalWeek: refreshWeek, JournalMood: refreshHistory, JournalWeight: refreshHistory };
 
 function view(info: WidgetInfo, s: Snapshot) {
-  return <Journal s={s} width={info.width} height={info.height} />;
+  const props = { s, width: info.width, height: info.height };
+  if (info.widgetName === 'JournalWeek') return <JournalWeek {...props} />;
+  if (info.widgetName === 'JournalMood') return <JournalMood {...props} />;
+  if (info.widgetName === 'JournalWeight') return <JournalWeight {...props} />;
+  return <Journal {...props} />;
 }
 
-/** Repaints every placed widget, both sizes. */
+/** Repaints every placed widget. */
 export async function paintAll(s: Snapshot): Promise<void> {
-  await Promise.all(['JournalLarge', 'JournalSmall'].map((widgetName) => requestWidgetUpdate({ widgetName, renderWidget: (info) => view(info, s) })));
+  await Promise.all(NAMES.map((widgetName) => requestWidgetUpdate({ widgetName, renderWidget: (info) => view(info, s) })));
 }
 
 /** Save a tap: draw it at once, then reach the server and draw the truth. Also used by the popups. */
@@ -38,7 +46,8 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
     case 'WIDGET_UPDATE':
     case 'WIDGET_RESIZED':
       props.renderWidget(view(props.widgetInfo, await snapshot()));
-      await paintAll(await refresh());
+      await refresh();
+      await paintAll(await (READS[props.widgetInfo.widgetName] ?? snapshot)());
       break;
     case 'WIDGET_CLICK': {
       const action = actionOf(props);

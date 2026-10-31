@@ -12,6 +12,8 @@ The one door for devices that are not a browser: the phone widget and the Garmin
 - **Errors:** 401 `{ "error": "key" }` → show "Key not valid" (see below). 404 `{ "error": "habit_gone" }` → drop that habit and refresh. 400 `{ "error": "Invalid action" }`. 413 when the declared body is over 2048 bytes (before the key check) or the real body is over 1024 bytes (after it). 5xx, including 503 `{ "error": "Try again" }` → keep the tap in the queue and retry.
 - **401 can be temporary.** It means a wrong, turned-off or unknown key or an owner who is no longer allowed, but also the read cap for unknown sheets, a sheet that could not be read, or a new key on another server instance (for up to 30 s). So on 401 a device keeps the key and any queued taps, shows the message, and retries on the next update.
 - **`GET {url}/api/device?include=hours`** adds `categories: [{ id, name, color }]` and `slots: (category id | null)[24]` for an hours screen. `DeviceState` also has `highlight`.
+- **`GET {url}/api/device?include=week`** adds `week: [{ date, filled, total }]`, Monday to Sunday. Days after today are 0 of 0.
+- **`GET {url}/api/device?include=history`** adds `history: [{ date, mood, weight }]`, the last 30 days, oldest first. A day with nothing logged has `null`.
 - Every action is safe to repeat. After "Turn off" an old key can keep working for up to 30 s (per-instance sheet cache).
 - Replies stay small for watches: the habit list only, no history.
 

@@ -1,5 +1,6 @@
 // Pure model for a connected device (phone widget, watch): what one day shows. Relative imports only.
 import { dayStatus, templateKind, applyTemplate, type DayData, type Ctx } from './quickDay.ts';
+import { addDaysISO, mondayOf, weekDates } from './quickWeek.ts';
 import { habitIcon, type HabitIcon } from './habitIcons.ts';
 
 export type DeviceHabit = { id: string; name: string; icon: HabitIcon | null; done: boolean };
@@ -37,6 +38,31 @@ export function deviceState(day: DayData, ctx: Ctx): DeviceState {
       done: doneIds.has(a.id),
     })),
   };
+}
+
+/** Only with GET /api/device?include=week. */
+export type DeviceWeekDay = { date: string; filled: number; total: number };
+
+/** Monday to Sunday of the week holding `today`. Days after today, or not in `days`, are 0 of 0. */
+export function deviceWeek(days: Record<string, DayData>, ctx: Ctx, today: string): DeviceWeekDay[] {
+  return weekDates(mondayOf(today)).map((date) => {
+    const day = date <= today ? days[date] : undefined;
+    if (!day) return { date, filled: 0, total: 0 };
+    const { filled, total } = dayStatus(day, ctx);
+    return { date, filled, total };
+  });
+}
+
+/** Only with GET /api/device?include=history. */
+export type DeviceHistoryDay = { date: string; mood: number | null; weight: number | null };
+export const HISTORY_DAYS = 30;
+
+/** The last HISTORY_DAYS days, oldest first, ending today. */
+export function deviceHistory(days: Record<string, DayData>, today: string): DeviceHistoryDay[] {
+  return Array.from({ length: HISTORY_DAYS }, (_, i) => {
+    const date = addDaysISO(today, i + 1 - HISTORY_DAYS);
+    return { date, mood: days[date]?.mood ?? null, weight: days[date]?.weight ?? null };
+  });
 }
 
 /** Entries for the empty slots only, from the usual template for that date. Empty array = nothing to fill. */

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deviceState, usualHoursFill } from '../src/deviceState.ts';
+import { deviceHistory, deviceState, deviceWeek, usualHoursFill } from '../src/deviceState.ts';
 import { dayStatus, type DayData, type Ctx } from '../src/quickDay.ts';
 import { habitIcon } from '../src/habitIcons.ts';
 
@@ -103,4 +103,30 @@ test('hoursFillReason: no template, all filled, or null when something can be wr
   assert.equal(hoursFillReason(emptyDay(), { weekday: null, weekend: null }, cats), 'no_template');
   assert.equal(hoursFillReason(emptyDay({ hours: full }), tpl, cats), 'all_filled');
   assert.equal(hoursFillReason(emptyDay(), tpl, cats), null);
+});
+
+test('week: Monday to Sunday, past days scored, later days empty', () => {
+  const mon = emptyDay({ date: '2026-10-26', mood: 7 });
+  const wed = emptyDay({ date: '2026-10-28' });
+  const days = { '2026-10-26': mon, '2026-10-27': emptyDay({ date: '2026-10-27' }), '2026-10-28': wed };
+  const week = deviceWeek(days, ctx(), '2026-10-28');
+  assert.deepEqual(week.map((d) => d.date), ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01']);
+  const st = dayStatus(mon, ctx());
+  assert.deepEqual(week[0], { date: '2026-10-26', filled: st.filled, total: st.total });
+  assert.deepEqual(week[3], { date: '2026-10-29', filled: 0, total: 0 });
+});
+
+test('week: a Sunday stays in the week that started on Monday', () => {
+  const week = deviceWeek({}, ctx(), '2026-11-01');
+  assert.equal(week[0].date, '2026-10-26');
+  assert.equal(week[6].date, '2026-11-01');
+});
+
+test('history: 30 days, oldest first, ending today, gaps are null', () => {
+  const days = { '2026-10-31': emptyDay({ date: '2026-10-31', mood: 7, weight: 80.5 }) };
+  const h = deviceHistory(days, '2026-10-31');
+  assert.equal(h.length, 30);
+  assert.equal(h[0].date, '2026-10-02');
+  assert.deepEqual(h[29], { date: '2026-10-31', mood: 7, weight: 80.5 });
+  assert.deepEqual(h[0], { date: '2026-10-02', mood: null, weight: null });
 });

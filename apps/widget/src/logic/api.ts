@@ -1,10 +1,10 @@
 // Talks to Journal's /api/device. No React Native imports, so tests can load it.
 
-import type { DeviceHours, DeviceRequest, DeviceState } from '@journaling/core/deviceState';
+import type { DeviceHistoryDay, DeviceHours, DeviceRequest, DeviceState, DeviceWeekDay } from '@journaling/core/deviceState';
 
 export type Conn = { url: string; key: string };
 export type Action = DeviceRequest;
-export type { DeviceHours, DeviceState };
+export type { DeviceHistoryDay, DeviceHours, DeviceState, DeviceWeekDay };
 export type Result =
   | { kind: 'ok'; state: DeviceState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"
@@ -67,4 +67,29 @@ export async function getHours(conn: Conn): Promise<DeviceHours | null> {
     return null;
   }
 }
+
+/** Monday to Sunday, for the week widget. Null when it can't be read now, or the server is older. */
+export async function getWeek(conn: Conn): Promise<DeviceWeekDay[] | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=week`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as { week?: unknown };
+    return Array.isArray(v.week) ? (v.week as DeviceWeekDay[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The last 30 days of mood and weight. Null when it can't be read now, or the server is older. */
+export async function getHistory(conn: Conn): Promise<DeviceHistoryDay[] | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=history`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as { history?: unknown };
+    return Array.isArray(v.history) ? (v.history as DeviceHistoryDay[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const postAction = (conn: Conn, action: Action) => call(conn, { method: 'POST', body: JSON.stringify(action) });

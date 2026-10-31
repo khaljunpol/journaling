@@ -1,8 +1,9 @@
 // The home-screen widget: floating capsules of round lights. Off is dark, done is violet, ember only on a closed ring.
 import React from 'react';
 import { FlexWidget, SvgWidget, TextWidget, type ColorProp } from 'react-native-android-widget';
+import { moodColor } from '@journaling/core/mood';
 import { dark } from '@journaling/design';
-import { shownHabits } from '../logic/queue';
+import { shownHabits, shownHistory, shownWeek, sparkPoints } from '../logic/queue';
 import type { Snapshot } from '../sync';
 import { iconSvg, type IconName } from './icons';
 
@@ -177,10 +178,126 @@ function TwoRows({ s, width }: { s: Snapshot; width: number }) {
   );
 }
 
-/** Both widget types share this: the height decides the layout, so a resized widget always fits. */
+const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+/** Seven rings, Monday first. Today sits on a lighter disc, later days have only a faint letter. One picture, one tap target. */
+function weekSvg(s: Snapshot, w: number, size: number): string {
+  const today = s.state?.date ?? '';
+  const cell = w / 7;
+  const r = size / 2 - 3;
+  const len = 2 * Math.PI * r;
+  const font = Math.round(size * 0.3);
+  const parts = shownWeek(s.week, s.state as NonNullable<Snapshot['state']>).map((d, i) => {
+    const x = cell * i + cell / 2;
+    const y = size / 2;
+    const later = d.date > today;
+    const closed = d.total > 0 && d.filled >= d.total;
+    const share = d.total > 0 ? Math.min(1, d.filled / d.total) : 0;
+    const disc = d.date === today ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${dark['surface-2']}"/>` : '';
+    const track = later ? '' : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${dark['surface-3']}" stroke-width="3"/>`;
+    const arc = share > 0
+      ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${closed ? dark.reward : dark.accent}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${len * share} ${len}" transform="rotate(-90 ${x} ${y})"/>`
+      : '';
+    const ink = d.date === today ? dark['text-1'] : dark['text-2'];
+    const letter = `<text x="${x}" y="${y + font * 0.36}" font-family="sans-serif" font-size="${font}" font-weight="600" text-anchor="middle" fill="${ink}"${later ? ' opacity="0.5"' : ''}>${LETTERS[i]}</text>`;
+    return disc + track + arc + letter;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${size}" viewBox="0 0 ${w} ${size}">${parts.join('')}</svg>`;
+}
+
+function Week({ s, width, height }: Size) {
+  const w = Math.min(width, 420);
+  const inner = w - INSET * 2;
+  const size = Math.max(28, Math.min(44, Math.floor(inner / 7) - 4, height - 12));
+  return (
+    <Centre>
+      <FlexWidget clickAction="OPEN_URI" clickActionData={{ uri: `${s.conn?.url}/quick` }} style={{ width: w, height: size + 12 }}>
+        <Capsule w={w} h={size + 12}>
+          <SvgWidget svg={weekSvg(s, inner, size)} style={{ width: inner, height: size }} />
+        </Capsule>
+      </FlexWidget>
+    </Centre>
+  );
+}
+
+const GAP = 8;
+const PILL = 72;
+
+/** A value pill and a picture side by side. The whole capsule opens the same window. */
+function ValueStrip({ width, height, icon, value, uri, svg }: { width: number; height: number; icon: IconName; value?: string; uri: string; svg: (w: number, h: number) => string }) {
+  const w = Math.min(width, 420);
+  const size = Math.max(36, Math.min(48, height - 12));
+  const chart = w - INSET * 2 - PILL - GAP * 2;
+  return (
+    <Centre>
+      <FlexWidget {...clickOf({ uri })} style={{ width: w, height: size + 12 }}>
+        <Capsule w={w} h={size + 12}>
+          <Value w={PILL} h={size} icon={icon} value={value} fontSize={15} uri={uri} />
+          <FlexWidget style={{ marginLeft: GAP }}>
+            <SvgWidget svg={svg(chart, size)} style={{ width: chart, height: size }} />
+          </FlexWidget>
+        </Capsule>
+      </FlexWidget>
+    </Centre>
+  );
+}
+
+/** 30 thin bars, one per day, in the app's mood colours. A day with no mood is a dark bar. */
+function moodSvg(moods: Array<number | null>, w: number, h: number): string {
+  const step = w / moods.length;
+  const bar = Math.max(2, step - 2);
+  const bars = moods.map((m, i) =>
+    `<rect x="${step * i + (step - bar) / 2}" y="${h * 0.2}" width="${bar}" height="${h * 0.6}" rx="${bar / 2}" fill="${m === null ? dark['surface-3'] : moodColor(m)}"/>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars.join('')}</svg>`;
+}
+
+/** The weight trend as one line, with a dot on the latest value. */
+function weightSvg(weights: Array<number | null>, w: number, h: number): string {
+  const pad = 5;
+  const pts = sparkPoints(weights, w - pad * 2, h - pad * 2).map((p) => ({ x: p.x + pad, y: p.y + pad }));
+  const end = pts[pts.length - 1];
+  const line = pts.length > 1
+    ? `<polyline points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${dark.accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+    : '';
+  const dot = end ? `<circle cx="${end.x}" cy="${end.y}" r="3.5" fill="${dark.accent}"/>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${line}${dot}</svg>`;
+}
+
+const stateOf = (s: Snapshot) => s.state as NonNullable<Snapshot['state']>;
+
+/** What every widget shows until it has a day to draw. Null when it's ready. */
+function notReady(s: Snapshot, width: number) {
+  const w = Math.min(width, 280);
+  if (!s.conn) return <Message text="Tap to connect" w={w} />;
+  if (s.keyBad) return <Message text="Key not valid" warn w={w} />;
+  if (!s.state) return <Message text="Loading" w={w} />;
+  return null;
+}
+
+/** Both log widgets share this: the height decides the layout, so a resized widget always fits. */
 export function Journal({ s, width, height }: Size) {
-  if (!s.conn) return <Message text="Tap to connect" w={Math.min(width, 280)} />;
-  if (s.keyBad) return <Message text="Key not valid" warn w={Math.min(width, 280)} />;
-  if (!s.state) return <Message text="Loading" w={Math.min(width, 280)} />;
-  return height < 110 ? <OneRow s={s} width={width} /> : <TwoRows s={s} width={width} />;
+  return notReady(s, width) ?? (height < 110 ? <OneRow s={s} width={width} /> : <TwoRows s={s} width={width} />);
+}
+
+/** The week widget: how full each day was. Tap to open Journal. */
+export function JournalWeek({ s, width, height }: Size) {
+  return notReady(s, width) ?? <Week s={s} width={width} height={height} />;
+}
+
+/** The mood widget: the last 30 days. Tap to log today's mood. */
+export function JournalMood({ s, width, height }: Size) {
+  const mood = s.state?.mood;
+  return notReady(s, width) ?? (
+    <ValueStrip width={width} height={height} icon="smile" value={mood == null ? undefined : String(mood)} uri="journalwidget://mood"
+      svg={(w, h) => moodSvg(shownHistory(s.history, stateOf(s)).map((d) => d.mood), w, h)} />
+  );
+}
+
+/** The weight widget: the last known weight and its 30-day trend. Tap to log today's weight. */
+export function JournalWeight({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const weights = shownHistory(s.history, stateOf(s)).map((d) => d.weight);
+  const latest = weights.filter((v) => v !== null).pop();
+  return <ValueStrip width={width} height={height} icon="scale" value={weightText(latest)} uri="journalwidget://weight" svg={(w, h) => weightSvg(weights, w, h)} />;
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { connFromCode } from '../src/logic/api.ts';
-import { applyLocal, enqueue, remove, sendable, shownHabits } from '../src/logic/queue.ts';
+import { applyLocal, enqueue, remove, sendable, shownHabits, shownHistory, shownWeek, sparkPoints } from '../src/logic/queue.ts';
 
 const state = {
   date: '2026-10-31', mood: null, weight: null, hours: 3, highlight: '', progress: { filled: 0, total: 4 },
@@ -76,4 +76,41 @@ test('done habits never push out other done ones', () => {
 test('nothing done: the picked habits stay as they are', () => {
   const h = (id: string) => ({ id, done: false });
   assert.deepEqual(shownHabits([h('a'), h('b'), h('c')], ['c', 'a'], 4).map((x) => x.id), ['c', 'a']);
+});
+
+test('week: today follows the live progress, other days come from the server', () => {
+  const week = [{ date: '2026-10-26', filled: 4, total: 4 }, { date: '2026-10-31', filled: 0, total: 4 }];
+  const shown = shownWeek(week, { ...state, progress: { filled: 3, total: 4 } });
+  assert.equal(shown.length, 7);
+  assert.deepEqual(shown[0], { date: '2026-10-26', filled: 4, total: 4 });
+  assert.deepEqual(shown[5], { date: '2026-10-31', filled: 3, total: 4 });
+  assert.deepEqual(shown[1], { date: '2026-10-27', filled: 0, total: 0 });
+});
+
+test('week: nothing saved, or last week saved, still gives this week', () => {
+  assert.equal(shownWeek(null, state)[0].date, '2026-10-26');
+  const old = [{ date: '2026-10-19', filled: 4, total: 4 }];
+  assert.ok(shownWeek(old, state).every((d) => d.date >= '2026-10-26'));
+});
+
+test('history: 30 days ending today, and today follows the live values', () => {
+  const saved = [{ date: '2026-10-30', mood: 5, weight: 81 }, { date: '2026-10-31', mood: 2, weight: 90 }];
+  const shown = shownHistory(saved, { ...state, mood: 8, weight: 80 });
+  assert.equal(shown.length, 30);
+  assert.deepEqual(shown[28], { date: '2026-10-30', mood: 5, weight: 81 });
+  assert.deepEqual(shown[29], { date: '2026-10-31', mood: 8, weight: 80 });
+  assert.equal(shownHistory(null, state)[0].date, '2026-10-02');
+});
+
+test('spark: lowest value at the bottom, gaps skipped', () => {
+  assert.deepEqual(sparkPoints([80, null, 90], 100, 20), [{ x: 0, y: 20 }, { x: 100, y: 0 }]);
+});
+
+test('spark: one value or equal values sit in the middle', () => {
+  assert.deepEqual(sparkPoints([null, 80], 100, 20), [{ x: 100, y: 10 }]);
+  assert.deepEqual(sparkPoints([80, 80], 100, 20), [{ x: 0, y: 10 }, { x: 100, y: 10 }]);
+});
+
+test('spark: nothing to draw', () => {
+  assert.deepEqual(sparkPoints([null, null], 100, 20), []);
 });

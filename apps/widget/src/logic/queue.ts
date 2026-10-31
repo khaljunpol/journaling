@@ -1,5 +1,7 @@
 // Pure offline queue: taps wait here until they reach Journal.
-import type { Action, DeviceState } from './api';
+import { HISTORY_DAYS } from '@journaling/core/deviceState';
+import { addDaysISO, mondayOf, weekDates } from '@journaling/core/quickWeek';
+import type { Action, DeviceHistoryDay, DeviceState, DeviceWeekDay } from './api';
 
 /** `date` is the day the tap was made for. The server always saves to its own today. */
 export type QueueItem = { id: string; action: Action; date: string };
@@ -54,4 +56,32 @@ export function shownHabits<T extends { id: string; done?: boolean }>(habits: T[
     else if (out.length < max) out.push(extra);
   }
   return out;
+}
+
+/** This week, Monday first. Today follows the live progress, so a tap shows at once. A day with no data is 0 of 0. */
+export function shownWeek(week: DeviceWeekDay[] | null, state: DeviceState): DeviceWeekDay[] {
+  return weekDates(mondayOf(state.date)).map((date) =>
+    date === state.date ? { date, ...state.progress } : (week?.find((d) => d.date === date) ?? { date, filled: 0, total: 0 }),
+  );
+}
+
+/** The last 30 days, oldest first. Today follows the live values, so a tap shows at once. */
+export function shownHistory(history: DeviceHistoryDay[] | null, state: DeviceState): DeviceHistoryDay[] {
+  return Array.from({ length: HISTORY_DAYS }, (_, i) => {
+    const date = addDaysISO(state.date, i + 1 - HISTORY_DAYS);
+    if (date === state.date) return { date, mood: state.mood, weight: state.weight };
+    return history?.find((d) => d.date === date) ?? { date, mood: null, weight: null };
+  });
+}
+
+/** Points for a trend line: x by position, lowest value at the bottom. Gaps are skipped. Equal values sit in the middle. */
+export function sparkPoints(values: Array<number | null>, w: number, h: number): Array<{ x: number; y: number }> {
+  const known = values.filter((v): v is number => v !== null);
+  if (!known.length) return [];
+  const min = Math.min(...known);
+  const range = Math.max(...known) - min;
+  const last = values.length - 1;
+  return values.flatMap((v, i) =>
+    v === null ? [] : [{ x: last > 0 ? (i / last) * w : w, y: range > 0 ? h - ((v - min) / range) * h : h / 2 }],
+  );
 }

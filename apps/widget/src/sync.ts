@@ -1,6 +1,6 @@
 // The widget's saved state and its trip to Journal. One job at a time, because taps can arrive fast.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connFromCode, getHours, getState, postAction, type Action, type Conn, type DeviceHours, type DeviceState } from './logic/api';
+import { connFromCode, getHistory, getHours, getState, getWeek, postAction, type Action, type Conn, type DeviceHistoryDay, type DeviceHours, type DeviceState, type DeviceWeekDay } from './logic/api';
 import { applyLocal, enqueue, remove, sendable, type QueueItem } from './logic/queue';
 
 const KEY = 'journal-widget';
@@ -16,10 +16,14 @@ export type Snapshot = {
   lastWeight: number | null;
   /** Shown at once in the Hours window, then updated. */
   hours: DeviceHours | null;
+  /** The week widget's days, as last read. */
+  week: DeviceWeekDay[] | null;
+  /** The mood and weight widgets' days, as last read. */
+  history: DeviceHistoryDay[] | null;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -109,6 +113,32 @@ export function refreshHours(): Promise<DeviceHours | null> {
   });
 }
 
+/** Reads the week and saves it. Keeps the last good copy when it can't be read. */
+export function refreshWeek(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const week = await getWeek(s.conn);
+    if (!week) return s;
+    const next = { ...s, week };
+    await save(next);
+    return next;
+  });
+}
+
+/** Reads the last 30 days and saves them. Keeps the last good copy when they can't be read. */
+export function refreshHistory(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const history = await getHistory(s.conn);
+    if (!history) return s;
+    const next = { ...s, history };
+    await save(next);
+    return next;
+  });
+}
+
 /** Stores the connection when the code is good and Journal accepts it. */
 export function connect(code: string): Promise<'ok' | 'bad-code' | 'refused' | 'offline'> {
   return oneAtATime(async () => {
@@ -118,7 +148,7 @@ export function connect(code: string): Promise<'ok' | 'bad-code' | 'refused' | '
     if (r.kind === 'key') return 'refused';
     if (r.kind !== 'ok') return 'offline';
     const s = await snapshot();
-    await save({ ...s, conn, state: r.state, keyBad: false, queue: [] });
+    await save({ ...s, conn, state: r.state, keyBad: false, week: null, history: null, queue: [] });
     return 'ok';
   });
 }
