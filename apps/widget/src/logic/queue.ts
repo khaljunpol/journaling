@@ -31,7 +31,9 @@ export function applyLocal(s: DeviceState, a: Action): DeviceState {
     case 'weight':
       return { ...s, weight: a.weight };
     case 'habit':
-      return { ...s, habits: s.habits.map((h) => (h.id === a.activityId ? { ...h, done: true } : h)) };
+      return { ...s, habits: s.habits.map((h) => (h.id === a.activityId ? { ...h, done: a.done !== false } : h)) };
+    case 'highlight':
+      return { ...s, highlight: a.text };
     default:
       return s;
   }

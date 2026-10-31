@@ -4,8 +4,8 @@ import { connFromCode } from '../src/logic/api.ts';
 import { applyLocal, enqueue, remove, sendable, shownHabits } from '../src/logic/queue.ts';
 
 const state = {
-  date: '2026-10-31', mood: null, weight: null, hours: 3, progress: { filled: 0, total: 4 },
-  habits: [{ id: 'a', name: 'Gym', icon: 'gym', done: false }, { id: 'b', name: 'Read', icon: 'read', done: false }],
+  date: '2026-10-31', mood: null, weight: null, hours: 3, highlight: '', progress: { filled: 0, total: 4 },
+  habits: [{ id: 'a', name: 'Gym', icon: 'gym' as const, done: false }, { id: 'b', name: 'Read', icon: 'read' as const, done: false }],
 };
 const code = (v: unknown) => btoa(JSON.stringify(v));
 
@@ -46,4 +46,17 @@ test('sendable drops taps made for another day', () => {
 test('shownHabits follows the picked order, skips deleted ones, falls back to all', () => {
   assert.deepEqual(shownHabits(state.habits, ['b', 'gone', 'a'], 4).map((h) => h.id), ['b', 'a']);
   assert.deepEqual(shownHabits(state.habits, [], 1).map((h) => h.id), ['a']);
+});
+
+test('applyLocal unticks a habit and sets the highlight', () => {
+  const on = applyLocal(state, { action: 'habit', activityId: 'a' });
+  assert.equal(on.habits[0].done, true);
+  assert.equal(applyLocal(on, { action: 'habit', activityId: 'a', done: false }).habits[0].done, false);
+  assert.equal(applyLocal(state, { action: 'highlight', text: 'Good day' }).highlight, 'Good day');
+});
+
+test('ticking then unticking while offline keeps only the last tap', () => {
+  let q = enqueue([], { id: '1', action: { action: 'habit', activityId: 'a', done: true }, date: 'd' });
+  q = enqueue(q, { id: '2', action: { action: 'habit', activityId: 'a', done: false }, date: 'd' });
+  assert.deepEqual(q.map((x) => x.id), ['2']);
 });

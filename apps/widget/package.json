@@ -3,17 +3,18 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@journaling/core": "*",
+    "@journaling/design": "*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.22",
     "expo-linking": "~58.0.15",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
     "react-native": "0.88.1",
-    "react-native-android-widget": "^0.26.0",
-    "@journaling/core": "*",
-    "@journaling/design": "*"
+    "react-native-android-widget": "^0.26.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/react": "~19.3.0",
     "typescript": "~6.0.3"
   },

@@ -1,10 +1,10 @@
 // Talks to Journal's /api/device. No React Native imports, so tests can load it.
 
-import type { DeviceRequest, DeviceState } from '@journaling/core/deviceState';
+import type { DeviceHours, DeviceRequest, DeviceState } from '@journaling/core/deviceState';
 
 export type Conn = { url: string; key: string };
 export type Action = DeviceRequest;
-export type { DeviceState };
+export type { DeviceHours, DeviceState };
 export type Result =
   | { kind: 'ok'; state: DeviceState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"
@@ -53,4 +53,16 @@ async function call(conn: Conn, init: RequestInit): Promise<Result> {
 }
 
 export const getState = (conn: Conn) => call(conn, { method: 'GET' });
+
+/** Categories and today's hour slots, for the Hours window. Null when they can't be read now. */
+export async function getHours(conn: Conn): Promise<DeviceHours | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=hours`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as DeviceHours;
+    return { categories: v.categories, slots: v.slots };
+  } catch {
+    return null;
+  }
+}
 export const postAction = (conn: Conn, action: Action) => call(conn, { method: 'POST', body: JSON.stringify(action) });

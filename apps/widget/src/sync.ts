@@ -1,6 +1,6 @@
 // The widget's saved state and its trip to Journal. One job at a time, because taps can arrive fast.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connFromCode, getState, postAction, type Action, type Conn, type DeviceState } from './logic/api';
+import { connFromCode, getHours, getState, postAction, type Action, type Conn, type DeviceHours, type DeviceState } from './logic/api';
 import { applyLocal, enqueue, remove, sendable, type QueueItem } from './logic/queue';
 
 const KEY = 'journal-widget';
@@ -12,10 +12,14 @@ export type Snapshot = {
   keyBad: boolean;
   /** The hours tap found nothing to fill because no usual day is set. */
   noUsualHours: boolean;
+  /** Prefills the Weight window on a day with no weight yet. */
+  lastWeight: number | null;
+  /** Shown at once in the Hours window, then updated. */
+  hours: DeviceHours | null;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -24,12 +28,6 @@ export async function snapshot(): Promise<Snapshot> {
   } catch {
     return EMPTY;
   }
-}
-
-/** The phone's date, YYYY-MM-DD. Only used to skip a trip; the server still decides the real day. */
-function localDay(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const save = (s: Snapshot) => AsyncStorage.setItem(KEY, JSON.stringify(s));
@@ -41,7 +39,13 @@ function oneAtATime<T>(job: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Fresh day from the server, then every waiting tap in order. A 401 can pass, so the key and taps stay. */
+/** The phone's date, YYYY-MM-DD. Only used to skip a trip; the server still decides the real day. */
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Fresh day from the server when needed, then every waiting tap in order. A 401 can pass, so the key and taps stay. */
 async function flush(s: Snapshot): Promise<Snapshot> {
   if (!s.conn) return s;
   let next: Snapshot = s;
@@ -70,6 +74,7 @@ async function flush(s: Snapshot): Promise<Snapshot> {
   }
   // Taps still waiting stay visible.
   if (next.state) next = { ...next, state: next.queue.reduce((st, q) => applyLocal(st, q.action), next.state) };
+  if (next.state?.weight != null) next = { ...next, lastWeight: next.state.weight };
   return next;
 }
 
@@ -90,6 +95,17 @@ export function refresh(): Promise<Snapshot> {
     const next = await flush(await snapshot());
     await save(next);
     return next;
+  });
+}
+
+/** Today's categories and slots, saved so the Hours window opens with something on screen. */
+export function refreshHours(): Promise<DeviceHours | null> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return null;
+    const hours = await getHours(s.conn);
+    if (hours) await save({ ...s, hours });
+    return hours ?? s.hours;
   });
 }
 

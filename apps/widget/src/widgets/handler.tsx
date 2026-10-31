@@ -2,11 +2,10 @@ import React from 'react';
 import { requestWidgetUpdate, type WidgetInfo, type WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { record, refresh, snapshot, type Snapshot } from '../sync';
 import type { Action } from '../logic/api';
-import { JournalLarge, JournalSmall } from './JournalWidgets';
+import { Journal } from './JournalWidgets';
 
 function view(info: WidgetInfo, s: Snapshot) {
-  const Widget = info.widgetName === 'JournalSmall' ? JournalSmall : JournalLarge;
-  return <Widget s={s} width={info.width} height={info.height} />;
+  return <Journal s={s} width={info.width} height={info.height} />;
 }
 
 /** Repaints every placed widget, both sizes. */
@@ -28,9 +27,8 @@ export async function tapThenLeave(action: Action, leave: () => void): Promise<v
 }
 
 function actionOf(props: WidgetTaskHandlerProps): Action | null {
-  if (props.clickAction === 'HOURS') return { action: 'hours' };
   const id = props.clickActionData?.id;
-  if (props.clickAction === 'HABIT' && typeof id === 'string') return { action: 'habit', activityId: id };
+  if (props.clickAction === 'HABIT' && typeof id === 'string') return { action: 'habit', activityId: id, done: props.clickActionData?.done !== false };
   return null;
 }
 
