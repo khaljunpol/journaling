@@ -18,6 +18,20 @@ const Icon = ({ name, color, size }: { name: IconName; color: string; size: numb
   <SvgWidget svg={iconSvg(name, color, size)} style={{ width: size, height: size }} />
 );
 
+/** A value (mood, weight, hours): always its icon plus the number, so each one says what it is. Never violet: only habits light up. */
+function Value({ w, h, icon, value, gap = 0, stack, fontSize, ...press }: Press & { w: number; h: number; icon: IconName; value?: string; gap?: number; stack?: boolean; fontSize?: number }) {
+  const set = value !== undefined;
+  return (
+    <FlexWidget
+      {...clickOf(press)}
+      style={{ width: w, height: h, marginLeft: gap, borderRadius: ROUND, backgroundColor: c['surface-2'], flexDirection: stack && set ? 'column' : 'row', justifyContent: 'center', alignItems: 'center' }}
+    >
+      <Icon name={icon} color={set ? dark.accent : dark['text-2']} size={set ? (stack ? 12 : 16) : Math.round(Math.min(w, h) * 0.5)} />
+      {set && <TextWidget text={value} style={{ marginLeft: stack ? 0 : 6, fontSize: fontSize ?? 13, fontWeight: '600', color: c['text-1'] }} />}
+    </FlexWidget>
+  );
+}
+
 /** A round light, or a pill when wider than tall. Holds an icon or a value. `gap` is the space before it. */
 function Light({ w, h, on, icon, value, gap = 0, fontSize, ...press }: Press & { w: number; h: number; on?: boolean; icon?: IconName; value?: string; gap?: number; fontSize?: number }) {
   const ink = on ? dark['on-accent-fill'] : dark['text-2'];
@@ -117,9 +131,9 @@ function OneRow({ s, width }: { s: Snapshot; width: number }) {
     <Centre>
       <Capsule w={w} h={Math.min(size + 12, 56)} spread>
         <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Light w={pill} h={size} on={mood != null} icon={mood == null ? 'smile' : undefined} value={mood == null ? undefined : String(mood)} fontSize={15} uri="journalwidget://mood" />
-          <Light w={pill} h={size} gap={GAP} on={weight != null} icon={weight ? undefined : 'scale'} value={weight} fontSize={font} uri="journalwidget://weight" />
-          <Light w={pill} h={size} gap={GAP} on={(s.state?.hours ?? 0) >= 24} icon={hours ? undefined : 'clock'} value={hours} fontSize={font} uri="journalwidget://hours" />
+          <Value w={pill} h={size} stack icon="smile" value={mood == null ? undefined : String(mood)} fontSize={font} uri="journalwidget://mood" />
+          <Value w={pill} h={size} gap={GAP} stack icon="scale" value={weight} fontSize={font} uri="journalwidget://weight" />
+          <Value w={pill} h={size} gap={GAP} stack icon="clock" value={hours} fontSize={font} uri="journalwidget://hours" />
         </FlexWidget>
         <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
           {habitLights(s, 4, size, (i) => (i ? GAP : 0))}
@@ -148,9 +162,9 @@ function TwoRows({ s, width }: { s: Snapshot; width: number }) {
   return (
     <Centre>
       <Capsule w={w} h={H}>
-        <Light w={pill} h={T} on={mood != null} icon="smile" value={mood == null ? undefined : String(mood)} fontSize={18} uri="journalwidget://mood" />
-        <Light w={pill} h={T} gap={4} on={weight != null} icon="scale" value={weight} fontSize={weight && weight.length > 3 ? 15 : 18} uri="journalwidget://weight" />
-        <Light w={pill} h={T} gap={4} on={(s.state?.hours ?? 0) >= 24} icon="clock" value={hours} fontSize={15} uri="journalwidget://hours" />
+        <Value w={pill} h={T} icon="smile" value={mood == null ? undefined : String(mood)} fontSize={18} uri="journalwidget://mood" />
+        <Value w={pill} h={T} gap={4} icon="scale" value={weight} fontSize={weight && weight.length > 3 ? 15 : 18} uri="journalwidget://weight" />
+        <Value w={pill} h={T} gap={4} icon="clock" value={hours} fontSize={15} uri="journalwidget://hours" />
         <Light w={T} h={T} gap={4} icon="more" uri="journalwidget://more" />
         <Ring s={s} size={T} gap={6} />
       </Capsule>

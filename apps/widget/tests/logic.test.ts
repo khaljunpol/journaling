@@ -60,3 +60,20 @@ test('ticking then unticking while offline keeps only the last tap', () => {
   q = enqueue(q, { id: '2', action: { action: 'habit', activityId: 'a', done: false }, date: 'd' });
   assert.deepEqual(q.map((x) => x.id), ['2']);
 });
+
+test('a habit done outside the picked ones takes the last slot that is not done', () => {
+  const h = (id: string, done = false) => ({ id, done });
+  const habits = [h('a', true), h('b'), h('c'), h('d', true)];
+  assert.deepEqual(shownHabits(habits, ['a', 'b', 'c'], 3).map((x) => x.id), ['a', 'b', 'd']);
+});
+
+test('done habits never push out other done ones', () => {
+  const h = (id: string, done = false) => ({ id, done });
+  const habits = [h('a', true), h('b', true), h('c', true)];
+  assert.deepEqual(shownHabits(habits, ['a', 'b'], 2).map((x) => x.id), ['a', 'b']);
+});
+
+test('nothing done: the picked habits stay as they are', () => {
+  const h = (id: string) => ({ id, done: false });
+  assert.deepEqual(shownHabits([h('a'), h('b'), h('c')], ['c', 'a'], 4).map((x) => x.id), ['c', 'a']);
+});

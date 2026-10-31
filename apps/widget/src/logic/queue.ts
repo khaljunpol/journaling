@@ -39,8 +39,19 @@ export function applyLocal(s: DeviceState, a: Action): DeviceState {
   }
 }
 
-/** Habits to draw: the picked ones in picked order, or the first ones when nothing is picked. */
-export function shownHabits<T extends { id: string }>(habits: T[], picked: string[], max: number): T[] {
+/**
+ * Habits to draw: the picked ones in order, or the first ones when nothing is picked.
+ * A habit done today that isn't there takes the last slot that isn't done, so the widget shows what you did.
+ */
+export function shownHabits<T extends { id: string; done?: boolean }>(habits: T[], picked: string[], max: number): T[] {
   const list = picked.length ? picked.flatMap((id) => habits.filter((h) => h.id === id)) : habits;
-  return list.slice(0, max);
+  const out = list.slice(0, max);
+  const extras = habits.filter((h) => h.done && !out.some((x) => x.id === h.id));
+  for (const extra of extras) {
+    let i = out.length - 1;
+    while (i >= 0 && out[i].done) i--;
+    if (i >= 0) out[i] = extra;
+    else if (out.length < max) out.push(extra);
+  }
+  return out;
 }
