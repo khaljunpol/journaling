@@ -83,6 +83,17 @@
               "updatePeriodMillis": 1800000
             },
             {
+              "name": "JournalClimb",
+              "label": "Journal (climb)",
+              "description": "Sessions, last climb, hardest send and weeks in a row",
+              "minWidth": "250dp",
+              "minHeight": "40dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 1,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
               "name": "JournalInsight",
               "label": "Journal (insight)",
               "description": "One thing your data says. Tap for the next.",

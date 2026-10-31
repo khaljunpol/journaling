@@ -1,6 +1,6 @@
 // The widget's saved state and its trip to Journal. One job at a time, because taps can arrive fast.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connFromCode, getHistory, getHours, getInsights, getState, getWeek, postAction, type Action, type Conn, type DeviceHistoryDay, type DeviceHours, type DeviceInsights, type DeviceState, type DeviceWeekDay } from './logic/api';
+import { connFromCode, getClimb, getHistory, getHours, getInsights, getState, getWeek, postAction, type Action, type Conn, type DeviceClimb, type DeviceHistoryDay, type DeviceHours, type DeviceInsights, type DeviceState, type DeviceWeekDay } from './logic/api';
 import { applyLocal, enqueue, remove, sendable, type QueueItem } from './logic/queue';
 
 const KEY = 'journal-widget';
@@ -22,12 +22,14 @@ export type Snapshot = {
   history: DeviceHistoryDay[] | null;
   /** The overview widget's answers, as last read. */
   insights: DeviceInsights | null;
+  /** The climb widget's numbers, as last read. */
+  climb: DeviceClimb | null;
   /** Which sentence the insight widget is on. Only ever grows. */
   lineAt: number;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, lineAt: 0, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, climb: null, lineAt: 0, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -156,6 +158,19 @@ export function refreshInsights(): Promise<Snapshot> {
   });
 }
 
+/** Reads the climbing numbers and saves them. Keeps the last good copy when they can't be read. */
+export function refreshClimb(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const climb = await getClimb(s.conn);
+    if (!climb) return s;
+    const next = { ...s, climb };
+    await save(next);
+    return next;
+  });
+}
+
 /** The next sentence: on a tap, and on each timed update so it stays fresh. */
 export function nextLine(): Promise<Snapshot> {
   return oneAtATime(async () => {
@@ -175,7 +190,7 @@ export function connect(code: string): Promise<'ok' | 'bad-code' | 'refused' | '
     if (r.kind === 'key') return 'refused';
     if (r.kind !== 'ok') return 'offline';
     const s = await snapshot();
-    await save({ ...s, conn, state: r.state, keyBad: false, week: null, history: null, insights: null, queue: [] });
+    await save({ ...s, conn, state: r.state, keyBad: false, week: null, history: null, insights: null, climb: null, queue: [] });
     return 'ok';
   });
 }

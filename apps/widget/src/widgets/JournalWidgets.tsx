@@ -381,3 +381,29 @@ export function JournalInsight({ s, width, height }: Size) {
     </Centre>
   );
 }
+
+const ago = (days: number | null | undefined) => (days == null ? '\u2013' : days === 0 ? 'Today' : `${days}d`);
+
+/** The climb widget: this week, the last climb, the hardest send this year, and the run of weeks. Tap to open climbing. */
+export function JournalClimb({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const w = Math.min(width, 420);
+  const h = Math.max(44, Math.min(58, height));
+  const small = Math.floor((w - INSET * 2 - 4 * 3) / 4);
+  const tile = { w: small, h: h - 12, small: true };
+  const k = s.climb;
+  const none = '\u2013';
+  return (
+    <Centre>
+      <FlexWidget {...clickOf({ uri: `${s.conn?.url}/climbing` })} style={{ width: w, height: h }}>
+        <Capsule w={w} h={h}>
+          <Tile {...tile} label="This week" value={k ? String(k.sessions) : none} />
+          <Tile {...tile} gap={4} label="Last climb" value={ago(k?.daysSince)} />
+          <Tile {...tile} gap={4} label="Hardest" value={k?.hardest ?? none} />
+          <Tile {...tile} gap={4} label="Weeks" value={k ? String(k.weeks) : none} />
+        </Capsule>
+      </FlexWidget>
+    </Centre>
+  );
+}
