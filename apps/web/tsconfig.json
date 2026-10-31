@@ -41,7 +41,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["widget", 
-    "node_modules"
+  "exclude": ["node_modules"
   ]
 }

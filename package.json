@@ -2,38 +2,21 @@
   "name": "journaling",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "start": "next start",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/*.test.ts",
-    "lint": "eslint"
+    "dev": "npm run dev -w @journaling/web",
+    "build": "npm run build -w @journaling/web",
+    "lint": "npm run lint -w @journaling/web",
+    "test": "npm test --workspaces --if-present"
   },
-  "dependencies": {
-    "googleapis": "^188.0.0",
-    "lucide-react": "^1.62.0",
-    "next": "^16.4.2",
-    "next-auth": "^5.0.0-beta.30",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-is": "^19.2.4",
-    "recharts": "^3.5.1",
-    "web-push": "^3.6.7"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "25.3.5",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "^19",
-    "@types/web-push": "^3.6.4",
-    "eslint": "^9",
-    "eslint-config-next": "^16.4.2",
-    "tailwindcss": "^4",
-    "typescript": "5.9.3"
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }

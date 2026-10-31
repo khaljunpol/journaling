@@ -1,7 +1,6 @@
 import next from 'eslint-config-next';
 
 export default [
-  { ignores: ['widget/**'] },
   ...next,
   {
     files: ['**/*.{ts,tsx}'],
