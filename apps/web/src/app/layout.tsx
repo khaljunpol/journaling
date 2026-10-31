@@ -19,6 +19,16 @@ export const viewport = { viewportFit: 'cover' as const };
 export const metadata = {
     title: 'Journaling',
     description: 'Daily activities, highlights, and consistency metrics',
+    icons: {
+        icon: [
+            { url: '/favicon.ico', sizes: '48x48' },
+            { url: '/icons/favicon.svg', type: 'image/svg+xml' },
+            { url: '/icons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+            { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+            { url: '/icons/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+        ],
+        apple: { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
+    },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

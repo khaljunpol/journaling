@@ -12,14 +12,11 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#090b11', // --bg (dark)
     theme_color: '#090b11',
     orientation: 'portrait',
-    // "any" only: the icon has rounded corners and edge detail, so a maskable crop would cut into it.
     icons: [
-      {
-        src: '/icon',
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'any',
-      },
+      { src: '/icons/android-chrome-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icons/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icons/maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/icons/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }

@@ -72,7 +72,7 @@ self.addEventListener('push', (event) => {
       tag: typeof data.tag === 'string' ? data.tag : 'daily-checkin',
       silent: true,
       renotify: false,
-      icon: '/icon',
+      icon: '/icons/android-chrome-192x192.png',
     })
   );
 });
