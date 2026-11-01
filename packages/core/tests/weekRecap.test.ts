@@ -113,3 +113,9 @@ test('recapLine: one sentence from what exists', () => {
     'Last week: 7.5h sleep',
   );
 });
+
+test('days: a late stamp on a day before tracking stays out of the count', () => {
+  const moods = [{ date: '2026-10-20', score: 7 }];
+  const stamps = [{ date: '2026-10-20', kind: 'mood' as const, at: '2026-10-27T10:00:00.000Z' }];
+  assert.equal(weekRecap({ ...base, today: '2026-11-01', moods, stamps })?.days, null);
+});

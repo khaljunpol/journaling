@@ -116,3 +116,10 @@ test('streak: no grace before tracking started', () => {
   const days = [day('2026-10-29', 1), day('2026-10-30', 0), day('2026-10-31', 1), day('2026-11-01', 0)];
   assert.deepEqual(habitStreakGrace(days, new Set(['2026-10-29', '2026-10-31']), '2026-11-01', START), { streak: 1, waiting: 0 });
 });
+
+test('an old day filled in later is late, an old day with no stamp has no state', () => {
+  const stamps = [{ date: '2026-09-15', kind: 'mood' as const, at: '2026-11-05T10:00:00.000Z' }];
+  assert.equal(dayState('2026-09-15', stamps, true, '2026-11-05'), 'late');
+  assert.equal(dayState('2026-09-16', stamps, true, '2026-11-05'), null);
+  assert.equal(dayState('2026-09-17', stamps, false, '2026-11-05'), null);
+});

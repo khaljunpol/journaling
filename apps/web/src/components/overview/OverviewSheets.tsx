@@ -9,7 +9,7 @@ import { SLEEP_CUT, type OverviewView } from './derive';
 import { signed } from './Section';
 import TrendTable from './TrendTable';
 
-export type OverviewDetail = 'mood' | 'habits' | 'time';
+export type OverviewDetail = 'mood' | 'habits' | 'time' | 'keeping';
 
 const H = 'mb-2 text-[12px] font-medium uppercase tracking-[0.04em]';
 const Head = ({ children }: { children: ReactNode }) => <h3 className={H} style={{ color: 'var(--text-3)' }}>{children}</h3>;
@@ -153,6 +153,43 @@ function TimeSheet({ time, open, onClose }: { time: NonNullable<OverviewView['ti
   );
 }
 
+const PART_NAMES = { mood: 'Mood', habits: 'Habits', hours: 'Hours', weight: 'Weight' };
+
+function KeepingSheet({ keeping, open, onClose }: { keeping: NonNullable<OverviewView['keeping']>; open: boolean; onClose: () => void }) {
+  const { parts, patterns, onTime, total } = keeping;
+  return (
+    <Sheet open={open} onClose={onClose} title="Keeping up" subtitle="Last 30 days" initialFocus="panel">
+      <div className="space-y-6 pt-2">
+        <section>
+          <Head>On time</Head>
+          <p className="text-[15px]" style={{ color: 'var(--text-1)' }}><span className="num">{onTime}</span> of <span className="num">{total}</span> {total === 1 ? 'day' : 'days'}</p>
+        </section>
+        <section>
+          <table className="w-full text-[14px]">
+            <thead>
+              <tr className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+                <th scope="col" className="py-1 text-left font-medium">Part</th>
+                <th scope="col" className="py-1 text-right font-medium">Late</th>
+                <th scope="col" className="py-1 text-right font-medium">Skipped</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parts.map((p) => (
+                <tr key={p.kind} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                  <th scope="row" className="py-2 text-left font-normal" style={{ color: 'var(--text-1)' }}>{PART_NAMES[p.kind]}</th>
+                  <td className="num py-2 text-right" style={{ color: 'var(--text-2)' }}>{p.late}</td>
+                  <td className="num py-2 text-right" style={{ color: 'var(--text-2)' }}>{p.skipped}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        {patterns.length ? <section><Head>Patterns</Head>{patterns.map((t) => <Quiet key={t}>{t}</Quiet>)}</section> : null}
+      </div>
+    </Sheet>
+  );
+}
+
 /** Rendered as a sibling of the page grid, never inside an `.ov-in` wrapper (its transform would trap `position: fixed`). */
 export default function OverviewSheets({ view, open, onClose }: { view: OverviewView; open: OverviewDetail | null; onClose: () => void }) {
   return (
@@ -160,6 +197,7 @@ export default function OverviewSheets({ view, open, onClose }: { view: Overview
       {view.mood ? <MoodSheet mood={view.mood} open={open === 'mood'} onClose={onClose} /> : null}
       {view.habits ? <HabitsSheet habits={view.habits} open={open === 'habits'} onClose={onClose} /> : null}
       {view.time ? <TimeSheet time={view.time} open={open === 'time'} onClose={onClose} /> : null}
+      {view.keeping ? <KeepingSheet keeping={view.keeping} open={open === 'keeping'} onClose={onClose} /> : null}
     </>
   );
 }

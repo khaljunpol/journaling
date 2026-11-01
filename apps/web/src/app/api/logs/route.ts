@@ -1,5 +1,5 @@
 import { upsertLog, getLogsBetween, getLogsForDate } from '@journaling/sheets/googleSheets';
-import { stampFrom } from '@/lib/server/stamp';
+import { prepareStamp } from '@/lib/server/stamp';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
@@ -47,8 +47,9 @@ export async function POST(req: Request) {
     const activityId = String(body?.activityId || '');
     const completed = Boolean(body?.completed);
     if (!date || !activityId) return apiError('date and activityId required', 400);
+    const stamp = await prepareStamp(req, ctx.sheetAuth, date, 'habits');
     await upsertLog(ctx.sheetAuth, date, activityId, completed);
-    await stampFrom(req, ctx.sheetAuth, date, 'habits');
+    await stamp();
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/logs');

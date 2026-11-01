@@ -1,6 +1,6 @@
 // Last week in one short summary: Monday to Sunday, finished weeks only. Pure. Relative imports only.
 import { parseLocalDate } from './date.ts';
-import { dayState, type DayStamp, type Line } from './dayState.ts';
+import { dayState, TRACKING_START, type DayStamp, type Line } from './dayState.ts';
 import { lastDates } from './overview.ts';
 import {
   avgKnown,
@@ -95,9 +95,10 @@ export function weekRecap(args: {
   if (mw.avg === null && sleep === null && habits === null && time === null) return null;
 
   const withData = new Set([...moods, ...hours, ...logs, ...weights].map((r) => r.date.slice(0, 10)));
-  const states = week.map((d) => dayState(d, stamps, withData.has(d), today));
+  // Days before tracking may hold a late part but no record of the rest, so they can't say how a day went.
+  const states = week.filter((d) => d >= TRACKING_START).map((d) => dayState(d, stamps, withData.has(d), today));
   const count = (state: string) => states.filter((s) => s === state).length;
-  const tracked = states.some((s) => s !== null);
+  const tracked = states.length > 0;
 
   return {
     from,

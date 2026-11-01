@@ -28,6 +28,7 @@ import {
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { parseLocalDate } from '@journaling/core/date';
+import { keepingUp, type KeepingUp } from '@journaling/core/keepingUp';
 import { weekRecap, type WeekRecap } from '@journaling/core/weekRecap';
 import type { Activity, MoodItem, Sidequest } from '@journaling/core/types';
 import type { HabitRow } from './TrendTable';
@@ -111,6 +112,8 @@ export type OverviewView = {
   quests: { active: number } | null;
   /** null = nothing logged last week, or the data is still loading (check hasDash) */
   recap: WeekRecap | null;
+  /** null = no tracked day has finished yet, or the data is still loading */
+  keeping: KeepingUp | null;
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -308,5 +311,18 @@ export function deriveOverview(args: {
       })
     : null;
 
-  return { mood, habits, time, remember, climb, quests, recap };
+  // Weight has no 30-day read here, so its stamps stand in for it. Tracked days always have one.
+  let keeping: KeepingUp | null = null;
+  if (dash && quick && args.moods90) {
+    const stamps = quick.stamps ?? [];
+    const has = new Set(stamps.map((s) => `${s.date}|${s.kind}`));
+    const add = (date: string, kind: string) => has.add(`${date.slice(0, 10)}|${kind}`);
+    for (const m of mergeMoods(args.moods90, dash, quick)) add(m.date, 'mood');
+    for (const l of logs) add(l.date, 'habits');
+    for (const h of hours) add(h.date, 'hours');
+    for (const d of Object.values(quick.days)) if (d.weight !== null) add(d.date, 'weight');
+    keeping = keepingUp({ today, stamps, hasPart: (date, kind) => has.has(`${date}|${kind}`) });
+  }
+
+  return { mood, habits, time, remember, climb, quests, recap, keeping };
 }

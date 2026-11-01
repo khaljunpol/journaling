@@ -36,7 +36,7 @@ export default function RecapCard({ recap }: { recap: WeekRecap }) {
         {mood.avg !== null ? <Stat value={String(mood.avg)} label={`Mood${change}`} /> : null}
         {sleep !== null ? <Stat value={`${sleep}h`} label="Sleep a night" /> : null}
         {habits !== null ? <Stat value={`${habits}%`} label="Habits" /> : null}
-        {days ? <Stat value={`${days.onTime} of ${days.onTime + days.late + days.missed}`} label={slips ? `On time, ${slips}` : 'Days on time'} /> : null}
+        {days ? <Stat value={`${days.onTime} of ${days.onTime + days.late + days.missed}`} label={slips ? `Days on time, ${slips}` : 'Days on time'} /> : null}
         {time ? <Stat value={`${time.hours}h`} label={time.name} /> : null}
       </div>
       {note ? <p className="mt-3 text-[15px]" style={{ color: 'var(--text-1)' }}>{note.text}</p> : null}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMood, setMood, getMoodsBetween } from '@journaling/sheets/googleSheets';
-import { stampFrom } from '@/lib/server/stamp';
+import { prepareStamp } from '@/lib/server/stamp';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
@@ -34,8 +34,9 @@ export async function POST(req: Request) {
     const score = typeof scoreRaw === 'number' ? scoreRaw : parseInt(String(scoreRaw ?? ''), 10);
     if (!date) return apiError('date required', 400);
     if (!Number.isFinite(score) || score < 0 || score > 10) return apiError('score must be 0..10', 400);
+    const stamp = await prepareStamp(req, ctx.sheetAuth, date, 'mood');
     await setMood(ctx.sheetAuth, date, score);
-    await stampFrom(req, ctx.sheetAuth, date, 'mood');
+    await stamp();
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/moods');

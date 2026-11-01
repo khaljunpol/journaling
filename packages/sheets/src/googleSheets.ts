@@ -5,7 +5,7 @@ import { range, TABS } from './sheetLayout.ts';
 import { localISO } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
 import { withLock } from './keyedLock.ts';
-import { TRACKING_START, type DayStamp, type StampKind } from '@journaling/core/dayState';
+import type { DayStamp, StampKind } from '@journaling/core/dayState';
 import { pickEmptyEntries } from '@journaling/core/deviceState';
 import type { TabsClient } from './sheetTabs.ts';
 import { createTabCache, type RangeReader } from './sheetCache.ts';
@@ -122,7 +122,6 @@ export async function listDayStamps(sa: SheetAuth): Promise<DayStamp[]> {
 
 /** Records the first log of a part. Later saves change nothing. Never throws: a save must not fail because of this. */
 export async function stampDay(sa: SheetAuth, date: string, kind: StampKind, at: string): Promise<void> {
-  if (date < TRACKING_START) return;
   const { spreadsheetId } = sa;
   const title = TABS.dayLogs;
   const has = (rows: readonly (readonly unknown[])[]) => rows.some((r) => r[0] === date && r[1] === kind);

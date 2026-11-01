@@ -7,6 +7,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { useFirstVisit } from '@/components/ui/useFirstVisit';
 import { parseLocalDate } from '@journaling/core/date';
 import HabitsSection from './HabitsSection';
+import KeepingCard from './KeepingCard';
 import { ClimbLine, LineSkeleton, ProgressLine } from './LinesRow';
 import MoodSection from './MoodSection';
 import OverviewSheets, { type OverviewDetail } from './OverviewSheets';
@@ -25,7 +26,7 @@ function Enter({ i, animate, className = '', children }: { i: number; animate: b
 }
 
 /**
- * Overview: 3 questions (mood + sleep, habits, time), then Remember, last week's recap, then the Climbing and Progress lines.
+ * Overview: 3 questions (mood + sleep, habits, time), then Remember, last week's recap, Keeping up, then the Climbing and Progress lines.
  * Phone: one column. Tablet: Q1 full width, Q2 | Q3. Desktop: the 3 questions side by side.
  */
 export default function Overview() {
@@ -70,17 +71,22 @@ export default function Overview() {
               {view.recap ? <RecapCard recap={view.recap} /> : <RecapSkeleton />}
             </Enter>
           ) : null}
+          {view.keeping ? (
+            <Enter i={5} animate={animate} className="sm:col-span-2 lg:col-span-3">
+              <KeepingCard keeping={view.keeping} onDetails={() => setDetail('keeping')} />
+            </Enter>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {/* No climbing logs: no row and no empty cell. */}
           {showClimb ? (
-            <Enter i={5} animate={animate}>
+            <Enter i={6} animate={animate}>
               {view.climb ? <ClimbLine climb={view.climb} /> : <LineSkeleton />}
             </Enter>
           ) : null}
           {/* Climbing hidden: Progress spans the row (from cache this is known on first paint, so no jump). */}
-          <Enter i={6} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
+          <Enter i={7} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
             {view.quests || dashFailed ? <ProgressLine quests={view.quests} /> : <LineSkeleton />}
           </Enter>
         </div>
