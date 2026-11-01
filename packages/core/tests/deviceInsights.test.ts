@@ -18,6 +18,7 @@ test('nothing logged: every answer is empty', () => {
     habits: { rate: 0, streak: 0 },
     time: null,
     lines: [],
+    yesterdayMissed: false,
   });
 });
 

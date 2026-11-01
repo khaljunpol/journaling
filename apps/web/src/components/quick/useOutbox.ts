@@ -45,7 +45,8 @@ export function useOutbox(email: string, canSend = true) {
         try {
           const res = await fetch(item.url, {
             method: item.method,
-            headers: { 'Content-Type': 'application/json' },
+            // The tap time, so a save that waited offline doesn't look late.
+            headers: { 'Content-Type': 'application/json', 'x-logged-at': String(item.updatedAt) },
             body: JSON.stringify(item.body),
           });
           status = res.status;

@@ -12,7 +12,7 @@ import {
   findSleepIds,
   habitDays,
   habitRate,
-  habitStreak,
+  habitStreakGrace,
   lastHighlight,
   monthAgo,
   moodSplit,
@@ -195,7 +195,7 @@ export function deriveOverview(args: {
     habits = {
       rate,
       delta: rate !== null && prevRate !== null && loggedBefore ? rate - prevRate : null,
-      streak: activeIds.size ? habitStreak(all, today) : 0,
+      streak: activeIds.size ? habitStreakGrace(all, new Set(logs.map((l) => l.date.slice(0, 10))), today).streak : 0,
       best: activeIds.size ? bestStreak(all.filter((d) => d.date >= `${today.slice(0, 4)}-01-01`), today) : 0,
       bars: days14.map((d) => ({ date: d.date, share: d.share, done: d.done, active: d.active })),
       table: activeList.map((a) => {

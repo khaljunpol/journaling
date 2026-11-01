@@ -5,6 +5,7 @@ import { range, TABS } from './sheetLayout.ts';
 import { localISO } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
 import { withLock } from './keyedLock.ts';
+import { TRACKING_START, type DayStamp, type StampKind } from '@journaling/core/dayState';
 import { pickEmptyEntries } from '@journaling/core/deviceState';
 import type { TabsClient } from './sheetTabs.ts';
 import { createTabCache, type RangeReader } from './sheetCache.ts';
@@ -101,6 +102,48 @@ export function serviceTabsClient(): TabsClient {
       });
     },
   };
+}
+
+// ── Day logs: when each part of a day was first logged ──
+
+const STAMP_KINDS = new Set<string>(['mood', 'habits', 'weight', 'hours']);
+
+/** Every stamp. Empty if the tab can't be read: a day state must never break a page. */
+export async function listDayStamps(sa: SheetAuth): Promise<DayStamp[]> {
+  try {
+    const rows = await tabCache.readOne(sa.spreadsheetId, 'dayLogs');
+    return rows
+      .filter((r) => r && r[0] && STAMP_KINDS.has(String(r[1])) && r[2])
+      .map(([date, kind, at]) => ({ date: String(date).trim(), kind: String(kind) as StampKind, at: String(at).trim() }));
+  } catch {
+    return [];
+  }
+}
+
+/** Records the first log of a part. Later saves change nothing. Never throws: a save must not fail because of this. */
+export async function stampDay(sa: SheetAuth, date: string, kind: StampKind, at: string): Promise<void> {
+  if (date < TRACKING_START) return;
+  const { spreadsheetId } = sa;
+  const title = TABS.dayLogs;
+  const has = (rows: readonly (readonly unknown[])[]) => rows.some((r) => r[0] === date && r[1] === kind);
+  try {
+    if (has(await tabCache.readOne(spreadsheetId, 'dayLogs'))) return;
+    await withLock(`${spreadsheetId}:${title}`, async () => {
+      const sheets = getServiceSheets();
+      try {
+        const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+        if (has(res.data.values || [])) return;
+        await sheets.spreadsheets.values.append({
+          spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
+          requestBody: { values: [[date, kind, at]] },
+        });
+      } finally {
+        tabCache.invalidate(spreadsheetId, 'dayLogs');
+      }
+    });
+  } catch {
+    console.warn('[sheets] could not save a day log time');
+  }
 }
 
 // ── Activities ──────────────────────────────────────────────

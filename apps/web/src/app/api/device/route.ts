@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
-import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight, getLogsBetween, getMoodsBetween, listHourLogs, listClimbLogs, listClimbGoals } from '@journaling/sheets/googleSheets';
+import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight, getLogsBetween, getMoodsBetween, listHourLogs, listClimbLogs, listClimbGoals, listDayStamps, stampDay, getWeightsBetween } from '@journaling/sheets/googleSheets';
 import { appDateISO } from '@/lib/reminder';
 import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
+import type { StampKind } from '@journaling/core/dayState';
 import { deviceClimb } from '@journaling/core/deviceClimb';
 import { deviceInsights } from '@journaling/core/deviceInsights';
 import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
@@ -64,7 +65,7 @@ export async function GET(req: Request) {
     const include = new URL(req.url).searchParams.get('include');
     if (include === 'week') {
       const { payload, day } = await load(auth.sheetAuth, today, mondayOf(today));
-      return NextResponse.json({ ...deviceState(day, payload.ctx), week: deviceWeek(payload.days, payload.ctx, today) }, { status: 200, headers: NO_STORE });
+      return NextResponse.json({ ...deviceState(day, payload.ctx), week: deviceWeek(payload.days, payload.ctx, today, await listDayStamps(auth.sheetAuth)) }, { status: 200, headers: NO_STORE });
     }
     if (include === 'history') {
       const { payload, day } = await load(auth.sheetAuth, today, addDaysISO(today, 1 - HISTORY_DAYS));
@@ -73,16 +74,18 @@ export async function GET(req: Request) {
     if (include === 'insights') {
       const { payload, day } = await load(auth.sheetAuth, today);
       const from90 = addDaysISO(today, -89);
-      const [moods, hours, logs, cats, climb] = await Promise.all([
+      const [moods, hours, logs, cats, climb, weights, stamps] = await Promise.all([
         getMoodsBetween(auth.sheetAuth, from90, today),
         listHourLogs(auth.sheetAuth, from90, today),
         // Streaks reach back to the start of last year, same as the Overview.
         getLogsBetween(auth.sheetAuth, `${Number(today.slice(0, 4)) - 1}-01-01`, today),
         listTimeCategories(auth.sheetAuth),
         climbFor(auth.sheetAuth, today),
+        getWeightsBetween(auth.sheetAuth, from90, today),
+        listDayStamps(auth.sheetAuth),
       ]);
       const activeIds = new Set(payload.ctx.activities.map((a) => a.id));
-      const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds });
+      const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds, weights, stamps });
       insights.lines.push(...climb.lines);
       return NextResponse.json({ ...deviceState(day, payload.ctx), insights }, { status: 200, headers: NO_STORE });
     }
@@ -124,12 +127,16 @@ export async function POST(req: Request) {
     if (!action) return fail('Invalid action', 400);
 
     const today = appDateISO(new Date());
+    // A device always logs today, on the server's clock.
+    const mark = (kind: StampKind) => stampDay(sheetAuth, today, kind, new Date().toISOString());
     switch (action.kind) {
       case 'mood':
         await setMood(sheetAuth, today, action.score);
+        await mark('mood');
         break;
       case 'weight':
         await setWeight(sheetAuth, today, action.weight);
+        await mark('weight');
         break;
       case 'habit': {
         // Fresh habit list, so a habit deleted a moment ago answers habit_gone.
@@ -137,6 +144,7 @@ export async function POST(req: Request) {
         const { payload } = await load(sheetAuth, today);
         if (!payload.ctx.activities.some((a) => a.id === action.activityId)) return fail('habit_gone', 404);
         await upsertLog(sheetAuth, today, action.activityId, action.done);
+        await mark('habits');
         break;
       }
       case 'highlight':
@@ -148,6 +156,7 @@ export async function POST(req: Request) {
         if (!action.entries.every((e) => known.has(e.category))) return fail('Invalid action', 400);
         // The person chose these hours, so they replace what is there.
         await upsertHourLogsBatch(sheetAuth, { date: today, entries: action.entries });
+        await mark('hours');
         break;
       }
       case 'hours': {
@@ -163,6 +172,7 @@ export async function POST(req: Request) {
         }
         // The cached read can be old: the writer re-checks each slot on a fresh read and skips filled ones.
         const { count } = await upsertHourLogsBatch(sheetAuth, { date: today, entries }, { onlyEmpty: true });
+        if (count > 0) await mark('hours');
         return NextResponse.json(
           {
             ...(await stateFor(sheetAuth, today)),

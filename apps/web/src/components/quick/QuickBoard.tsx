@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ListChecks } from 'lucide-react';
+import { dayHasData, dayState } from '@journaling/core/dayState';
 import { dayStatus, missingInOrder, type ItemKey } from '@journaling/core/quickDay';
 import { syncState, type SyncState } from '@/lib/quickSync';
 import { applyQueue, applyQueueItem, itemsForTile, pruneDays } from '@journaling/core/quickApply';
@@ -266,7 +267,7 @@ export default function QuickBoard() {
         const day = payload?.days[date];
         if (!day || !payload) return { date, filled: null, total: null };
         const s = dayStatus(day, payload.ctx, { only: onlyOf(date) });
-        return { date, filled: s.filled, total: s.total };
+        return { date, filled: s.filled, total: s.total, state: dayState(date, payload.stamps ?? [], dayHasData(day), today) };
       })
     : [];
 

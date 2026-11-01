@@ -1,4 +1,5 @@
 // Pure builder for GET /api/quick. Gets typed rows (already parsed), returns the board payload.
+import type { DayStamp } from './dayState.ts';
 import type { DayData, Ctx } from './quickDay.ts';
 import { parseTemplate, parseHabitTemplate } from './quickDay.ts';
 
@@ -13,6 +14,7 @@ export type QuickRows = {
   sidequests: Array<{ id: string; type: string; completedAt?: string; year: number }>;
   sidequestLogs: Array<{ sidequestId: string; date: string; value?: number; milestoneIndex?: number }>;
   categories: Array<{ id: string }>;
+  stamps?: DayStamp[];
 };
 
 export type QuickPayload = {
@@ -21,6 +23,8 @@ export type QuickPayload = {
   templates: { weekday: Array<number | null> | null; weekend: Array<number | null> | null };
   habitTemplates: { weekday: string[] | null; weekend: string[] | null };
   reminderEnabled: boolean;
+  /** When each part of a day was first logged. Missing in copies saved before this existed. */
+  stamps?: DayStamp[];
 };
 
 /** Every YYYY-MM-DD from `from` to `to`, inclusive. Uses UTC so DST cannot skip a day. */
@@ -111,5 +115,6 @@ export function buildQuickPayload(
       weekend: parseHabitTemplate(parseJson(settings.habitTemplateWeekend)),
     },
     reminderEnabled: settings.reminderEnabled === '1',
+    stamps: rows.stamps ?? [],
   };
 }

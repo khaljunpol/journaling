@@ -8,6 +8,7 @@ import {
   listClimbLogs,
   listTimeCategories,
   getSettings,
+  listDayStamps,
   tabCache,
   type SheetAuth,
 } from '@journaling/sheets/googleSheets';
@@ -25,7 +26,7 @@ export async function loadQuickPayload(sheetAuth: SheetAuth, from: string, to: s
     'sidequests', 'sidequestLogs', 'timeCategories', 'settings',
   ]);
 
-  const [activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories, settings] =
+  const [activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories, settings, stamps] =
     await Promise.all([
       listActivities(sheetAuth),
       getLogsBetween(sheetAuth, from, to),
@@ -38,10 +39,11 @@ export async function loadQuickPayload(sheetAuth: SheetAuth, from: string, to: s
       listSidequestLogs(sheetAuth),
       listTimeCategories(sheetAuth),
       getSettings(sheetAuth),
+      listDayStamps(sheetAuth), // never throws
     ]);
 
   const payload = buildQuickPayload(
-    { activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories },
+    { activities, logs, moods, weights, highlights, hours, climbs, sidequests, sidequestLogs, categories, stamps },
     from,
     to,
     settings,

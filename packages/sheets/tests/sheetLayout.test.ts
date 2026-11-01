@@ -39,6 +39,7 @@ test('dataRange matches the ranges used today', () => {
     sidequests: "'Sidequests'!A2:J",
     sidequestLogs: "'SidequestLogs'!A2:G",
     settings: "'Settings'!A2:B",
+    dayLogs: "'DayLogs'!A2:C",
   };
   for (const tab of Object.keys(TABS) as TabKey[]) {
     assert.equal(dataRange(tab), expected[tab], tab);

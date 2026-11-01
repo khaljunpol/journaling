@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listHourLogs, upsertHourLog, upsertHourLogsBatch } from '@journaling/sheets/googleSheets';
+import { stampFrom } from '@/lib/server/stamp';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { parseTimeEntry } from '@/lib/time';
@@ -43,12 +44,14 @@ export async function POST(req: Request) {
         entries.push(parsed.entry);
       }
       const saved = await upsertHourLogsBatch(ctx.sheetAuth, { date, entries });
+      if (entries.length) await stampFrom(req, ctx.sheetAuth, date, 'hours');
       return NextResponse.json(saved, { status: 201 });
     }
 
     const parsed = parseTimeEntry({ hour: body?.hour, category: body?.category });
     if (!parsed.ok) return apiError(parsed.message, 400);
     const saved = await upsertHourLog(ctx.sheetAuth, { date, ...parsed.entry });
+    await stampFrom(req, ctx.sheetAuth, date, 'hours');
     return NextResponse.json(saved, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/time');

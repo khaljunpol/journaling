@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWeight, setWeight, getWeightsBetween } from '@journaling/sheets/googleSheets';
+import { stampFrom } from '@/lib/server/stamp';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
     if (!date) return apiError('date required', 400);
     if (!Number.isFinite(weight)) return apiError('weight must be a number', 400);
     await setWeight(ctx.sheetAuth, date, weight);
+    await stampFrom(req, ctx.sheetAuth, date, 'weight');
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error: unknown) {
     return apiFailure(error, 'POST /api/weights');

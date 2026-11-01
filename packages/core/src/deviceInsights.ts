@@ -1,5 +1,6 @@
 // The Overview's answers for a small screen: the same maths, fewer numbers. Pure. Relative imports only.
 import { parseLocalDate } from './date.ts';
+import { dayState, lateLines, type DayStamp } from './dayState.ts';
 import { lastDates } from './overview.ts';
 import {
   avgKnown,
@@ -9,7 +10,7 @@ import {
   findSleepIds,
   habitDays,
   habitRate,
-  habitStreak,
+  habitStreakGrace,
   moodSplit,
   moodWeek,
   sleepNights,
@@ -36,6 +37,8 @@ export type DeviceInsights = {
   time: { name: string; hours: number } | null;
   /** Short sentences to read, most telling first. Only what the data really shows. */
   lines: DeviceLine[];
+  /** Yesterday has none of the four parts logged. */
+  yesterdayMissed: boolean;
 };
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
@@ -72,8 +75,11 @@ export function deviceInsights(args: {
   logs: HabitLog[];
   cats: Array<Cat & { group?: string }>;
   activeIds: Set<string>;
+  /** The last 90 days. */
+  weights?: Array<{ date: string }>;
+  stamps?: DayStamp[];
 }): DeviceInsights {
-  const { today, moods, hours, logs, cats, activeIds } = args;
+  const { today, moods, hours, logs, cats, activeIds, weights = [], stamps = [] } = args;
   const mw = moodWeek(moods, today);
   const sleepIds = findSleepIds(cats);
   const dates14 = lastDates(today, 14);
@@ -87,8 +93,13 @@ export function deviceInsights(args: {
   const delta = mw.avg !== null && mw.prevAvg !== null ? round1(mw.avg - mw.prevAvg) : null;
   const sleep = sleepIds.size ? avgKnown(sleepNights(hours, sleepIds, week, today)) : null;
   const rate = habitRate(habitDays(logs, activeIds, dates14));
-  const streak = activeIds.size ? habitStreak(all, today) : 0;
+  const logged = new Set(logs.map((l) => l.date.slice(0, 10)));
+  const { streak, waiting } = activeIds.size ? habitStreakGrace(all, logged, today) : { streak: 0, waiting: 0 };
   const compare = timeCompare(hours.filter((h) => !sleepIds.has(String(h.category))), cats, today, 5);
+
+  const withData = new Set([...moods, ...hours, ...logs, ...weights].map((r) => r.date.slice(0, 10)));
+  const hasData = (date: string) => withData.has(date);
+  const yesterday = addDaysISO(today, -1);
 
   const lines: DeviceLine[] = [];
 
@@ -111,7 +122,8 @@ export function deviceInsights(args: {
 
   if (streak >= 3) {
     const best = bestStreak(all.filter((d) => d.date >= `${today.slice(0, 4)}-01-01`), today);
-    lines.push({ text: streak >= best ? `${streak}-day habit streak, your best this year` : `${streak}-day habit streak. Best this year: ${best}`, tone: 'good' });
+    if (waiting > 0) lines.push({ text: `${streak}-day habit streak, ${waiting} to fill in`, tone: 'neutral' });
+    else lines.push({ text: streak >= best ? `${streak}-day habit streak, your best this year` : `${streak}-day habit streak. Best this year: ${best}`, tone: 'good' });
   }
 
   const before = lastDates(addDaysISO(today, -14), 14);
@@ -122,6 +134,8 @@ export function deviceInsights(args: {
     if (shift >= HABIT_SHIFT) lines.push({ text: `Habits up ${shift}% on the 2 weeks before`, tone: 'good' });
     if (shift <= -HABIT_SHIFT) lines.push({ text: `Habits down ${Math.abs(shift)}% on the 2 weeks before`, tone: 'bad' });
   }
+
+  lines.push(...lateLines(stamps, hasData, today));
 
   // Patterns and where the time went.
   const means = weekdayMeans(moods, today).sort((a, b) => b.avg - a.avg);
@@ -139,5 +153,6 @@ export function deviceInsights(args: {
     habits: { rate, streak },
     time: top ? { name: top.name, hours: top.hours } : null,
     lines,
+    yesterdayMissed: dayState(yesterday, stamps, hasData(yesterday), today) === 'missed',
   };
 }

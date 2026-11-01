@@ -1,4 +1,5 @@
-import { getSettings, type SheetAuth } from '@journaling/sheets/googleSheets';
+import { getSettings, serviceTabsClient, type SheetAuth } from '@journaling/sheets/googleSheets';
+import { ensureCoreTabsOnce } from '@journaling/sheets/sheetTabs';
 import { allowedEmails } from '@/lib/auth';
 import { parseKey, findDeviceKey, keyLooksValid, makeReadGate } from '@/lib/deviceKey';
 
@@ -30,6 +31,8 @@ async function check(req: Request): Promise<{ sheetAuth: SheetAuth } | null> {
   }
   if (!findDeviceKey(settings, parsed.secret, allowedEmails)) return null;
   readGate.trust(parsed.spreadsheetId);
+  // Older sheets get new tabs here too. A failure is retried on the next request and never refuses the device.
+  await ensureCoreTabsOnce(serviceTabsClient(), parsed.spreadsheetId).catch(() => undefined);
   return { sheetAuth };
 }
 

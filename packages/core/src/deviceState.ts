@@ -1,5 +1,6 @@
 // Pure model for a connected device (phone widget, watch): what one day shows. Relative imports only.
 import { dayStatus, templateKind, applyTemplate, type DayData, type Ctx } from './quickDay.ts';
+import { dayHasData, dayState, type DayStamp, type DayState } from './dayState.ts';
 import { addDaysISO, mondayOf, weekDates } from './quickWeek.ts';
 import { habitIcon, type HabitIcon } from './habitIcons.ts';
 
@@ -41,15 +42,16 @@ export function deviceState(day: DayData, ctx: Ctx): DeviceState {
 }
 
 /** Only with GET /api/device?include=week. */
-export type DeviceWeekDay = { date: string; filled: number; total: number };
+export type DeviceWeekDay = { date: string; filled: number; total: number; state?: DayState };
 
 /** Monday to Sunday of the week holding `today`. Days after today, or not in `days`, are 0 of 0. */
-export function deviceWeek(days: Record<string, DayData>, ctx: Ctx, today: string): DeviceWeekDay[] {
+export function deviceWeek(days: Record<string, DayData>, ctx: Ctx, today: string, stamps: DayStamp[] = []): DeviceWeekDay[] {
   return weekDates(mondayOf(today)).map((date) => {
     const day = date <= today ? days[date] : undefined;
     if (!day) return { date, filled: 0, total: 0 };
     const { filled, total } = dayStatus(day, ctx);
-    return { date, filled, total };
+    const state = dayState(date, stamps, dayHasData(day), today);
+    return state ? { date, filled, total, state } : { date, filled, total };
   });
 }
 

@@ -180,7 +180,7 @@ function TwoRows({ s, width }: { s: Snapshot; width: number }) {
 
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-/** Seven rings, Monday first. Today sits on a lighter disc, later days have only a faint letter. One picture, one tap target. */
+/** Seven rings, Monday first. Today sits on a lighter disc, later days have only a faint letter. Blue was logged late, red is missing. One picture, one tap target. */
 function weekSvg(s: Snapshot, w: number, size: number): string {
   const today = s.state?.date ?? '';
   const cell = w / 7;
@@ -194,9 +194,9 @@ function weekSvg(s: Snapshot, w: number, size: number): string {
     const closed = d.total > 0 && d.filled >= d.total;
     const share = d.total > 0 ? Math.min(1, d.filled / d.total) : 0;
     const disc = d.date === today ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${dark['surface-2']}"/>` : '';
-    const track = later ? '' : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${dark['surface-3']}" stroke-width="3"/>`;
+    const track = later ? '' : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${d.state === 'missed' ? dark.warn : dark['surface-3']}" stroke-width="3"/>`;
     const arc = share > 0
-      ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${closed ? dark.reward : dark.accent}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${len * share} ${len}" transform="rotate(-90 ${x} ${y})"/>`
+      ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${d.state === 'late' ? dark.sync : closed ? dark.reward : dark.accent}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${len * share} ${len}" transform="rotate(-90 ${x} ${y})"/>`
       : '';
     const ink = d.date === today ? dark['text-1'] : dark['text-2'];
     const letter = `<text x="${x}" y="${y + font * 0.36}" font-family="sans-serif" font-size="${font}" font-weight="600" text-anchor="middle" fill="${ink}"${later ? ' opacity="0.5"' : ''}>${LETTERS[i]}</text>`;
@@ -368,11 +368,13 @@ export function JournalInsight({ s, width, height }: Size) {
   if (ready) return ready;
   const w = Math.min(width, 420);
   const h = Math.max(44, Math.min(64, height));
-  const line = shownLine(s.insights?.lines, s.lineAt);
+  const missed = s.insights?.yesterdayMissed === true;
+  const line = missed ? { text: 'Yesterday is missed. Tap to log it.', tone: 'bad' } : shownLine(s.insights?.lines, s.lineAt);
   const dot = line?.tone === 'good' ? c.ok : line?.tone === 'bad' ? c.warn : c['text-3'];
+  const press = missed ? clickOf({ uri: `${s.conn?.url}/quick` }) : { clickAction: 'NEXT_LINE' };
   return (
     <Centre>
-      <FlexWidget clickAction="NEXT_LINE" style={{ width: w, height: h }}>
+      <FlexWidget {...press} style={{ width: w, height: h }}>
         <FlexWidget style={{ width: w, height: h, borderRadius: ROUND, backgroundColor: c.surface, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center' }}>
           <FlexWidget style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot }} />
           <TextWidget text={line?.text ?? 'Keep logging. Insights show up here.'} maxLines={2} style={{ marginLeft: 12, fontSize: 15, fontWeight: '600', color: line ? c['text-1'] : c['text-2'] }} />
