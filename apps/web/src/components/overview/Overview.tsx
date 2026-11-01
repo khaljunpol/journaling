@@ -10,6 +10,7 @@ import HabitsSection from './HabitsSection';
 import { ClimbLine, LineSkeleton, ProgressLine } from './LinesRow';
 import MoodSection from './MoodSection';
 import OverviewSheets, { type OverviewDetail } from './OverviewSheets';
+import RecapCard, { RecapSkeleton } from './RecapCard';
 import RememberStrip from './RememberStrip';
 import TimeSection from './TimeSection';
 import { useOverviewData } from './useOverviewData';
@@ -24,7 +25,7 @@ function Enter({ i, animate, className = '', children }: { i: number; animate: b
 }
 
 /**
- * Overview: 3 questions (mood + sleep, habits, time), then Remember, then the Climbing and Progress lines.
+ * Overview: 3 questions (mood + sleep, habits, time), then Remember, last week's recap, then the Climbing and Progress lines.
  * Phone: one column. Tablet: Q1 full width, Q2 | Q3. Desktop: the 3 questions side by side.
  */
 export default function Overview() {
@@ -44,6 +45,7 @@ export default function Overview() {
   const dateLabel = parseLocalDate(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   // Skeleton while the dashboard loads; no row when there are no logs or the read failed with no cache.
   const showClimb = view.climb !== null || (!hasDash && !dashFailed);
+  const showRecap = view.recap !== null || (!hasDash && !dashFailed);
 
   return (
     <>
@@ -63,17 +65,22 @@ export default function Overview() {
           <Enter i={3} animate={animate} className="sm:col-span-2 lg:col-span-3">
             <RememberStrip remember={view.remember} />
           </Enter>
+          {showRecap ? (
+            <Enter i={4} animate={animate} className="sm:col-span-2 lg:col-span-3">
+              {view.recap ? <RecapCard recap={view.recap} /> : <RecapSkeleton />}
+            </Enter>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {/* No climbing logs: no row and no empty cell. */}
           {showClimb ? (
-            <Enter i={4} animate={animate}>
+            <Enter i={5} animate={animate}>
               {view.climb ? <ClimbLine climb={view.climb} /> : <LineSkeleton />}
             </Enter>
           ) : null}
           {/* Climbing hidden: Progress spans the row (from cache this is known on first paint, so no jump). */}
-          <Enter i={5} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
+          <Enter i={6} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
             {view.quests || dashFailed ? <ProgressLine quests={view.quests} /> : <LineSkeleton />}
           </Enter>
         </div>

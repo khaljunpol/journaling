@@ -22,6 +22,14 @@ test('nothing logged: every answer is empty', () => {
   });
 });
 
+test('Monday opens with last week', () => {
+  const moods = [{ date: '2026-11-10', score: 7 }];
+  const monday = deviceInsights({ ...base, today: '2026-11-16', moods });
+  assert.equal(monday.lines[0].text, 'Last week: mood 7, 1 of 7 days on time');
+  const tuesday = deviceInsights({ ...base, today: '2026-11-17', moods });
+  assert.ok(!tuesday.lines.some((l) => l.text.startsWith('Last week')));
+});
+
 test('mood: this week mean and the change from the same days last week', () => {
   const moods = [
     { date: '2026-10-26', score: 8 },

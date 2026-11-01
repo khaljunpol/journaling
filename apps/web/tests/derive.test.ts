@@ -151,3 +151,13 @@ test('month-ago read: loaded, failed, or still waiting', () => {
   assert.equal(failed.remember.monthAgo.failed, true);
   assert.equal(failed.remember.monthAgo.date, '2026-09-28');
 });
+
+test('recap: needs every source, then shows last week', () => {
+  const moods90 = [{ date: '2026-10-20', score: 7 }] as NonNullable<Parameters<typeof deriveOverview>[0]['moods90']>;
+  const quick = { days: {}, ctx: { activities: [] }, stamps: [] } as unknown as QuickPayload;
+  assert.equal(deriveOverview({ today: TODAY, dash: empty, quick: null, moods90 }).recap, null);
+  assert.equal(deriveOverview({ today: TODAY, dash: empty, quick }).recap, null);
+  const recap = deriveOverview({ today: TODAY, dash: empty, quick, moods90 }).recap;
+  assert.equal(recap?.from, '2026-10-19');
+  assert.equal(recap?.mood.avg, 7);
+});

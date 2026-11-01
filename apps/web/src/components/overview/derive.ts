@@ -28,6 +28,7 @@ import {
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { parseLocalDate } from '@journaling/core/date';
+import { weekRecap, type WeekRecap } from '@journaling/core/weekRecap';
 import type { Activity, MoodItem, Sidequest } from '@journaling/core/types';
 import type { HabitRow } from './TrendTable';
 
@@ -108,6 +109,8 @@ export type OverviewView = {
   /** null = no climbing logs this year or in the last 30 days (or still loading: check hasDash) */
   climb: { sessions: number; last: string | null; daysSince: number | null } | null;
   quests: { active: number } | null;
+  /** null = nothing logged last week, or the data is still loading (check hasDash) */
+  recap: WeekRecap | null;
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -291,5 +294,19 @@ export function deriveOverview(args: {
   const climb = climbs.length ? climbWeek(climbs, today) : null;
   const quests = dash?.sidequests ? { active: dash.sidequests.filter((s) => !s.completedAt).length } : null;
 
-  return { mood, habits, time, remember, climb, quests };
+  // Needs every source: a recap from part of the data would show wrong numbers.
+  const recap = dash && quick && args.moods90
+    ? weekRecap({
+        today,
+        moods: mergeMoods(args.moods90, dash, quick),
+        hours,
+        logs,
+        cats,
+        activeIds,
+        weights: Object.values(quick.days).filter((d) => d.weight !== null),
+        stamps: quick.stamps,
+      })
+    : null;
+
+  return { mood, habits, time, remember, climb, quests, recap };
 }

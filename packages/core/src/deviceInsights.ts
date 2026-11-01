@@ -21,7 +21,8 @@ import {
   type HourRow,
   type MoodRow,
 } from './overviewStats.ts';
-import { addDaysISO } from './quickWeek.ts';
+import { addDaysISO, mondayOf } from './quickWeek.ts';
+import { recapLine, weekRecap } from './weekRecap.ts';
 
 export type DeviceLine = { text: string; tone: 'good' | 'bad' | 'neutral' };
 
@@ -102,6 +103,10 @@ export function deviceInsights(args: {
   const yesterday = addDaysISO(today, -1);
 
   const lines: DeviceLine[] = [];
+
+  // Monday opens with last week.
+  const recap = today === mondayOf(today) ? weekRecap({ today, moods, hours, logs, cats, activeIds, weights, stamps }) : null;
+  if (recap) lines.push({ text: recapLine(recap), tone: 'neutral' });
 
   // Why: what goes with a better mood.
   const sleepSide = new Map<string, boolean>();
