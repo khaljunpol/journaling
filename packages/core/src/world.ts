@@ -98,6 +98,19 @@ export function slotPosition(slot: number): { col: number; row: 0 | 1 } {
   return extra % 2 === 0 ? { col: BASE_COLS + 1 + pair * 2, row: 0 } : { col: BASE_COLS + pair * 2, row: 1 };
 }
 
+/** Where a plant column is drawn. The field is cols 0–11; each extra pair of plant columns puts one on the left and one on the right, so the field stays centred. Stored slots and cols never change. */
+export function displayCol(col: number): number {
+  if (col < BASE_COLS) return col;
+  const extra = col - BASE_COLS;
+  const pair = Math.floor(extra / 2);
+  return extra % 2 === 0 ? -(pair + 1) : BASE_COLS + pair;
+}
+
+/** The leftmost drawn column for a scene `cols` wide (0 when there are no extra plant columns). */
+export function sceneLeft(cols: number): number {
+  return cols > BASE_COLS ? (BASE_COLS - cols) / 2 : 0;
+}
+
 const colsFor = (slots: number) => (slots <= 12 ? BASE_COLS : BASE_COLS + 2 * Math.ceil((slots - 12) / 2));
 
 /** Stored records stay; a habit that is not stored yet takes the next free slot, ordered by its first log. A re-tag changes the kind in place. */
@@ -150,6 +163,20 @@ export function mountainShape(width: number): Array<[number, number]> {
   return [[width * 0.1, SKY], [width * 0.36, 78], [width * 0.46, 86], [width * 0.54, 66], [width * 0.78, SKY]];
 }
 
+/** The y of the mountain's top edge at x (the highest edge above it), or null where there is no mountain. */
+export function mountainSurface(x: number, width: number): number | null {
+  const p = mountainShape(width);
+  let best: number | null = null;
+  for (let i = 0; i < p.length - 1; i++) {
+    const [ax, ay] = p[i];
+    const [bx, by] = p[i + 1];
+    if (x < Math.min(ax, bx) || x > Math.max(ax, bx) || ax === bx) continue;
+    const y = ay + ((x - ax) / (bx - ax)) * (by - ay);
+    if (best === null || y < best) best = y;
+  }
+  return best;
+}
+
 export function inMountain(x: number, y: number, width: number): boolean {
   const p = mountainShape(width);
   let inside = false;
@@ -165,6 +192,13 @@ function hash(s: string): number {
   let h = 2166136261;
   for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   return h >>> 0;
+}
+
+/** Moves a constellation's centre in from the edges, so a spread of `rx` either side stays inside the scene. */
+function inside(p: { x: number; y: number }, rx: number, width: number): { x: number; y: number } {
+  const lo = rx + 2;
+  const hi = width - rx - 2;
+  return { x: lo > hi ? width / 2 : Math.min(hi, Math.max(lo, p.x)), y: p.y };
 }
 
 /** A fixed spot in the sky for a key, outside the mountain when there is one. */
@@ -399,7 +433,7 @@ export function buildWorld(input: {
     .filter((a) => categoryOf(a) === 'mind')
     .map((a) => {
       const n = Math.floor(daysOf(a.id) / DAYS_PER_STAR);
-      const centre = skySpot(`mind:${a.id}`, width, mountain, 14, 60) ?? { x: width / 2, y: 30 };
+      const centre = inside(skySpot(`mind:${a.id}`, width, mountain, 14, 60) ?? { x: width / 2, y: 30 }, 20, width);
       const pts = Array.from({ length: n }, (_, i) => {
         const h = hash(`${a.id}:${i}`);
         return { x: Math.round((centre.x + ((h % 41) - 20)) * 10) / 10, y: Math.round((centre.y + (((h >>> 8) % 25) - 12)) * 10) / 10 };
@@ -409,12 +443,12 @@ export function buildWorld(input: {
   for (const c of groupCats('mind')) {
     const h = (hourDates.get(String(c.id)) as string[]).length;
     const n = Math.min(MAX_MIND_STARS, Math.floor(h / HOURS_PER_MIND_STAR));
-    const centre = skySpot(`mindcat:${c.id}`, width, mountain, 14, 60) ?? { x: width / 2, y: 30 };
+    // Bigger constellations spread wider, so many stars never pile into a knot.
+    const rx = 20 + 3 * Math.sqrt(n);
+    const ry = 12 + 1.5 * Math.sqrt(n);
+    const centre = inside(skySpot(`mindcat:${c.id}`, width, mountain, 14, 60) ?? { x: width / 2, y: 30 }, rx, width);
     const pts = Array.from({ length: n }, (_, i) => {
       const hh = hash(`cat${c.id}:${i}`);
-      // Bigger constellations spread wider, so many stars never pile into a knot.
-      const rx = 20 + 3 * Math.sqrt(n);
-      const ry = 12 + 1.5 * Math.sqrt(n);
       return { x: Math.round((centre.x + ((hh % 1000) / 1000 - 0.5) * 2 * rx) * 10) / 10, y: Math.max(4, Math.round((centre.y + (((hh >>> 10) % 1000) / 1000 - 0.5) * 2 * ry) * 10) / 10) };
     });
     constellations.push({ habit: c.name, stars: pts, hours: h });
@@ -481,8 +515,13 @@ export type DeviceWorld = {
   cols: number;
   mountain: boolean;
   flags: number;
-  plants: Array<{ name: string; kind: PlantKind; col: number; row: 0 | 1; tiles: number }>;
+  plants: Array<{ name: string; kind: PlantKind; col: number; row: 0 | 1; tiles: number; stage: Plant['stage'] }>;
   stars: Array<{ x: number; y: number }>;
+  season: Season;
+  /** The newest valley's field: young plantings, hives and animals, by tile (12 columns, rows 0–7). */
+  plantings: Array<{ tile: number; kind: PlantKind }>;
+  hives: number[];
+  animals: Array<{ tile: number; kind: AnimalKind }>;
   week: { done: number; total: number; met: boolean };
   tallest: { name: string; tiles: number } | null;
 };
@@ -494,8 +533,12 @@ export function deviceWorld(w: World): DeviceWorld {
     cols: w.cols,
     mountain: w.mountain,
     flags: w.flags.length,
-    plants: w.plants.map((p) => ({ name: p.name, kind: p.kind, col: p.col, row: p.row, tiles: p.tiles })),
+    plants: w.plants.map((p) => ({ name: p.name, kind: p.kind, col: p.col, row: p.row, tiles: p.tiles, stage: p.stage })),
     stars: w.stars.slice(0, DEVICE_STARS).map((s) => ({ x: s.x, y: s.y })),
+    season: w.season,
+    plantings: (w.valleys[w.valleys.length - 1]?.plantings ?? []).map((p) => ({ tile: p.tile, kind: p.kind })),
+    hives: w.hives.map((h) => h.tile),
+    animals: w.animals.map((a) => ({ tile: a.tile, kind: a.kind })),
     week: { ...w.weekGoal },
     tallest: worldSummary(w).tallest,
   };

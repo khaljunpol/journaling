@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  assignSlots, buildWorld, deviceWorld, fieldOrder, inMountain, plantHeight, slotPosition, waterTiles, worldSummary,
+  assignSlots, buildWorld, deviceWorld, displayCol, fieldOrder, mountainShape, mountainSurface, sceneLeft, SKY, inMountain, plantHeight, slotPosition, waterTiles, worldSummary,
   type PlantRecord,
 } from '../src/world.ts';
 import { addDaysISO } from '../src/quickWeek.ts';
@@ -243,7 +243,12 @@ test('deviceWorld: a small picture for the widget', () => {
   assert.equal(d.mountain, true);
   assert.equal(d.flags, w.flags.length);
   assert.deepEqual(d.plants.map((p) => p.name).sort(), ['Coffee', 'Gym']);
-  for (const p of d.plants) assert.deepEqual(Object.keys(p).sort(), ['col', 'kind', 'name', 'row', 'tiles']);
+  for (const p of d.plants) assert.deepEqual(Object.keys(p).sort(), ['col', 'kind', 'name', 'row', 'stage', 'tiles']);
+  assert.equal(d.season, w.season);
+  const v = w.valleys[w.valleys.length - 1];
+  assert.deepEqual(d.plantings, v.plantings.map((p) => ({ tile: p.tile, kind: p.kind })));
+  assert.deepEqual(d.animals, w.animals.map((a) => ({ tile: a.tile, kind: a.kind })));
+  assert.deepEqual(d.hives, w.hives.map((h) => h.tile));
   assert.ok(d.stars.length <= 40);
   assert.deepEqual(d.week, w.weekGoal);
   assert.deepEqual(d.tallest, worldSummary(w).tallest);
@@ -255,4 +260,50 @@ test('deviceWorld: stars are capped and keep their place', () => {
   const d = deviceWorld(w);
   assert.equal(d.stars.length, Math.min(40, w.stars.length));
   assert.deepEqual(d.stars[0], { x: w.stars[0].x, y: w.stars[0].y });
+});
+
+test('displayCol: the field keeps cols 0-11; extra plant columns alternate left and right', () => {
+  for (let c = 0; c < 12; c++) assert.equal(displayCol(c), c);
+  // Slot 12 sits at col 13 (front row), slot 13 at col 12 (back row): one pair, one column on each side.
+  assert.equal(displayCol(12), -1);
+  assert.equal(displayCol(13), 12);
+  assert.equal(displayCol(14), -2);
+  assert.equal(displayCol(15), 13);
+});
+
+test('sceneLeft: the scene is centred on the field', () => {
+  assert.equal(sceneLeft(12), 0);
+  assert.equal(sceneLeft(14), -1);
+  assert.equal(sceneLeft(16), -2);
+  for (const cols of [12, 14, 16, 18]) {
+    const left = sceneLeft(cols);
+    const used = Array.from({ length: cols }, (_, c) => displayCol(c));
+    assert.equal(Math.min(...used), left);
+    assert.equal(Math.max(...used), left + cols - 1);
+    // Same number of columns on each side of the field.
+    assert.equal(0 - left, left + cols - 12);
+  }
+});
+
+test('constellations stay inside the scene, so the sky never leans to one side', () => {
+  for (const n of [31, 300, 900]) {
+    for (let id = 0; id < 40; id++) {
+      const mind = [{ id: `m${id}`, name: 'Reading', group: 'mind' as const }];
+      const w = buildWorld({ ...base, cats: mind, hours: hoursOf(`m${id}`, n) });
+      const width = w.cols * 16;
+      for (const c of w.constellations) for (const s of c.stars) assert.ok(s.x >= 2 && s.x <= width - 2, `x ${s.x} in 0..${width}`);
+    }
+  }
+});
+
+test('mountainSurface: the top edge of the mountain at x, so a waterfall starts on it', () => {
+  const w = 192;
+  const [, , , peak, foot] = mountainShape(w);
+  assert.equal(mountainSurface(peak[0], w), peak[1]);
+  assert.equal(mountainSurface(foot[0], w), SKY);
+  const mid = (peak[0] + foot[0]) / 2;
+  assert.ok(Math.abs(mountainSurface(mid, w) - (peak[1] + SKY) / 2) < 0.01);
+  assert.ok(inMountain(mid, mountainSurface(mid, w) + 1, w));
+  assert.ok(!inMountain(mid, mountainSurface(mid, w) - 1, w));
+  assert.equal(mountainSurface(w * 0.95, w), null);
 });

@@ -1,6 +1,6 @@
 // The home-screen widget: floating capsules of round lights. Off is dark, done is violet, ember only on a closed ring.
 import React from 'react';
-import { FlexWidget, SvgWidget, TextWidget, type ColorProp } from 'react-native-android-widget';
+import { FlexWidget, OverlapWidget, SvgWidget, TextWidget, type ColorProp } from 'react-native-android-widget';
 import { moodColor } from '@journaling/core/mood';
 import { dark } from '@journaling/design';
 import { shownHabits, shownHistory, shownLine, shownWeek, sparkPoints } from '../logic/queue';
@@ -418,23 +418,15 @@ export function JournalValley({ s, width, height }: Size) {
   if (ready) return ready;
   const w = Math.min(width, 420);
   const h = Math.max(100, Math.min(220, height));
-  const LINE = 34;
-  const pic = h - INSET * 2 - LINE;
-  const inner = w - INSET * 2;
+  // The picture fills the whole widget; the line sits on its darker bottom edge.
   return (
     <Centre>
-      <FlexWidget {...clickOf({ uri: `${s.conn?.url}/world` })} style={{ width: w, height: h, borderRadius: 28, backgroundColor: c.surface, padding: INSET }}>
-        {s.world ? (
-          <FlexWidget style={{ width: inner, height: pic, borderRadius: 22, overflow: 'hidden' }}>
-            <SvgWidget svg={valleySvg(s.world, inner, pic)} style={{ width: inner, height: pic }} />
-          </FlexWidget>
-        ) : (
-          <FlexWidget style={{ width: inner, height: pic, borderRadius: 22, backgroundColor: c['surface-2'] }} />
-        )}
-        <FlexWidget style={{ width: inner, height: LINE, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 }}>
+      <OverlapWidget {...clickOf({ uri: `${s.conn?.url}/world` })} style={{ width: w, height: h, borderRadius: 28, overflow: 'hidden', backgroundColor: c.surface }}>
+        {s.world ? <SvgWidget svg={valleySvg(s.world, w, h)} style={{ width: w, height: h }} /> : <FlexWidget style={{ width: w, height: h, backgroundColor: c['surface-2'] }} />}
+        <FlexWidget style={{ width: w, height: h, justifyContent: 'flex-end', paddingHorizontal: 18, paddingBottom: 12 }}>
           <TextWidget text={s.world ? valleyLine(s.world) : 'Loading your valley'} maxLines={1} style={{ fontSize: 14, fontWeight: '600', color: s.world ? c['text-1'] : c['text-2'] }} />
         </FlexWidget>
-      </FlexWidget>
+      </OverlapWidget>
     </Centre>
   );
 }

@@ -2,22 +2,14 @@
 
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import {
-  BASE_COLS, FIELD_ROWS, HIVE_TILES, mountainShape, SKY, TILE, waterTiles,
+  BASE_COLS, displayCol, FIELD_ROWS, HIVE_TILES, mountainShape, mountainSurface, sceneLeft, SKY, TILE, waterTiles,
   type Animal, type Plant, type PlantKind, type Season, type Valley, type World,
 } from '@journaling/core/world';
-import { PALETTE, SPRITES, type SpriteId } from './sprites';
+import { PALETTE, SEASON, SPRITES, type SpriteId } from '@journaling/core/sprites';
 
 const H = SKY + FIELD_ROWS * TILE;
 /** The field is always 12 columns wide; more habit plants only widen the horizon. */
 const FW = BASE_COLS * TILE;
-
-/** Season colours: only the grass changes (and spring adds pink tips). Leaves stay green: nothing should look like it is dying. */
-const SEASON: Record<Season, Record<string, string>> = {
-  spring: { l: '#F7B6C8' },
-  summer: {},
-  autumn: { g: '#7E9A44', G: '#A3AE52', d: '#647A36' },
-  winter: { g: '#C9D6E2', G: '#E6EEF5', d: '#A9B8C8' },
-};
 
 /** Every sprite once, as a <symbol>; rows of one colour merge into one rect. */
 const Symbols = memo(function Symbols({ season }: { season: Season }) {
@@ -51,7 +43,7 @@ const tileXY = (t: number) => ({ x: (t % BASE_COLS) * TILE, y: SKY + Math.floor(
 
 /** A habit plant: a growth stage in its tile, or a full plant built from parts, taller with every day done. */
 function PlantShape({ p }: { p: Plant }) {
-  const x = p.col * TILE;
+  const x = displayCol(p.col) * TILE;
   const base = SKY + (p.row + 1) * TILE;
   if (p.stage < 4) return use(`${PREFIX[p.kind]}-${STAGE[p.stage as 0 | 1 | 2 | 3]}`, x, base - TILE);
   const h = Math.round(p.tiles * TILE);
@@ -140,7 +132,9 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
     return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t };
   };
   const streamPts = waterTiles(BASE_COLS).slice(0, 5).map((t) => { const p = tileXY(t); return [p.x + 8, p.y + 8]; });
-  const fallX = FW * 0.7;
+  // The waterfall leaves the mountain's right face, from the face itself down to the horizon.
+  const fallX = FW * 0.64;
+  const fallTop = Math.ceil(mountainSurface(fallX, FW) ?? 78) + 1;
   return (
     <>
       <defs>
@@ -159,6 +153,8 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       {/* The grass texture runs past the field too, so the edges never look empty. */}
       <rect x={-4000} y={SKY} width={W + 8000} height={4000} fill="url(#v-grass)" />
 
+      {/* Sky spots are laid out from 0 to the scene width; the scene starts at sceneLeft, so they move with it. */}
+      <g transform={`translate(${sceneLeft(world.cols) * TILE},0)`}>
       <g aria-label={`${world.stars.length} perfect days`}>
         {world.stars.map((s, i) => (
           <Hit key={`st${i}`} tab={false} pick={{ kind: 'star', i }} picked={picked} onPick={onPick} label={`Perfect day, ${s.date}`} ring={{ x: s.x - 2, y: s.y - 2, w: 5, h: 5 }} className="world-twinkle" style={{ animationDelay: `${(i % 7) * 0.6}s` }}>
@@ -184,6 +180,7 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
           {use('sky-lantern', l.x - 8, l.y - 8)}
         </Hit>
       ))}
+      </g>
 
       {world.clouds.map((c, i) => (
         <g key={`cl${i}`} className="world-cloud" style={{ animationDelay: `${-i * 23}s`, ['--cloud-from' as string]: `${-(c.x + 32)}px`, ['--cloud-to' as string]: `${W - c.x + 8}px` }}>
@@ -198,20 +195,18 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
           <polygon points={mount.map((p) => p.join(',')).join(' ')} fill="#3B2F55" shapeRendering="geometricPrecision" />
           <polygon points={`${peak[0]},${peak[1]} ${mount[4][0]},${mount[4][1]} ${FW * 0.62},${SKY} ${FW * 0.56},${70}`} fill="#4A3C6A" shapeRendering="geometricPrecision" />
           <polygon points={`${peak[0]},${peak[1]} ${peak[0] - 7},${peak[1] + 10} ${peak[0] - 2},${peak[1] + 8} ${peak[0] + 2},${peak[1] + 12} ${peak[0] + 7},${peak[1] + 9}`} fill="#EDE7F6" shapeRendering="geometricPrecision" />
-          {world.water.waterfall ? (<><rect x={fallX} y={78} width={3} height={SKY - 78} fill="#7CC7F2" /><rect x={fallX + 1} y={82} width={1} height={SKY - 84} fill="#CFEFFF" /></>) : null}
+          {world.water.waterfall ? (<><rect x={fallX} y={fallTop} width={3} height={SKY - fallTop} fill="#7CC7F2" /><rect x={fallX + 1} y={fallTop + 3} width={1} height={SKY - fallTop - 5} fill="#CFEFFF" /></>) : null}
           {world.flags.map((f, i) => {
             const p = flagAt(f.type, f.step);
             return (
               <Hit key={`f${i}`} pick={{ kind: 'flag', i }} picked={picked} onPick={onPick} label={`${f.grade}, ${f.date}`} ring={{ x: p.x - 1, y: p.y - 9, w: 7, h: 10 }}>
                 {use('flag', p.x, p.y - 16)}
-                <text x={p.x + 6} y={p.y - 4} className="world-label">{f.grade}</text>
               </Hit>
             );
           })}
           {world.summits.map((s, i) => (
             <Hit key={`su${i}`} pick={{ kind: 'summit', i }} picked={picked} onPick={onPick} label={`Summit, ${s.goal}, ${s.date}`} ring={{ x: peak[0] - 1 + i * 6, y: peak[1] - 9, w: 7, h: 10 }}>
               {use('flag', peak[0] + i * 6, peak[1] - 16)}
-              <text x={peak[0] + i * 6 + 6} y={peak[1] - 11 - i * 6} className="world-label">{s.goal}</text>
             </Hit>
           ))}
         </g>
@@ -251,7 +246,7 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
         const h = p.stage < 4 ? TILE : Math.round(p.tiles * TILE);
         const base = SKY + (p.row + 1) * TILE;
         return (
-          <Hit key={p.id} pick={{ kind: 'plant', id: p.id }} picked={picked} onPick={onPick} label={`${p.name}, ${p.days} days`} ring={{ x: p.col * TILE, y: base - h, w: TILE, h }}>
+          <Hit key={p.id} pick={{ kind: 'plant', id: p.id }} picked={picked} onPick={onPick} label={`${p.name}, ${p.days} days`} ring={{ x: displayCol(p.col) * TILE, y: base - h, w: TILE, h }}>
             <PlantShape p={p} />
           </Hit>
         );
@@ -271,7 +266,7 @@ const DECOR = ['tuft', 'wildflower', 'pebbles', 'tuft'] as const;
 /** Small things with no meaning, so no part of the ground looks empty: empty horizon spots, free field tiles, and past the field. */
 function Decorations({ world, valley }: { world: World; valley: Valley }) {
   const taken = new Set<string>();
-  for (const p of world.plants) taken.add(`${p.col},${p.row}`);
+  for (const p of world.plants) taken.add(`${displayCol(p.col)},${p.row}`);
   for (const t of [...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile), ...world.animals.map((a) => a.tile)]) taken.add(`${t % BASE_COLS},${Math.floor(t / BASE_COLS)}`);
   const out: ReactElement[] = [];
   for (let col = -10; col < world.cols + 10; col++) {
@@ -290,7 +285,7 @@ function Decorations({ world, valley }: { world: World; valley: Valley }) {
 /** A few bees around the sunflowers, one per hive (max 6), drifting slowly. Still with reduced motion (CSS). */
 function Bees({ world, valley }: { world: World; valley: Valley }) {
   const flowers = [
-    ...world.plants.filter((p) => p.kind === 'sun').map((p) => ({ x: p.col * TILE + 8, y: SKY + (p.row + 1) * TILE - Math.round((p.stage < 4 ? 1 : p.tiles) * TILE) + 6 })),
+    ...world.plants.filter((p) => p.kind === 'sun').map((p) => ({ x: displayCol(p.col) * TILE + 8, y: SKY + (p.row + 1) * TILE - Math.round((p.stage < 4 ? 1 : p.tiles) * TILE) + 6 })),
     ...valley.plantings.filter((p) => p.kind === 'sun').map((p) => { const { x, y } = tileXY(p.tile); return { x: x + 8, y: y + 6 }; }),
   ];
   if (!flowers.length) return null;
@@ -401,7 +396,7 @@ export default function WorldScene(props: SceneProps) {
   const still = useReducedMotion();
   const blocked = useMemo(() => new Set([...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile)]), [valley]);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full" style={{ overflow: 'visible' }} shapeRendering="crispEdges" role="group" aria-label={`Your valley: ${world.plants.length} habit plants, ${valley.plantings.length} plantings, ${world.animals.length} animals`} onClick={() => onPick(null)}>
+    <svg viewBox={`${sceneLeft(world.cols) * TILE} 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full" style={{ overflow: 'visible' }} shapeRendering="crispEdges" role="group" aria-label={`Your valley: ${world.plants.length} habit plants, ${valley.plantings.length} plantings, ${world.animals.length} animals`} onClick={() => onPick(null)}>
       <StillLayers {...props} />
       {/* Animals live in the newest valley only: older ones are full of plantings. */}
       {latest ? <Animals animals={world.animals} blocked={blocked} picked={picked} onPick={onPick} still={still} /> : null}
