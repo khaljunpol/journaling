@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorld, flowerColor, frameAt, MEADOW_SLOTS, meadowSpot, weekCaption, worldTimeline } from '../src/world.ts';
+import { buildWorld, flowerColor, frameAt, MEADOW_SLOTS, meadowSpot, waterTiles, weekCaption, worldTimeline } from '../src/world.ts';
 import { weeklyMoods } from '../src/overviewStats.ts';
 import { addDaysISO } from '../src/quickWeek.ts';
 
@@ -38,22 +38,28 @@ test('a wildflower per finished good week, brighter for a better week; this week
   assert.equal(f[1].avg, 7.4);
 });
 
-test('meadow spots: 72 distinct spots beside the field, never in its 12 columns or the plant rows', () => {
+test('flower spots: 30 distinct spots on the stream banks, inside the field, below the plant rows', () => {
+  assert.equal(MEADOW_SLOTS, 30);
   const spots = Array.from({ length: MEADOW_SLOTS }, (_, k) => meadowSpot(k));
   assert.equal(new Set(spots.map((s) => `${s.x},${s.y}`)).size, MEADOW_SLOTS);
+  const water = new Set(waterTiles(12).slice(0, 5));
   for (const s of spots) {
-    assert.ok(s.x < 0 || s.x >= 192, `x ${s.x}`);
+    assert.ok(s.x >= 0 && s.x < 192, `x ${s.x}`);
     assert.ok(s.y >= 112 + 32 && s.y < 112 + 128, `y ${s.y}`);
+    // Each spot belongs to a stream tile (by its centre column), so a planting never sits on it.
+    const t = Math.floor((s.y - 112) / 16) * 12 + Math.floor((s.x + 3) / 16);
+    assert.ok(water.has(t), `tile ${t}`);
   }
 });
 
-test('past 72 good weeks the newest stay, each at its own fixed spot', () => {
+test('past the last spot the newest good weeks stay, each at its own fixed spot', () => {
   const start = '2024-01-01';
   const moods = Array.from({ length: 80 }, (_, k) => ({ date: addDaysISO(start, k * 7), score: 8 }));
   const f = buildWorld({ ...base, today: '2026-02-04', moods }).flowers;
+  const first = 80 - MEADOW_SLOTS;
   assert.equal(f.length, MEADOW_SLOTS);
-  assert.equal(f[0].week, addDaysISO(start, 8 * 7));
-  assert.deepEqual({ x: f[0].x, y: f[0].y }, meadowSpot(8 % MEADOW_SLOTS));
+  assert.equal(f[0].week, addDaysISO(start, first * 7));
+  assert.deepEqual({ x: f[0].x, y: f[0].y }, meadowSpot(first % MEADOW_SLOTS));
 });
 
 test('the last frame keeps today\'s mood and flowers; earlier frames use their own week', () => {

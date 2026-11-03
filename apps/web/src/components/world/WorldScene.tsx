@@ -10,9 +10,9 @@ import { PALETTE, SEASON, SPRITES, type SpriteId } from '@journaling/core/sprite
 const H = SKY + FIELD_ROWS * TILE;
 /** The field is always 12 columns wide; more habit plants only widen the horizon. */
 const FW = BASE_COLS * TILE;
-/** The field plus the meadows either side (2 columns each). */
-const MIN_COLS = BASE_COLS + 4;
-/** The visible scene: at least the field and its meadows, centred on the field; more habit plants widen it. */
+/** The field's width: the scene is never narrower, so a phone in portrait shows the field as large as it can. */
+const MIN_COLS = BASE_COLS;
+/** The visible scene: at least the field, centred on it; more habit plants widen it. */
 const viewOf = (cols: number) => { const width = Math.max(cols, MIN_COLS) * TILE; return { left: FW / 2 - width / 2, width }; };
 
 /** Every sprite once, as a <symbol>; rows of one colour merge into one rect. */
@@ -314,7 +314,7 @@ function SkyMood({ world, picked, onPick, view }: { world: World; picked: Pick |
   );
 }
 
-/** One wildflower per good week (mean mood 7+), in its mood colour, on the meadows beside the field. */
+/** One wildflower per good week (mean mood 7+), on the stream banks. */
 function Flowers({ world, picked, onPick }: { world: World; picked: Pick | null; onPick: (p: Pick | null) => void }) {
   return (
     <g aria-label={`${(world.flowers ?? []).length} good weeks`}>

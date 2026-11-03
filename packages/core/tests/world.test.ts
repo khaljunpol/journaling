@@ -63,29 +63,34 @@ test('a deleted habit keeps its plant from its stored record and logs', () => {
   assert.deepEqual(w.plants.map((p) => [p.name, p.slot, p.days]), [['Climb', 4, 2]]);
 });
 
-test('weekly goal: 80% plants one, 79% does not; kind from the best of body, well-being, other', () => {
-  // Week of Mon 2026-10-19: 5 days, 8 of 10 done → met (mind is highest but falls back to well-being).
+test('weekly goal: every 2nd week at 80% plants one, 79% does not count; kind from the best of body, well-being, other', () => {
+  // Weeks of Mon 2026-10-19 and 2026-10-26: 8 of 10 done → met (mind is highest but falls back to well-being).
   // Week of Mon 2026-10-12: 11 of 14 done → 78.6% → not met.
-  const met = [19, 20, 21, 22, 23].map((d, i) => score(`2026-10-${d}`, i < 3 ? 2 : 1, 2, { wellbeing: 20, mind: 90 }));
+  const met = (dd: number) => [0, 1, 2, 3, 4].map((k, i) => score(addDaysISO(`2026-10-${dd}`, k), i < 3 ? 2 : 1, 2, { wellbeing: 20, mind: 90 }));
   const notMet = Array.from({ length: 7 }, (_, i) => score(`2026-10-${12 + i}`, i < 4 ? 2 : i < 6 ? 1 : 1, 2));
-  const w = buildWorld({ ...base, days: [...met, ...notMet] });
-  assert.deepEqual(w.valleys[0].plantings.map((p) => [p.week, p.kind]), [['2026-10-19', 'sun']]);
+  const one = buildWorld({ ...base, days: [...met(19), ...notMet] });
+  assert.deepEqual(one.valleys[0].plantings, []);
+  const two = buildWorld({ ...base, days: [...met(19), ...met(26), ...notMet] });
+  assert.deepEqual(two.valleys[0].plantings.map((p) => [p.week, p.kind]), [['2026-10-26', 'sun']]);
 });
 
 test('weekly goal: the current week plants before Sunday once 80% is reached', () => {
   // Saturday: 6 days of 2/2 done; the week total is estimated as 12 + one more day of 2 = 14, and 12/14 ≥ 80%.
   const days = [2, 3, 4, 5, 6, 7].map((d) => score(`2026-11-0${d}`, 2, 2, { move: 20 }));
-  const w = buildWorld({ ...base, today: '2026-11-07', days });
-  assert.equal(w.weekGoal.met, true);
-  assert.deepEqual(w.valleys[0].plantings.map((p) => p.kind), ['tree']);
+  const before = Array.from({ length: 7 }, (_, i) => score(addDaysISO('2026-10-26', i), 2, 2, { move: 20 }));
+  const first = buildWorld({ ...base, today: '2026-11-07', days });
+  assert.deepEqual([first.weekGoal.met, first.weekGoal.plants], [true, false]);
+  const w = buildWorld({ ...base, today: '2026-11-07', days: [...before, ...days] });
+  assert.deepEqual([w.weekGoal.met, w.weekGoal.plants], [true, true]);
+  assert.deepEqual(w.valleys[0].plantings.map((p) => [p.week, p.kind]), [['2026-11-02', 'tree']]);
 });
 
 test('plantings fill the field centre out and never sit on water tiles', () => {
-  const days = Array.from({ length: 80 }, (_, i) => score(addDaysISO('2025-01-06', i * 7), 1, 1, { other: 10 }));
+  const days = Array.from({ length: 200 }, (_, i) => score(addDaysISO('2023-01-02', i * 7), 1, 1, { other: 10 }));
   const w = buildWorld({ ...base, today: '2026-11-03', days, level: 20 });
   const water = new Set(waterTiles(12));
   const all = w.valleys.flatMap((v) => v.plantings);
-  assert.equal(all.length, 80);
+  assert.equal(all.length, 100);
   assert.ok(all.every((p) => !water.has(p.tile)));
   assert.equal(w.valleys[0].plantings[0].tile, fieldOrder(12)[0]);
   assert.ok(w.valleys.length >= 2);
@@ -140,7 +145,7 @@ test('same input, same world; summary', () => {
 
 test('plantings mix by the share of points so far, not only the top area each week', () => {
   // Every week: well-being 60, body 30, other 10 → over 20 plantings about 12 sunflowers, 6 trees, 2 bamboo.
-  const days = Array.from({ length: 20 }, (_, i) => score(addDaysISO('2026-01-05', i * 7), 1, 1, { wellbeing: 60, move: 30, other: 10 }));
+  const days = Array.from({ length: 40 }, (_, i) => score(addDaysISO('2025-06-02', i * 7), 1, 1, { wellbeing: 60, move: 30, other: 10 }));
   const kinds = buildWorld({ ...base, days }).valleys[0].plantings.map((p) => p.kind);
   const n = (k: string) => kinds.filter((x) => x === k).length;
   assert.deepEqual([n('sun'), n('tree'), n('bamboo')], [12, 6, 2]);

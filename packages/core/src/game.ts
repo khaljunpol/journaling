@@ -39,7 +39,7 @@ export type GameState = {
   /** false = live preview: nothing is locked yet. */
   imported: boolean;
   /** The World in one line: plantings so far, the tallest habit plant, this week's goal. Added by the server. */
-  world?: { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; climbed: boolean };
+  world?: { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; weekPlants: boolean; climbed: boolean };
 };
 
 /** Logs by date, first habits stamp by date, and the first logged day. */

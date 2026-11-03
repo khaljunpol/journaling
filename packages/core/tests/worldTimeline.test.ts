@@ -142,21 +142,22 @@ test('a plant not logged yet is hidden; it grows week by week', () => {
 });
 
 test('two valleys: the frame shows the valley filling at that week', () => {
-  const days = Array.from({ length: 100 }, (_, i) => met(addDaysISO('2024-01-01', i * 7), { wellbeing: 10 }));
+  const days = Array.from({ length: 200 }, (_, i) => met(addDaysISO('2022-03-07', i * 7), { wellbeing: 10 }));
   const input = { ...base, today: '2026-02-04', days };
   const w = buildWorld(input);
   const t = worldTimeline(input);
   assert.equal(w.valleys.length, 2);
-  assert.equal(frameAt(w, t, 10).valley, 0);
+  assert.equal(frameAt(w, t, 20).valley, 0);
   assert.equal(frameAt(w, t, t.weeks.length - 1).valley, 1);
-  assert.ok(frameAt(w, t, 10).world.valleys[0].plantings.length <= 11);
+  assert.ok(frameAt(w, t, 20).world.valleys[0].plantings.length <= 11);
 });
 
 test('caption: top two groups without sleep, then events', () => {
   const input = rich();
   const w = buildWorld(input);
   const t = worldTimeline(input);
-  assert.equal(weekCaption(w, t, 0), 'Jan 5 · 25h people, 22h work · planted a young sunflower, a deer arrived');
+  assert.equal(weekCaption(w, t, 0), 'Jan 5 · 25h people, 22h work · a deer arrived, 1 perfect day');
+  assert.match(weekCaption(w, t, 1), /planted a young sunflower/);
 });
 
 test('caption: no hours shows only events; a quiet week shows only the date', () => {

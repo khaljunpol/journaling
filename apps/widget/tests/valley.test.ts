@@ -56,10 +56,11 @@ test('valleySvg: a wide widget gets more sky and field, not a stretched scene', 
 });
 
 test('valleyLine: planted beats tallest, and the week goal follows', () => {
-  assert.equal(valleyLine(world), 'Gym is 3 tiles tall · 12 of 20 habits to plant');
-  assert.equal(valleyLine({ ...world, week: { done: 20, total: 25, met: true } }), 'Planted this week');
+  assert.equal(valleyLine(world), "Gym is 3 tiles tall · 12 of 20 habits for this week's goal");
+  assert.equal(valleyLine({ ...world, week: { done: 20, total: 25, met: true, plants: true } }), 'Planted this week');
+  assert.equal(valleyLine({ ...world, week: { done: 20, total: 25, met: true, plants: false } }), 'Goal met this week');
   assert.equal(valleyLine({ ...world, tallest: null, week: { done: 0, total: 0, met: false } }), 'Your valley');
-  assert.equal(valleyLine({ ...world, tallest: { name: 'Gym', tiles: 1 } }), 'Gym is 1 tile tall · 12 of 20 habits to plant');
+  assert.equal(valleyLine({ ...world, tallest: { name: 'Gym', tiles: 1 } }), "Gym is 1 tile tall · 12 of 20 habits for this week's goal");
 });
 
 test('viewTop: empty sky is cut, but never above the tallest plant or the peak', () => {

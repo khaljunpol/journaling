@@ -12,7 +12,7 @@ function rows(world: World, valley: Valley): Row[] {
   if (kinds.has('tree')) out.push({ sprite: 'tree-crown', title: 'Tree', text: 'A Body habit. Grows taller with every day you do it.' });
   if (kinds.has('sun')) out.push({ sprite: 'sun-head', title: 'Sunflower', text: 'A Well-being habit. Grows taller with every day you do it.' });
   if (kinds.has('bamboo')) out.push({ sprite: 'bam-top', title: 'Bamboo', text: 'An Other habit. Grows taller with every day you do it.' });
-  if (valley.plantings.length) out.push({ sprite: 'sun-young', title: 'Young plant', text: 'A week you did 80% of your usual habits.' });
+  if (valley.plantings.length) out.push({ sprite: 'sun-young', title: 'Young plant', text: 'Every 2 weeks you do 80% of your usual habits.' });
   const animals = new Map(world.animals.map((a) => [a.kind, a.habit]));
   for (const [kind, habit] of animals) out.push({ sprite: `${kind}-1`, title: kind === 'deer' ? 'Deer pair' : kind[0].toUpperCase() + kind.slice(1), text: `Your ${habit} hours. One for every 25.` });
   if (world.hives.length) out.push({ sprite: 'hive', title: 'Hive and bees', text: 'Work. One hive for every 100 hours.' });

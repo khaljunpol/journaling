@@ -12,7 +12,7 @@ export default function WorldTile() {
     fetchGame().then((g) => {
       if (cancelled || !g.world) return;
       const t = g.world.tallest;
-      setLine(g.world.weekMet ? 'Planted this week' : t && t.tiles >= 1 ? `${t.name} is ${Math.round(t.tiles * 10) / 10} tiles tall` : 'Your valley');
+      setLine(g.world.weekPlants ? 'Planted this week' : g.world.weekMet ? 'Goal met this week' : t && t.tiles >= 1 ? `${t.name} is ${Math.round(t.tiles * 10) / 10} tiles tall` : 'Your valley');
     }).catch(() => setLine('Your valley'));
     return () => { cancelled = true; };
   }, []);

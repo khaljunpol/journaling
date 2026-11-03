@@ -77,7 +77,7 @@ export default function WorldPage() {
               </button>
             ) : null}
             <p className="font-pixel rounded-full px-3 py-0.5 text-[16px]" style={{ color: '#F0A24A', background: 'rgba(11,13,20,0.45)' }}>
-              Level {world.level}{world.weekGoal.met ? ' · planted this week' : ''}
+              Level {world.level}{world.weekGoal.plants ? ' · planted this week' : world.weekGoal.met ? ' · goal met this week' : ''}
             </p>
             {world.valleys.length > 1 ? (
               <button type="button" aria-label="Next valley" disabled={shown === world.valleys.length - 1} onClick={() => go(shown + 1)} className="press flex size-11 items-center justify-center rounded-[10px] disabled:opacity-30">

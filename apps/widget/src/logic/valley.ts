@@ -164,11 +164,12 @@ const tilesText = (n: number) => {
 /** The share of this week's usual habits that plants something, as in the valley. */
 const GOAL_SHARE = 0.8;
 
-/** One line on the picture: planted this week wins, then the tallest plant and how many habits plant this week. */
+/** One line on the picture: planted (or goal met) this week wins, then the tallest plant and the week's goal. */
 export function valleyLine(world: DeviceWorld): string {
-  if (world.week.met) return 'Planted this week';
+  if (world.week.plants) return 'Planted this week';
+  if (world.week.met) return 'Goal met this week';
   const parts: string[] = [];
   if (world.tallest && world.tallest.tiles >= 1) parts.push(`${world.tallest.name} is ${tilesText(world.tallest.tiles)} tall`);
-  if (world.week.total > 0) parts.push(`${world.week.done} of ${Math.ceil(GOAL_SHARE * world.week.total)} habits to plant`);
+  if (world.week.total > 0) parts.push(`${world.week.done} of ${Math.ceil(GOAL_SHARE * world.week.total)} habits for this week's goal`);
   return parts.length ? parts.join(' · ') : 'Your valley';
 }

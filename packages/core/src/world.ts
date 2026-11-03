@@ -61,7 +61,8 @@ export type World = {
   water: { pond: boolean; stream: boolean; waterfall: boolean };
   level: number;
   season: Season;
-  weekGoal: { done: number; total: number; met: boolean };
+  /** `met`: this week reached 80%. `plants`: it is the 2nd goal week of a pair, so it plants. */
+  weekGoal: { done: number; total: number; met: boolean; plants: boolean };
   /** From hours: hives (Work), fireflies (Sleep 7h+ nights), clouds (Rest). Totals are for tap text. */
   hives: Array<{ tile: number }>;
   workHours: number;
@@ -84,18 +85,18 @@ export type Flower = { week: string; avg: number; color: string; x: number; y: n
 const GOOD_MOOD = 7;
 const LOW_MOOD = 5;
 const RAINBOW_LIFT = 1.5;
-/** Meadow tiles: the 2 columns either side of the field, rows 2–7, interleaved so both sides fill together. 3 flowers per tile. */
-const MEADOW_COLS = [-1, BASE_COLS, -2, BASE_COLS + 1];
-const MEADOW_ROWS = 6;
-const PER_TILE: Array<[number, number]> = [[3, 10], [9, 5], [11, 12]];
-export const MEADOW_SLOTS = MEADOW_COLS.length * MEADOW_ROWS * PER_TILE.length;
+/** Flowers grow on both banks of the stream (its first 5 tiles, kept free of plantings), so they sit inside the field and show on a phone. */
+const BANK_TILES = waterTiles(BASE_COLS).slice(0, 5);
+/** Spots in a stream tile: left and right bank, three down each. */
+const BANK: Array<[number, number]> = [[-1, 1], [11, 1], [-1, 6], [11, 6], [-1, 11], [11, 11]];
+export const MEADOW_SLOTS = BANK_TILES.length * BANK.length;
 
-/** The fixed spot (scene px) of the k-th good week's flower. Slot k % MEADOW_SLOTS. */
+/** The fixed spot (scene px) of the k-th good week's flower. Slot k % MEADOW_SLOTS; flowers spread along the whole stream first. */
 export function meadowSpot(k: number): { x: number; y: number } {
   const slot = k % MEADOW_SLOTS;
-  const tile = Math.floor(slot / PER_TILE.length);
-  const [ox, oy] = PER_TILE[slot % PER_TILE.length];
-  return { x: MEADOW_COLS[tile % MEADOW_COLS.length] * TILE + ox, y: SKY + (2 + Math.floor(tile / MEADOW_COLS.length)) * TILE + oy };
+  const tile = BANK_TILES[slot % BANK_TILES.length];
+  const [ox, oy] = BANK[Math.floor(slot / BANK_TILES.length)];
+  return { x: (tile % BASE_COLS) * TILE + ox, y: SKY + Math.floor(tile / BASE_COLS) * TILE + oy };
 }
 
 const round1m = (x: number) => Math.round(x * 10) / 10;
@@ -391,9 +392,11 @@ export function buildWorld(input: {
   const order = fieldOrder(BASE_COLS).filter((t) => !reserved.has(t));
   const valleys: Valley[] = [{ plantings: [] }];
   const weeks = weeksOf(days, today);
+  // One young plant for every 2 goal weeks: the 2nd week of each pair plants.
   const goalWeeks = weeks.filter(met);
-  const kindsInOrder = plantingKinds(weeks, goalWeeks);
-  for (const [i, w] of goalWeeks.entries()) {
+  const plantWeeks = goalWeeks.filter((_, i) => i % 2 === 1);
+  const kindsInOrder = plantingKinds(weeks, plantWeeks);
+  for (const [i, w] of plantWeeks.entries()) {
     let v = valleys[valleys.length - 1];
     if (v.plantings.length >= order.length) {
       v = { plantings: [] };
@@ -402,7 +405,9 @@ export function buildWorld(input: {
     v.plantings.push({ tile: order[v.plantings.length], kind: kindsInOrder[i], week: w.monday });
   }
   const cw = weeks.find((w) => w.monday === mondayOf(today));
-  const weekGoal = cw ? { done: cw.done, total: Math.round(cw.total * 10) / 10, met: met(cw) } : { done: 0, total: 0, met: false };
+  const weekGoal = cw
+    ? { done: cw.done, total: Math.round(cw.total * 10) / 10, met: met(cw), plants: plantWeeks.some((w) => w.monday === cw.monday) }
+    : { done: 0, total: 0, met: false, plants: false };
 
   // Animals from People habits: one per 30 days done, on free tiles of the newest valley, from the edges in.
   // Animals: from People hours (one per 25 hours per category, its own kind), the first 8 earned. With no People hours,
@@ -552,12 +557,13 @@ export function buildWorld(input: {
 }
 
 /** One line for Overview: this week's goal, and the tallest habit plant. */
-export function worldSummary(w: World): { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; climbed: boolean } {
+export function worldSummary(w: World): { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; weekPlants: boolean; climbed: boolean } {
   const tallest = w.plants.reduce<Plant | null>((a, p) => (!a || p.tiles > a.tiles || (p.tiles === a.tiles && p.days > a.days) ? p : a), null);
   return {
     planted: w.valleys.reduce((n, v) => n + v.plantings.length, 0),
     tallest: tallest ? { name: tallest.name, tiles: tallest.tiles } : null,
     weekMet: w.weekGoal.met,
+    weekPlants: w.weekGoal.plants ?? false,
     climbed: w.mountain,
   };
 }
@@ -574,7 +580,7 @@ export type DeviceWorld = {
   plantings: Array<{ tile: number; kind: PlantKind }>;
   hives: number[];
   animals: Array<{ tile: number; kind: AnimalKind }>;
-  week: { done: number; total: number; met: boolean };
+  week: { done: number; total: number; met: boolean; plants?: boolean };
   tallest: { name: string; tiles: number } | null;
 };
 
@@ -767,7 +773,7 @@ export function frameAt(world: World, t: Timeline, i: number): { world: World; v
       water: { pond: level >= 5, stream: level >= 10, waterfall: level >= 20 },
       level,
       season: seasonOf(end),
-      weekGoal: { ...world.weekGoal, met: kept.some((v) => v.plantings.some((p) => p.week === monday)) },
+      weekGoal: { ...world.weekGoal, met: kept.some((v) => v.plantings.some((p) => p.week === monday)), plants: kept.some((v) => v.plantings.some((p) => p.week === monday)) },
       hives: world.hives.slice(0, upTo(t.hives)),
       fireflies: world.fireflies.slice(0, upTo(t.fireflies)),
       clouds: world.clouds.slice(0, upTo(t.clouds)),

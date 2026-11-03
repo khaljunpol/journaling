@@ -60,7 +60,7 @@ export function ProgressLine({ quests }: { quests: OverviewView['quests'] }) {
     fetchGame().then((g) => {
       if (cancelled || !g.world) return;
       const t = g.world.tallest;
-      setValley(g.world.weekMet ? 'planted this week' : t && t.tiles >= 1 ? `${t.name} ${Math.round(t.tiles * 10) / 10} tiles tall` : null);
+      setValley(g.world.weekPlants ? 'planted this week' : g.world.weekMet ? 'goal met this week' : t && t.tiles >= 1 ? `${t.name} ${Math.round(t.tiles * 10) / 10} tiles tall` : null);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -86,7 +86,7 @@ export function ProgressLine({ quests }: { quests: OverviewView['quests'] }) {
 
 /** "World · planted this week ›", or the tallest habit plant. Hidden while loading or on error. */
 export function WorldLine({ className = '' }: { className?: string }) {
-  const [world, setWorld] = useState<{ planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean } | null>(null);
+  const [world, setWorld] = useState<{ planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; weekPlants: boolean } | null>(null);
   useEffect(() => {
     let cancelled = false;
     // Shares the page's one /api/game request (the level chip uses it too).
@@ -94,14 +94,16 @@ export function WorldLine({ className = '' }: { className?: string }) {
     return () => { cancelled = true; };
   }, []);
   if (!world) return null;
-  const { tallest, weekMet } = world;
+  const { tallest, weekMet, weekPlants } = world;
   const tiles = tallest ? Math.round(tallest.tiles * 10) / 10 : 0;
   return (
     <Link href="/world" className={`${ROW} ${className}`} style={{ color: 'var(--text-1)' }}>
       <span className="min-w-0 flex-1">
         World ·{' '}
-        {weekMet ? (
+        {weekPlants ? (
           <>planted this week</>
+        ) : weekMet ? (
+          <>goal met this week</>
         ) : tallest && tiles >= 1 ? (
           <>{tallest.name} is <span className="num">{tiles}</span> {tiles === 1 ? 'tile' : 'tiles'} tall</>
         ) : (
