@@ -305,3 +305,10 @@ a, button, .btn, .btn-outline, .input, select {
 @media (prefers-reduced-motion: reduce) {
   .world-orbit { animation: none; }
 }
+
+/* Gentle rain on a hard week: thin streaks falling slowly. Still with reduced motion. */
+@keyframes world-rain { from { transform: translateY(0); } to { transform: translateY(12px); } }
+.world-rain { animation: world-rain 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .world-rain { animation: none; }
+}

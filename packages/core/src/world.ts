@@ -3,7 +3,7 @@
 import { gradeLabel, gradeRank } from './climbStats.ts';
 import { normalizeGrade } from './climbing.ts';
 import { categoryOf, type HabitCategory } from './habitCategory.ts';
-import { findSleepIds, sleepNights, type HabitLog, type HourRow } from './overviewStats.ts';
+import { findSleepIds, sleepNights, weeklyMoods, type HabitLog, type HourRow, type MoodRow } from './overviewStats.ts';
 import { groupOf, type StoredGroup, type TimeGroup } from './timeBalance.ts';
 import { addDaysISO, mondayOf } from './quickWeek.ts';
 import { levelFor, type DayScore, type GoodCategory } from './scoring.ts';
@@ -67,12 +67,60 @@ export type World = {
   workHours: number;
   fireflies: Array<{ x: number; y: number }>;
   goodNights: number;
+  /** This week's mood so far, as weather; a rainbow after a hard week. */
+  mood: WorldMood;
+  /** One wildflower per finished week with a mean mood of 7+, on the meadows beside the field. */
+  flowers: Flower[];
   /** `x`: a resting spot inside the field, used as is when motion is off. */
   clouds: Array<{ x: number; y: number; size: 1 | 2 }>;
   restHours: number;
 };
 
 type Act = { id: string; name: string; category?: HabitCategory };
+
+export type WorldMood = { avg: number | null; weather: 'clear' | 'cloudy' | 'rain'; rainbow: boolean };
+export type Flower = { week: string; avg: number; color: string; x: number; y: number };
+
+const GOOD_MOOD = 7;
+const LOW_MOOD = 5;
+const RAINBOW_LIFT = 1.5;
+/** Meadow tiles: the 2 columns either side of the field, rows 2–7, interleaved so both sides fill together. 3 flowers per tile. */
+const MEADOW_COLS = [-1, BASE_COLS, -2, BASE_COLS + 1];
+const MEADOW_ROWS = 6;
+const PER_TILE: Array<[number, number]> = [[3, 10], [9, 5], [11, 12]];
+export const MEADOW_SLOTS = MEADOW_COLS.length * MEADOW_ROWS * PER_TILE.length;
+
+/** The fixed spot (scene px) of the k-th good week's flower. Slot k % MEADOW_SLOTS. */
+export function meadowSpot(k: number): { x: number; y: number } {
+  const slot = k % MEADOW_SLOTS;
+  const tile = Math.floor(slot / PER_TILE.length);
+  const [ox, oy] = PER_TILE[slot % PER_TILE.length];
+  return { x: MEADOW_COLS[tile % MEADOW_COLS.length] * TILE + ox, y: SKY + (2 + Math.floor(tile / MEADOW_COLS.length)) * TILE + oy };
+}
+
+const round1m = (x: number) => Math.round(x * 10) / 10;
+
+/** The mood of the week starting `monday`: weather from its mean, a rainbow when the week before was hard and this one is clearly better. */
+function moodFor(weekly: Map<string, number>, monday: string): WorldMood {
+  const avg = weekly.get(monday) ?? null;
+  const prev = weekly.get(addDaysISO(monday, -7)) ?? null;
+  const weather = avg === null || avg >= GOOD_MOOD ? 'clear' : avg >= LOW_MOOD ? 'cloudy' : 'rain';
+  const rainbow = avg !== null && prev !== null && prev < LOW_MOOD && avg >= prev + RAINBOW_LIFT;
+  return { avg: avg === null ? null : round1m(avg), weather, rainbow };
+}
+
+/** Petal colour for a good week: brighter as the week gets better (7 yellow, 8 orange, 9 pink, 10 violet). Mood colours are green here, which vanishes on grass. */
+export function flowerColor(rounded: number): string {
+  return rounded >= 10 ? '#9B8CFF' : rounded >= 9 ? '#FB7185' : rounded >= 8 ? '#F0A24A' : '#FFD98A';
+}
+
+/** One flower per finished week with a mean of 7+; the newest MEADOW_SLOTS stay, each at its own spot. */
+function flowersOf(weekly: Map<string, number>, today: string): Flower[] {
+  const good = [...weekly].filter(([m, v]) => m < mondayOf(today) && v >= GOOD_MOOD).sort(([a], [b]) => a.localeCompare(b));
+  return good
+    .map(([week, v], k) => ({ week, avg: round1m(v), color: flowerColor(Math.round(v)), ...meadowSpot(k) }))
+    .slice(-MEADOW_SLOTS);
+}
 
 const KIND: Partial<Record<HabitCategory, PlantKind>> = { move: 'tree', wellbeing: 'sun', other: 'bamboo' };
 const ANIMALS: AnimalKind[] = ['deer', 'rabbit', 'fox', 'hedgehog'];
@@ -283,6 +331,8 @@ export function buildWorld(input: {
   /** All hour slots and the time categories (for their groups). Optional: no hours, nothing from hours. */
   hours?: HourRow[];
   cats?: Array<{ id: string; name: string; group?: StoredGroup }>;
+  /** All mood entries. Optional: no moods, clear weather and no flowers. */
+  moods?: MoodRow[];
 }): World {
   const { today, logs, activities, days, climbs, goals, sidequests, level } = input;
   const hours = input.hours ?? [];
@@ -496,6 +546,8 @@ export function buildWorld(input: {
     goodNights,
     clouds,
     restHours,
+    mood: moodFor(weeklyMoods(input.moods ?? [], today), mondayOf(today)),
+    flowers: flowersOf(weeklyMoods(input.moods ?? [], today), today),
   };
 }
 
@@ -570,6 +622,8 @@ export type Timeline = {
   level: number[];
   /** Hours per time group in each week. */
   groups: Array<Partial<Record<TimeGroup, number>>>;
+  /** Each week's mood, as weather (and a rainbow after a hard week). */
+  mood: WorldMood[];
 };
 
 /** Every n-th date of a sorted list: the day the 1st, 2nd, … unit was earned (n each), at most `max`. */
@@ -660,7 +714,9 @@ export function worldTimeline(input: WorldInput): Timeline {
     groups[i][g] = (groups[i][g] ?? 0) + 1;
   }
 
+  const weekly = weeklyMoods(input.moods ?? [], today);
   return {
+    mood: weeks.map((m) => moodFor(weekly, m)),
     today,
     weeks,
     plantFrom,
@@ -715,6 +771,10 @@ export function frameAt(world: World, t: Timeline, i: number): { world: World; v
       hives: world.hives.slice(0, upTo(t.hives)),
       fireflies: world.fireflies.slice(0, upTo(t.fireflies)),
       clouds: world.clouds.slice(0, upTo(t.clouds)),
+      mood: t.mood?.[i] ?? world.mood ?? { avg: null, weather: 'clear', rainbow: false },
+      // A flower shows once its week is finished: the last week is still running.
+      // An older saved world may have no flowers yet.
+      flowers: (world.flowers ?? []).filter((f) => f.week < monday || (i < t.weeks.length - 1 && f.week === monday)),
     },
   };
 }
@@ -746,6 +806,7 @@ export function weekCaption(world: World, t: Timeline, i: number): string {
     ...(flags.length ? [`new flag ${flags[flags.length - 1].grade}`] : []),
     ...(stars > 0 ? [`${stars} perfect ${stars === 1 ? 'day' : 'days'}`] : []),
     ...(lanterns > 0 ? ['a lantern rose'] : []),
+    ...(now.mood.rainbow ? ['a rainbow after a hard week'] : []),
   ].slice(0, 2).join(', ');
   return [date, hours, events].filter(Boolean).join(' · ');
 }

@@ -2,7 +2,7 @@
 // Dates are local YYYY-MM-DD. Weeks start Monday. Rows dated after today are ignored.
 import { daysSince, sessionsCount, type Log } from './climbStats.ts';
 import { localISO, parseLocalDate, weekStartLocal } from './date.ts';
-import { addDaysISO } from './quickWeek.ts';
+import { addDaysISO, mondayOf } from './quickWeek.ts';
 
 export type MoodRow = { date: string; score: number | string };
 /** `category` is the time category id (the hours sheet stores the id; ids may arrive as numbers). */
@@ -51,6 +51,16 @@ function moodByDate(moods: MoodRow[], to?: string): Map<string, number> {
     sums.set(d, e);
   }
   return new Map([...sums].map(([d, e]) => [d, e.s / e.n]));
+}
+
+/** The mean mood of each week (keyed by its Monday), up to today: one mean per day first, then the mean of those days. Same rules as moodWeek. */
+export function weeklyMoods(moods: MoodRow[], today: string): Map<string, number> {
+  const weeks = new Map<string, number[]>();
+  for (const [d, v] of moodByDate(moods, today)) {
+    const m = mondayOf(d);
+    weeks.set(m, [...(weeks.get(m) ?? []), v]);
+  }
+  return new Map([...weeks].map(([m, vs]) => [m, vs.reduce((a, b) => a + b, 0) / vs.length]));
 }
 
 /** n daily slots ending today, oldest first. Gaps are null. */

@@ -23,6 +23,17 @@ function rows(world: World, valley: Valley): Row[] {
   if (world.lanterns.length) out.push({ sprite: 'sky-lantern', title: 'Lantern', text: 'A sidequest you finished.' });
   if (world.flags.length) out.push({ sprite: 'flag', title: 'Flag', text: 'A new hardest climbing grade.' });
   if (world.summits.length) out.push({ sprite: 'flag', title: 'Summit flag', text: 'A climbing goal reached.' });
+  const mood = world.mood;
+  if (mood?.avg != null) {
+    const sky = mood.weather === 'rain'
+      ? { swatch: '#A9D3F5', title: 'Rain', text: `A hard week: this week's mood is ${mood.avg}, under 5. It clears when the week gets better.` }
+      : mood.weather === 'cloudy'
+        ? { sprite: 'cloud-2', title: 'Soft clouds', text: `This week's mood is ${mood.avg}, between 5 and 7.` }
+        : { swatch: '#F0A24A', title: 'Clear sky', text: `A good week: this week's mood is ${mood.avg}.` };
+    out.push(sky);
+  }
+  if (mood?.rainbow) out.push({ swatch: '#86EFAC', title: 'Rainbow', text: 'A better week after a hard one.' });
+  if (world.flowers?.length) out.push({ swatch: world.flowers[world.flowers.length - 1].color, title: 'Wildflower', text: 'A week with a mood of 7 or more, in its mood colour.' });
   if (world.water.pond || world.water.stream || world.water.waterfall) out.push({ swatch: '#5BB0E0', title: 'Water', text: 'Levels: a pond at 5, a stream at 10, a waterfall at 20.' });
   return out;
 }

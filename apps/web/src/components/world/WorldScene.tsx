@@ -10,6 +10,10 @@ import { PALETTE, SEASON, SPRITES, type SpriteId } from '@journaling/core/sprite
 const H = SKY + FIELD_ROWS * TILE;
 /** The field is always 12 columns wide; more habit plants only widen the horizon. */
 const FW = BASE_COLS * TILE;
+/** The field plus the meadows either side (2 columns each). */
+const MIN_COLS = BASE_COLS + 4;
+/** The visible scene: at least the field and its meadows, centred on the field; more habit plants widen it. */
+const viewOf = (cols: number) => { const width = Math.max(cols, MIN_COLS) * TILE; return { left: FW / 2 - width / 2, width }; };
 
 /** Every sprite once, as a <symbol>; rows of one colour merge into one rect. */
 const Symbols = memo(function Symbols({ season }: { season: Season }) {
@@ -61,7 +65,8 @@ function PlantShape({ p }: { p: Plant }) {
 export type Pick =
   | { kind: 'plant'; id: string } | { kind: 'planting'; tile: number } | { kind: 'animal'; id: string }
   | { kind: 'flag'; i: number } | { kind: 'summit'; i: number } | { kind: 'lantern'; id: string } | { kind: 'star'; i: number }
-  | { kind: 'hive'; i: number } | { kind: 'firefly'; i: number } | { kind: 'cloud'; i: number };
+  | { kind: 'hive'; i: number } | { kind: 'firefly'; i: number } | { kind: 'cloud'; i: number }
+  | { kind: 'weather' } | { kind: 'flower'; i: number } | { kind: 'rainbow' };
 
 const same = (a: Pick | null, b: Pick) => !!a && JSON.stringify(a) === JSON.stringify(b);
 
@@ -111,6 +116,9 @@ export function caption(world: World, valley: Valley, pick: Pick | null): string
   if (pick.kind === 'hive') return `Hive · ${world.workHours.toLocaleString('en-US')} work hours`;
   if (pick.kind === 'firefly') return `Good nights · ${world.goodNights}`;
   if (pick.kind === 'cloud') return `Rest · ${world.restHours.toLocaleString('en-US')} hours`;
+  if (pick.kind === 'weather') return world.mood.avg === null ? '' : `This week's mood: ${world.mood.avg}`;
+  if (pick.kind === 'rainbow') return 'Better week after a hard one';
+  if (pick.kind === 'flower') { const f = world.flowers[pick.i]; return f ? `Good week · ${fmt(f.week)} · mood ${f.avg}` : ''; }
   const s = world.stars[pick.i];
   return s ? `Perfect day · ${fmt(s.date)}` : '';
 }
@@ -124,6 +132,8 @@ type SceneProps = {
 /** Everything that does not move. Memoised, so the animals and the bird never redraw it. */
 const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, onPick, celestial }: SceneProps) {
   const W = world.cols * TILE;
+  // The visible scene (see WorldScene): clouds cross all of it.
+  const view = viewOf(world.cols);
   const pal = { ...PALETTE, ...SEASON[world.season] };
   const mount = mountainShape(FW);
   const peak = mount[3];
@@ -157,6 +167,8 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       {/* The grass texture runs past the field too, so the edges never look empty. */}
       <rect x={-4000} y={SKY} width={W + 8000} height={4000} fill="url(#v-grass)" />
 
+      {/* Behind the stars, so a rainbow never blocks a tap on one. */}
+      <SkyMood world={world} picked={picked} onPick={onPick} view={view} />
       {/* Sky spots are laid out from 0 to the scene width; the scene starts at sceneLeft, so they move with it. */}
       <g transform={`translate(${sceneLeft(world.cols) * TILE},0)`}>
       <g aria-label={`${world.stars.length} perfect days`}>
@@ -189,7 +201,7 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       {celestial}
 
       {world.clouds.map((c, i) => (
-        <g key={`cl${i}`} className="world-cloud" style={{ animationDelay: `${-i * 23}s`, ['--cloud-from' as string]: `${-(c.x + 32)}px`, ['--cloud-to' as string]: `${W - c.x + 8}px` }}>
+        <g key={`cl${i}`} className="world-cloud" style={{ animationDelay: `${-i * 23}s`, ['--cloud-from' as string]: `${view.left - c.x - 32}px`, ['--cloud-to' as string]: `${view.left + view.width - c.x + 8}px` }}>
           <Hit tab={false} pick={{ kind: 'cloud', i }} picked={picked} onPick={onPick} label={`Rest, ${world.restHours} hours`} ring={{ x: c.x, y: c.y - 6, w: c.size === 1 ? 24 : 18, h: 12 }}>
             {use(c.size === 1 ? 'cloud-1' : 'cloud-2', c.x, c.y - 8, c.size === 1 ? 24 : 18)}
           </Hit>
@@ -238,6 +250,7 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       })}
 
       <Decorations world={world} valley={valley} />
+      <Flowers world={world} picked={picked} onPick={onPick} />
 
       {world.hives.map((h, i) => {
         const { x, y } = tileXY(h.tile);
@@ -263,16 +276,71 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
           {use('firefly-1', f.x - 8, f.y - 8)}
         </Hit>
       ))}
+      {world.mood?.weather === 'rain' ? <rect x={-4000} y={-4000} width={W + 8000} height={4000 + H} fill="url(#v-rain)" className="world-rain" pointerEvents="none" aria-hidden="true" /> : null}
     </>
   );
 });
 
-const DECOR = ['tuft', 'wildflower', 'pebbles', 'tuft'] as const;
+/** This week's mood in the sky: a warm glow when clear, two soft clouds, or a cool tint with rain; a rainbow after a hard week. Behind the mountain. */
+function SkyMood({ world, picked, onPick, view }: { world: World; picked: Pick | null; onPick: (p: Pick | null) => void; view: { left: number; width: number } }) {
+  const mood = world.mood;
+  if (!mood) return null;
+  const cx = FW / 2;
+  const arcs = ['#F87171', '#FBBF24', '#86EFAC', '#7DD3FC', '#C4B5FD'];
+  return (
+    <g aria-label="This week's weather">
+      <defs>
+        <linearGradient id="v-glow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#F0A24A" stopOpacity="0" /><stop offset="1" stopColor="#F0A24A" stopOpacity="0.28" /></linearGradient>
+        <pattern id="v-rain" width={8} height={12} patternUnits="userSpaceOnUse"><rect x={2} y={0} width={1} height={4} fill="#A9D3F5" opacity={0.55} /><rect x={6} y={6} width={1} height={4} fill="#A9D3F5" opacity={0.45} /></pattern>
+      </defs>
+      {mood.weather === 'clear' && mood.avg !== null ? <rect x={-4000} y={SKY - 34} width={8000} height={34} fill="url(#v-glow)" pointerEvents="none" /> : null}
+      {/* Not tappable, so stars and lanterns under it still are. The legend says what the weather means. */}
+      {mood.weather === 'rain' ? <rect x={-4000} y={-4000} width={8000} height={4000 + SKY} fill="#3A5A8A" opacity={0.22} pointerEvents="none" /> : null}
+      {mood.rainbow ? (
+        <Hit pick={{ kind: 'rainbow' }} picked={picked} onPick={onPick} label="Better week after a hard one" ring={{ x: cx - 76, y: SKY - 76, w: 152, h: 76 }}>
+          <g opacity={0.5} fill="none" strokeWidth={3} shapeRendering="geometricPrecision">
+            {arcs.map((c, k) => { const r = 74 - k * 3; return <path key={c} d={`M ${cx - r} ${SKY} A ${r} ${r} 0 0 1 ${cx + r} ${SKY}`} stroke={c} />; })}
+          </g>
+        </Hit>
+      ) : null}
+      {mood.weather === 'cloudy' ? [[24, 30, 'cloud-1'], [126, 46, 'cloud-2']].map(([x, y, id], k) => (
+        <g key={`mc${k}`} className="world-cloud" style={{ animationDelay: `${-k * 40}s`, ['--cloud-from' as string]: `${view.left - Number(x) - 32}px`, ['--cloud-to' as string]: `${view.left + view.width - Number(x) + 8}px` }}>
+          <Hit tab={false} pick={{ kind: 'weather' }} picked={picked} onPick={onPick} label={`This week's mood: ${mood.avg}`} ring={{ x: Number(x), y: Number(y) - 6, w: 24, h: 12 }}>
+            <g opacity={0.75}>{use(String(id), Number(x), Number(y) - 8, 24)}</g>
+          </Hit>
+        </g>
+      )) : null}
+    </g>
+  );
+}
+
+/** One wildflower per good week (mean mood 7+), in its mood colour, on the meadows beside the field. */
+function Flowers({ world, picked, onPick }: { world: World; picked: Pick | null; onPick: (p: Pick | null) => void }) {
+  return (
+    <g aria-label={`${(world.flowers ?? []).length} good weeks`}>
+      {(world.flowers ?? []).map((f, i) => (
+        <Hit key={f.week} tab={false} pick={{ kind: 'flower', i }} picked={picked} onPick={onPick} label={`Good week, ${f.week}, mood ${f.avg}`} ring={{ x: f.x - 1, y: f.y - 1, w: 8, h: 10 }}>
+          {/* A 6 px pixel flower: dark outline, four petals in the week's mood colour, a light centre, a short stem. */}
+          <rect x={f.x + 2} y={f.y + 5} width={1} height={3} fill="#2D6A48" />
+          <rect x={f.x + 1} y={f.y - 1} width={4} height={7} fill="#1E1B2A" opacity={0.55} />
+          <rect x={f.x - 1} y={f.y + 1} width={8} height={3} fill="#1E1B2A" opacity={0.55} />
+          <rect x={f.x + 2} y={f.y} width={2} height={5} fill={f.color} />
+          <rect x={f.x} y={f.y + 2} width={6} height={1} fill={f.color} />
+          <rect x={f.x + 2} y={f.y + 2} width={2} height={1} fill="#FFF3B0" />
+        </Hit>
+      ))}
+    </g>
+  );
+}
+
+// No wildflowers here: a flower always means a good week (see Flowers).
+const DECOR = ['tuft', 'pebbles', 'tuft', 'pebbles'] as const;
 
 /** Small things with no meaning, so no part of the ground looks empty: empty horizon spots, free field tiles, and past the field. */
 function Decorations({ world, valley }: { world: World; valley: Valley }) {
   const taken = new Set<string>();
   for (const p of world.plants) taken.add(`${displayCol(p.col)},${p.row}`);
+  for (const f of world.flowers ?? []) taken.add(`${Math.floor(f.x / TILE)},${Math.floor((f.y - SKY) / TILE)}`);
   for (const t of [...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile), ...world.animals.map((a) => a.tile)]) taken.add(`${t % BASE_COLS},${Math.floor(t / BASE_COLS)}`);
   const out: ReactElement[] = [];
   for (let col = -10; col < world.cols + 10; col++) {
@@ -398,15 +466,15 @@ function Bird({ width, still }: { width: number; still: boolean }) {
 /** The valley: sky, mountain, horizon plants, field. Sky and grass run past the edges, so it fills any screen without a frame. */
 export default function WorldScene(props: SceneProps) {
   const { world, valley, latest, picked, onPick } = props;
-  const W = world.cols * TILE;
+  const { left, width: W } = viewOf(world.cols);
   const still = useReducedMotion();
   const blocked = useMemo(() => new Set([...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile)]), [valley]);
   return (
-    <svg viewBox={`${sceneLeft(world.cols) * TILE} 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full" style={{ overflow: 'visible' }} shapeRendering="crispEdges" role="group" aria-label={`Your valley: ${world.plants.length} habit plants, ${valley.plantings.length} plantings, ${world.animals.length} animals`} onClick={() => onPick(null)}>
+    <svg viewBox={`${left} 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full" style={{ overflow: 'visible' }} shapeRendering="crispEdges" role="group" aria-label={`Your valley: ${world.plants.length} habit plants, ${valley.plantings.length} plantings, ${world.animals.length} animals`} onClick={() => onPick(null)}>
       <StillLayers {...props} />
       {/* Animals live in the newest valley only: older ones are full of plantings. */}
       {latest ? <Animals animals={world.animals} blocked={blocked} picked={picked} onPick={onPick} still={still} /> : null}
-      <Bird width={W} still={still} />
+      <g transform={`translate(${left},0)`}><Bird width={W} still={still} /></g>
     </svg>
   );
 }

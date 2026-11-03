@@ -6,7 +6,7 @@ import { levelFor } from '@journaling/core/scoring';
 import { assignSlots, buildWorld, worldSummary, worldTimeline, type PlantKind, type PlantRecord, type Timeline, type World, type WorldInput } from '@journaling/core/world';
 import { categoryOf } from '@journaling/core/habitCategory';
 import {
-  appendDayScores, getLogsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, listHourLogs, listTimeCategories, setSetting, tabCache,
+  appendDayScores, getLogsBetween, getMoodsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, listHourLogs, listTimeCategories, setSetting, tabCache,
   type SheetAuth,
 } from '@journaling/sheets/googleSheets';
 import { listSidequests } from '@journaling/sheets/sidequests';
@@ -90,13 +90,13 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
 
 /** Everything the World is built from, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
 async function loadWorldInput(sa: SheetAuth, today: string): Promise<WorldInput> {
-  await tabCache.read(sa.spreadsheetId, ['hours', 'timeCategories', 'climbs', 'climbGoals', 'sidequests']);
-  const [core, climbs, goals, sidequests, hours, cats] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa), listHourLogs(sa), listTimeCategories(sa)]);
+  await tabCache.read(sa.spreadsheetId, ['hours', 'timeCategories', 'climbs', 'climbGoals', 'sidequests', 'moods']);
+  const [core, climbs, goals, sidequests, hours, cats, moods] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa), listHourLogs(sa), listTimeCategories(sa), getMoodsBetween(sa, '2000-01-01', today)]);
   const s = gameSettings(core.settings);
   const input = { today, logs: core.logs, activities: core.activities, templates: s.templates, stamps: core.stamps, fills: core.fills };
   const locked = s.imported ? parseScoreRows(await listDayScores(sa)) : new Map();
   const records = plantRecords(input, parseWorldPlants(core.settings.worldPlants));
-  return worldInputFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests, hours, cats });
+  return { ...worldInputFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests, hours, cats }), moods };
 }
 
 /** The World, read-only. */
