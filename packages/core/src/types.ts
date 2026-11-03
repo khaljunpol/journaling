@@ -23,7 +23,7 @@ export type DaySummary = {
 
 // Time tracker
 /** group: TimeCategories column E. Missing = guessed from the name (see lib/timeBalance.ts). */
-export type TimeCategory = { id: string; name: string; color: string; order: number; group?: 'productive' | 'rest' | 'sleep' | 'none' };
+export type TimeCategory = { id: string; name: string; color: string; order: number; group?: 'sleep' | 'work' | 'people' | 'rest' | 'body' | 'mind' | 'admin' | 'none' };
 export type HourLog = { id: string; date: string; hour: number; category: number };
 export type TimeEntry = { date: string; hour: number; category: number };
 export type TimeEntryAny = { date: string; hour: number; category: number | string };

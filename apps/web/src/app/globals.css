@@ -286,3 +286,15 @@ a, button, .btn, .btn-outline, .input, select {
   .world-twinkle, .world-bird { animation: none; }
   .world-walk { transition: none; }
 }
+
+/* Valley hours: clouds drift, bees bob, fireflies pulse. Transform and opacity only. */
+@keyframes world-cloud { from { transform: translateX(var(--cloud-from, -40px)); } to { transform: translateX(var(--cloud-to, 240px)); } }
+.world-cloud { animation: world-cloud 90s linear infinite; }
+@keyframes world-bee { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(3px, -2px); } 50% { transform: translate(-2px, -4px); } 75% { transform: translate(-3px, -1px); } }
+.world-bee { animation: world-bee 3.2s ease-in-out infinite; }
+@keyframes world-firefly { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+.world-firefly { animation: world-firefly 3.6s ease-in-out infinite; }
+.world-label { font-family: var(--font-pixel), monospace; font-size: 5px; fill: #FFF6DD; stroke: #1E1B2A; stroke-width: 1px; paint-order: stroke; }
+@media (prefers-reduced-motion: reduce) {
+  .world-cloud, .world-bee, .world-firefly { animation: none; }
+}

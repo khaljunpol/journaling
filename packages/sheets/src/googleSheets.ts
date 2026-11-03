@@ -1016,17 +1016,17 @@ export async function listTimeCategories(sa: SheetAuth) {
 
 const DEFAULT_TIME_CATEGORIES: readonly TimeCategory[] = [
   { id: '0', name: 'sleep', color: '#0ea5e9', order: 0, group: 'sleep' },
-  { id: '1', name: 'work', color: '#f59e0b', order: 1, group: 'productive' },
-  { id: '2', name: 'hobbies / projects', color: '#22c55e', order: 2, group: 'productive' },
-  { id: '3', name: 'freelance', color: '#a855f7', order: 3, group: 'productive' },
-  { id: '4', name: 'exercise', color: '#ef4444', order: 4, group: 'productive' },
-  { id: '5', name: 'friends', color: '#eab308', order: 5, group: 'rest' },
+  { id: '1', name: 'work', color: '#f59e0b', order: 1, group: 'work' },
+  { id: '2', name: 'hobbies / projects', color: '#22c55e', order: 2, group: 'mind' },
+  { id: '3', name: 'freelance', color: '#a855f7', order: 3, group: 'work' },
+  { id: '4', name: 'exercise', color: '#ef4444', order: 4, group: 'body' },
+  { id: '5', name: 'friends', color: '#eab308', order: 5, group: 'people' },
   { id: '6', name: 'relaxation and leisure', color: '#14b8a6', order: 6, group: 'rest' },
-  { id: '7', name: 'partner', color: '#fb7185', order: 7, group: 'rest' },
-  { id: '8', name: 'family', color: '#8b5cf6', order: 8, group: 'rest' },
-  { id: '9', name: 'productive / chores', color: '#06b6d4', order: 9, group: 'productive' },
-  { id: '10', name: 'travel', color: '#f97316', order: 10, group: 'productive' },
-  { id: '11', name: 'misc', color: '#64748b', order: 11 },
+  { id: '7', name: 'partner', color: '#fb7185', order: 7, group: 'people' },
+  { id: '8', name: 'family', color: '#8b5cf6', order: 8, group: 'people' },
+  { id: '9', name: 'productive / chores', color: '#06b6d4', order: 9, group: 'admin' },
+  { id: '10', name: 'travel', color: '#f97316', order: 10, group: 'admin' },
+  { id: '11', name: 'misc', color: '#64748b', order: 11, group: 'admin' },
 ];
 
 const MISC_TIME_CATEGORY: TimeCategory = { id: '11', name: 'misc', color: '#64748b', order: 11 };

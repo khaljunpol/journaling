@@ -162,3 +162,67 @@ test('a 13th habit widens the horizon but never moves a planting or the water', 
   assert.ok(b.cols > a.cols);
   assert.deepEqual(b.valleys, a.valleys);
 });
+
+// ── Hours in the valley ─────────────────────────────────────────────────────
+const hoursOf = (cat: string, n: number, from = '2026-06-01') =>
+  Array.from({ length: n }, (_, i) => ({ date: addDaysISO(from, Math.floor(i / 8)), hour: 8 + (i % 8), category: cat }));
+const cats = [
+  { id: 'w', name: 'work' }, { id: 'f', name: 'freelance' }, { id: 'wife', name: 'wife' }, { id: 'fr', name: 'friends' },
+  { id: 'm', name: 'REDACTED-11 class' }, { id: 'r', name: 'relaxation / leisure' }, { id: 's', name: 'sleep' }, { id: 'c', name: 'chores' },
+];
+
+test('hives: one per 100 work hours, at most 6, on their own tiles; plantings never use them', () => {
+  const days = Array.from({ length: 70 }, (_, i) => score(addDaysISO('2025-01-06', i * 7), 1, 1, { other: 10 }));
+  const w = buildWorld({ ...base, days, cats, hours: [...hoursOf('w', 500), ...hoursOf('f', 150, '2026-09-01')] });
+  assert.equal(w.hives.length, 6);
+  assert.equal(w.workHours, 650);
+  const hive = new Set(w.hives.map((h) => h.tile));
+  assert.ok(w.valleys.flatMap((v) => v.plantings).every((p) => !hive.has(p.tile)));
+  assert.equal(buildWorld({ ...base, cats, hours: hoursOf('w', 250) }).hives.length, 2);
+});
+
+test('animals from People hours: one per 25 hours per category, its own kind, first 8 earned stay', () => {
+  const hours = [...hoursOf('wife', 60, '2026-01-01'), ...hoursOf('fr', 30, '2026-04-01')];
+  const w = buildWorld({ ...base, cats, hours });
+  assert.deepEqual(w.animals.map((a) => [a.kind, a.habit]), [['deer', 'wife'], ['deer', 'wife'], ['rabbit', 'friends']]);
+  const more = buildWorld({ ...base, cats, hours: [...hoursOf('wife', 400, '2026-01-01'), ...hoursOf('fr', 30, '2026-04-01')] });
+  assert.equal(more.animals.length, 8);
+  assert.deepEqual(more.animals.slice(0, 2).map((a) => a.since), w.animals.slice(0, 2).map((a) => a.since));
+});
+
+test('animals fall back to People habit days when no People hours exist', () => {
+  const activities = [{ id: 'p', name: 'Date night', category: 'people' as const }];
+  const logs = Array.from({ length: 60 }, (_, i) => tick(back(i), 'p'));
+  assert.equal(buildWorld({ ...base, activities, logs, cats, hours: hoursOf('w', 10) }).animals.length, 2);
+  assert.equal(buildWorld({ ...base, activities, logs, cats, hours: hoursOf('wife', 30) }).animals.length, 1);
+});
+
+test('Mind hours: one star per 3 hours, one constellation per category', () => {
+  const w = buildWorld({ ...base, cats, hours: hoursOf('m', 31) });
+  assert.deepEqual(w.constellations.map((c) => [c.habit, c.stars.length]), [['REDACTED-11 class', 10]]);
+});
+
+test('fireflies per good night (max 24) and clouds per 10 rest hours (max 3)', () => {
+  const nights = Array.from({ length: 30 }, (_, i) => Array.from({ length: 8 }, (_, h) => ({ date: addDaysISO('2026-03-01', i), hour: h, category: 's' }))).flat();
+  const w = buildWorld({ ...base, cats, hours: [...nights, ...hoursOf('r', 25)] });
+  assert.equal(w.goodNights, 30);
+  assert.equal(w.fireflies.length, 24);
+  assert.equal(w.restHours, 25);
+  assert.equal(w.clouds.length, 2);
+});
+
+test('no hours: nothing from hours, the rest unchanged', () => {
+  const w = buildWorld({ ...base });
+  assert.deepEqual([w.hives.length, w.fireflies.length, w.clouds.length, w.workHours, w.goodNights, w.restHours], [0, 0, 0, 0, 0, 0]);
+});
+
+test('clouds have a fixed spot inside the field width, so they show without motion', () => {
+  const w = buildWorld({ ...base, cats, hours: hoursOf('r', 40) });
+  assert.ok(w.clouds.every((c) => c.x >= 0 && c.x < 192 - 24));
+});
+
+test('a constellation draws at most 60 stars, however many Mind hours', () => {
+  const w = buildWorld({ ...base, cats, hours: hoursOf('m', 900) });
+  assert.equal(w.constellations[0].stars.length, 60);
+  assert.equal(w.constellations[0].hours, 900);
+});

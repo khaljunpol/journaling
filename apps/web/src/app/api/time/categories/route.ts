@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const order = body?.order !== undefined ? Number(body.order) : undefined;
     // group: missing keeps the saved one, '' clears it, else it must be a known group.
     const group = body?.group === undefined ? undefined : body.group === '' ? '' : parseGroup(body.group);
-    if (group === undefined && body?.group !== undefined) return apiError('group must be productive, rest, sleep or none', 400);
+    if (group === undefined && body?.group !== undefined) return apiError('group must be sleep, work, people, rest, body, mind, admin or none', 400);
     if (!name) return apiError('name required', 400);
     if (name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
     if (color.length > MAX_LEN.color) return apiError(`color must be ≤${MAX_LEN.color} characters`, 400);

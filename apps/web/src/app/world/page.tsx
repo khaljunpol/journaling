@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { markSeen, seenCount, useWorld } from '@/components/world/useWorld';
+import Legend from '@/components/world/Legend';
 import WorldScene, { caption, type Pick } from '@/components/world/WorldScene';
 
 const MAX_POP = 6;
@@ -13,6 +14,7 @@ export default function WorldPage() {
   const { world, failed } = useWorld();
   const [index, setIndex] = useState<number | null>(null);
   const [picked, setPicked] = useState<Pick | null>(null);
+  const [legend, setLegend] = useState(false);
   const [seen] = useState(() => (typeof window === 'undefined' ? 0 : seenCount()));
 
   const planted = world ? world.valleys.reduce((n, v) => n + v.plantings.length, 0) : 0;
@@ -45,6 +47,8 @@ export default function WorldPage() {
       <Link href="/?stay=1" className="press absolute left-2 top-2 flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[14px]" style={{ color: '#A4AEC4' }}>
         <ChevronLeft size={18} aria-hidden="true" />Overview
       </Link>
+
+      {world && valley ? <Legend world={world} valley={valley} open={legend} onToggle={() => setLegend((o) => !o)} /> : null}
 
       {world && valley ? (
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 px-4 pb-[max(16px,env(safe-area-inset-bottom))]">

@@ -4,11 +4,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import Donut from '@/components/overview/Donut';
-import { timeBalance } from '@journaling/core/timeBalance';
+import { GROUPS, timeBalance } from '@journaling/core/timeBalance';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import { getCache, setCache } from '@/lib/cache';
-import { AXIS_TICK, CHART_SERIES, TOOLTIP_STYLE } from '@/lib/chartTheme';
+import { AXIS_TICK, TOOLTIP_STYLE } from '@/lib/chartTheme';
 import { localISO, localTodayISO, pad } from '@journaling/core/date';
 import { timeSplit } from '@journaling/core/overview';
 import type { TimeCategory, TimeEntry } from '@journaling/core/types';
@@ -73,7 +73,7 @@ export default function TimeTrackerView() {
     const from = week[0].iso as string;
     return timeBalance(logs.filter((l) => l.date >= from && l.date <= localTodayISO()), cats);
   }, [logs, cats, week]);
-  const balanceTotal = balance.productive + balance.rest + balance.sleep;
+  const balanceTotal = Object.values(balance).reduce((a, b) => a + b, 0);
 
   const range = useMemo(() => {
     if (viewMode === 'year') return { from: `${viewYear}-01-01`, to: `${viewYear}-12-31` };
@@ -92,11 +92,8 @@ export default function TimeTrackerView() {
   const periodLabel = viewMode === 'month' ? `${MONTH_NAMES[viewMonth]} ${viewYear}` : String(viewYear);
   const loading = yearLogs === null;
 
-  const balanceParts = [
-    { label: 'Productive', hours: balance.productive, color: CHART_SERIES[0] },
-    { label: 'Rest', hours: balance.rest, color: CHART_SERIES[1] },
-    { label: 'Sleep', hours: balance.sleep, color: CHART_SERIES[2] },
-  ];
+  // The seven time groups, biggest first; empty groups are left out.
+  const balanceParts = GROUPS.map((g) => ({ label: g.label, hours: balance[g.id], color: g.color })).filter((p) => p.hours > 0).sort((a, b) => b.hours - a.hours);
 
   return (
     <div className="space-y-3 sm:space-y-4">

@@ -6,16 +6,11 @@ import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
 import Input, { Label } from '@/components/ui/Input';
-import { groupOf } from '@journaling/core/timeBalance';
+import { GROUPS, groupOf } from '@journaling/core/timeBalance';
 
 type GroupChoice = NonNullable<Category['group']>;
-/** Groups feed the Productive / Rest / Sleep split on Trends > Time. */
-const GROUP_CHOICES: Array<[GroupChoice, string]> = [
-  ['productive', 'Productive'],
-  ['rest', 'Rest'],
-  ['sleep', 'Sleep'],
-  ['none', 'No group'],
-];
+/** Groups feed the time split on Trends > Time and grow things in the Valley. */
+const GROUP_CHOICES: Array<[GroupChoice, string]> = [...GROUPS.map((g) => [g.id, g.label] as [GroupChoice, string]), ['none', 'No group']];
 
 export default function TimeCategoriesEditor() {
   const [items, setItems] = useState<Category[]>([]);

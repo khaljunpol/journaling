@@ -3,8 +3,9 @@
 import { gradeLabel, gradeRank } from './climbStats.ts';
 import { normalizeGrade } from './climbing.ts';
 import { categoryOf, type HabitCategory } from './habitCategory.ts';
-import type { HabitLog } from './overviewStats.ts';
-import { mondayOf } from './quickWeek.ts';
+import { findSleepIds, sleepNights, type HabitLog, type HourRow } from './overviewStats.ts';
+import { groupOf, type StoredGroup } from './timeBalance.ts';
+import { addDaysISO, mondayOf } from './quickWeek.ts';
 import type { DayScore, GoodCategory } from './scoring.ts';
 import type { ClimbGoal, ClimbLog, Sidequest } from './types.ts';
 
@@ -19,18 +20,31 @@ const GOAL_SHARE = 0.8;
 const DAYS_PER_ANIMAL = 30;
 const MAX_ANIMALS = 8;
 const DAYS_PER_STAR = 7;
+const HOURS_PER_ANIMAL = 25;
+const HOURS_PER_MIND_STAR = 3;
+/** Stars drawn per constellation; the tap shows the full hours. */
+const MAX_MIND_STARS = 60;
+const HOURS_PER_HIVE = 100;
+const MAX_HIVES = 6;
+const MAX_FIREFLIES = 24;
+const HOURS_PER_CLOUD = 10;
+const MAX_CLOUDS = 3;
+const GOOD_NIGHT = 7;
+/** Tiles kept for hives from the start (field edges, clear of the water), in the order they fill. */
+export const HIVE_TILES = [5 * 12 + 0, 4 * 12 + 11, 6 * 12 + 0, 5 * 12 + 11, 7 * 12 + 0, 6 * 12 + 11];
 
 export type PlantKind = 'tree' | 'sun' | 'bamboo';
 export type PlantRecord = { slot: number; kind: PlantKind; name: string };
 export type Plant = { id: string; name: string; kind: PlantKind; slot: number; col: number; row: 0 | 1; days: number; stage: 0 | 1 | 2 | 3 | 4; tiles: number };
 export type Planting = { tile: number; kind: PlantKind; week: string };
 export type AnimalKind = 'rabbit' | 'deer' | 'fox' | 'hedgehog';
-export type Animal = { id: string; kind: AnimalKind; habit: string; tile: number; since: string };
+/** `habit`: the People category (or habit) it came from. A deer comes as a pair. */
+export type Animal = { id: string; kind: AnimalKind; habit: string; tile: number; since: string; pair?: boolean };
 export type Flag = { type: 'boulder' | 'rope'; grade: string; date: string; step: number };
 export type Summit = { goal: string; date: string };
 export type Lantern = { id: string; title: string; x: number; y: number };
 export type Star = { x: number; y: number; date: string };
-export type Constellation = { habit: string; stars: Array<{ x: number; y: number }> };
+export type Constellation = { habit: string; stars: Array<{ x: number; y: number }>; hours?: number };
 export type Valley = { plantings: Planting[] };
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type World = {
@@ -48,12 +62,20 @@ export type World = {
   level: number;
   season: Season;
   weekGoal: { done: number; total: number; met: boolean };
+  /** From hours: hives (Work), fireflies (Sleep 7h+ nights), clouds (Rest). Totals are for tap text. */
+  hives: Array<{ tile: number }>;
+  workHours: number;
+  fireflies: Array<{ x: number; y: number }>;
+  goodNights: number;
+  /** `x`: a resting spot inside the field, used as is when motion is off. */
+  clouds: Array<{ x: number; y: number; size: 1 | 2 }>;
+  restHours: number;
 };
 
 type Act = { id: string; name: string; category?: HabitCategory };
 
 const KIND: Partial<Record<HabitCategory, PlantKind>> = { move: 'tree', wellbeing: 'sun', other: 'bamboo' };
-const ANIMALS: AnimalKind[] = ['rabbit', 'deer', 'fox', 'hedgehog'];
+const ANIMALS: AnimalKind[] = ['deer', 'rabbit', 'fox', 'hedgehog'];
 const ROW0 = [5, 7, 3, 9, 1, 11];
 const ROW1 = [6, 4, 8, 2, 10, 0];
 
@@ -125,7 +147,7 @@ export function waterTiles(cols: number): number[] {
 
 /** The mountain behind the horizon, as a polygon in scene px. */
 export function mountainShape(width: number): Array<[number, number]> {
-  return [[width * 0.1, SKY], [width * 0.36, 52], [width * 0.46, 66], [width * 0.54, 44], [width * 0.78, SKY]];
+  return [[width * 0.1, SKY], [width * 0.36, 78], [width * 0.46, 86], [width * 0.54, 66], [width * 0.78, SKY]];
 }
 
 export function inMountain(x: number, y: number, width: number): boolean {
@@ -224,8 +246,28 @@ export function buildWorld(input: {
   goals: ClimbGoal[];
   sidequests: Sidequest[];
   level: number;
+  /** All hour slots and the time categories (for their groups). Optional: no hours, nothing from hours. */
+  hours?: HourRow[];
+  cats?: Array<{ id: string; name: string; group?: StoredGroup }>;
 }): World {
   const { today, logs, activities, days, climbs, goals, sidequests, level } = input;
+  const hours = input.hours ?? [];
+  const cats = input.cats ?? [];
+
+  // Hours per category (one slot = one hour, the first entry per date and hour wins), with each hour's date in order.
+  const slot = new Set<string>();
+  const hourDates = new Map<string, string[]>();
+  for (const h of [...hours].sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour)) {
+    const d = h.date.slice(0, 10);
+    if (d > today || slot.has(`${d}|${h.hour}`)) continue;
+    slot.add(`${d}|${h.hour}`);
+    const list = hourDates.get(String(h.category)) ?? [];
+    list.push(d);
+    hourDates.set(String(h.category), list);
+  }
+  const groupCats = (g: string) => cats.filter((c) => groupOf(c) === g && hourDates.has(String(c.id)))
+    .sort((a, b) => (hourDates.get(String(a.id)) as string[])[0].localeCompare((hourDates.get(String(b.id)) as string[])[0]) || String(a.id).localeCompare(String(b.id)));
+  const groupHours = (g: string) => groupCats(g).reduce((n, c) => n + (hourDates.get(String(c.id)) as string[]).length, 0);
 
   // Days ticked per habit, and first log per habit.
   const ticked = new Map<string, Set<string>>();
@@ -261,7 +303,8 @@ export function buildWorld(input: {
   // Weekly goal plantings, valley by valley. The field is always 12 columns wide: more habit plants widen only the horizon,
   // so a new habit never moves a planting, the water or an animal.
   const water = new Set(waterTiles(BASE_COLS));
-  const order = fieldOrder(BASE_COLS).filter((t) => !water.has(t));
+  const reserved = new Set([...water, ...HIVE_TILES]);
+  const order = fieldOrder(BASE_COLS).filter((t) => !reserved.has(t));
   const valleys: Valley[] = [{ plantings: [] }];
   const weeks = weeksOf(days, today);
   const goalWeeks = weeks.filter(met);
@@ -278,19 +321,33 @@ export function buildWorld(input: {
   const weekGoal = cw ? { done: cw.done, total: Math.round(cw.total * 10) / 10, met: met(cw) } : { done: 0, total: 0, met: false };
 
   // Animals from People habits: one per 30 days done, on free tiles of the newest valley, from the edges in.
-  const taken = new Set([...water, ...valleys[valleys.length - 1].plantings.map((p) => p.tile)]);
+  // Animals: from People hours (one per 25 hours per category, its own kind), the first 8 earned. With no People hours,
+  // People habit days bring them instead (one per 30 days). They stand on free tiles of the newest valley, edges first.
+  const taken = new Set([...reserved, ...valleys[valleys.length - 1].plantings.map((p) => p.tile)]);
   const free = [...fieldOrder(BASE_COLS)].reverse().filter((t) => !taken.has(t));
-  const people = activities.filter((a) => categoryOf(a) === 'people' && firstLog.has(a.id))
-    .sort((a, b) => (firstLog.get(a.id) as string).localeCompare(firstLog.get(b.id) as string) || a.id.localeCompare(b.id));
+  type Earned = { id: string; kind: AnimalKind; habit: string; since: string; order: number };
+  const earned: Earned[] = [];
+  const peopleCats = groupCats('people');
+  if (peopleCats.length) {
+    peopleCats.forEach((c, i) => {
+      const dates = hourDates.get(String(c.id)) as string[];
+      for (let n = 1; n * HOURS_PER_ANIMAL <= dates.length; n++) earned.push({ id: `h${c.id}-${n}`, kind: ANIMALS[i % ANIMALS.length], habit: c.name, since: dates[n * HOURS_PER_ANIMAL - 1], order: i });
+    });
+  } else {
+    const people = activities.filter((a) => categoryOf(a) === 'people' && firstLog.has(a.id))
+      .sort((a, b) => (firstLog.get(a.id) as string).localeCompare(firstLog.get(b.id) as string) || a.id.localeCompare(b.id));
+    people.forEach((a, i) => {
+      const dates = [...(ticked.get(a.id) ?? [])].sort();
+      for (let n = 1; n * DAYS_PER_ANIMAL <= dates.length; n++) earned.push({ id: `${a.id}-${n}`, kind: ANIMALS[i % ANIMALS.length], habit: a.name, since: dates[n * DAYS_PER_ANIMAL - 1], order: i });
+    });
+  }
+  earned.sort((a, b) => a.since.localeCompare(b.since) || a.order - b.order || a.id.localeCompare(b.id));
   const animals: Animal[] = [];
-  people.forEach((a, i) => {
-    const dates = [...(ticked.get(a.id) ?? [])].sort();
-    for (let n = 1; n * DAYS_PER_ANIMAL <= dates.length && animals.length < MAX_ANIMALS; n++) {
-      const tile = free[animals.length];
-      if (tile === undefined) break;
-      animals.push({ id: `${a.id}-${n}`, kind: ANIMALS[i % ANIMALS.length], habit: a.name, tile, since: dates[n * DAYS_PER_ANIMAL - 1] });
-    }
-  });
+  for (const e of earned.slice(0, MAX_ANIMALS)) {
+    const tile = free[animals.length];
+    if (tile === undefined) break;
+    animals.push({ id: e.id, kind: e.kind, habit: e.habit, tile, since: e.since, ...(e.kind === 'deer' ? { pair: true } : {}) });
+  }
 
   // Mountain: flags per climb type when the hardest grade goes up; summits per goal reached.
   const width = cols * TILE;
@@ -349,6 +406,40 @@ export function buildWorld(input: {
       });
       return { habit: a.name, stars: pts };
     });
+  for (const c of groupCats('mind')) {
+    const h = (hourDates.get(String(c.id)) as string[]).length;
+    const n = Math.min(MAX_MIND_STARS, Math.floor(h / HOURS_PER_MIND_STAR));
+    const centre = skySpot(`mindcat:${c.id}`, width, mountain, 14, 60) ?? { x: width / 2, y: 30 };
+    const pts = Array.from({ length: n }, (_, i) => {
+      const hh = hash(`cat${c.id}:${i}`);
+      // Bigger constellations spread wider, so many stars never pile into a knot.
+      const rx = 20 + 3 * Math.sqrt(n);
+      const ry = 12 + 1.5 * Math.sqrt(n);
+      return { x: Math.round((centre.x + ((hh % 1000) / 1000 - 0.5) * 2 * rx) * 10) / 10, y: Math.max(4, Math.round((centre.y + (((hh >>> 10) % 1000) / 1000 - 0.5) * 2 * ry) * 10) / 10) };
+    });
+    constellations.push({ habit: c.name, stars: pts, hours: h });
+  }
+
+  // Work → hives, Sleep → fireflies, Rest → clouds. Fixed sets: more hours never swap one for another.
+  const workHours = groupHours('work');
+  const hives = HIVE_TILES.slice(0, Math.min(MAX_HIVES, Math.floor(workHours / HOURS_PER_HIVE))).map((tile) => ({ tile }));
+  let goodNights = 0;
+  const sleepIds = new Set([...findSleepIds(cats.map((c) => ({ ...c, color: '' }))), ...cats.filter((c) => groupOf(c) === 'sleep').map((c) => String(c.id))]);
+  const allDates = [...slot].map((k) => k.slice(0, 10)).sort();
+  if (sleepIds.size && allDates.length) {
+    const dates: string[] = [];
+    for (let d = allDates[0]; d <= today; d = addDaysISO(d, 1)) dates.push(d);
+    goodNights = sleepNights(hours, sleepIds, dates, today).filter((n) => (n.hours ?? 0) >= GOOD_NIGHT).length;
+  }
+  const fireflies = Array.from({ length: Math.min(MAX_FIREFLIES, goodNights) }, (_, i) => {
+    const h = hash(`firefly:${i}`);
+    return { x: Math.round((4 + ((h % 1000) / 1000) * (BASE_COLS * TILE - 8)) * 10) / 10, y: Math.round((SKY - 6 + (((h >>> 10) % 1000) / 1000) * 70) * 10) / 10 };
+  });
+  const restHours = groupHours('rest');
+  const clouds = Array.from({ length: Math.min(MAX_CLOUDS, Math.floor(restHours / HOURS_PER_CLOUD)) }, (_, i) => {
+    const h = hash(`cloud:${i}`);
+    return { x: (h >>> 7) % (BASE_COLS * TILE - 24), y: 34 + (h % 36), size: (i % 2 ? 2 : 1) as 1 | 2 };
+  });
 
   return {
     cols,
@@ -365,6 +456,12 @@ export function buildWorld(input: {
     level,
     season: seasonOf(today),
     weekGoal,
+    hives,
+    workHours,
+    fireflies,
+    goodNights,
+    clouds,
+    restHours,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import {
-  BASE_COLS, FIELD_ROWS, mountainShape, SKY, TILE, waterTiles,
+  BASE_COLS, FIELD_ROWS, HIVE_TILES, mountainShape, SKY, TILE, waterTiles,
   type Animal, type Plant, type PlantKind, type Season, type Valley, type World,
 } from '@journaling/core/world';
 import { PALETTE, SPRITES, type SpriteId } from './sprites';
@@ -68,7 +68,8 @@ function PlantShape({ p }: { p: Plant }) {
 
 export type Pick =
   | { kind: 'plant'; id: string } | { kind: 'planting'; tile: number } | { kind: 'animal'; id: string }
-  | { kind: 'flag'; i: number } | { kind: 'summit'; i: number } | { kind: 'lantern'; id: string } | { kind: 'star'; i: number };
+  | { kind: 'flag'; i: number } | { kind: 'summit'; i: number } | { kind: 'lantern'; id: string } | { kind: 'star'; i: number }
+  | { kind: 'hive'; i: number } | { kind: 'firefly'; i: number } | { kind: 'cloud'; i: number };
 
 const same = (a: Pick | null, b: Pick) => !!a && JSON.stringify(a) === JSON.stringify(b);
 
@@ -111,10 +112,13 @@ export function caption(world: World, valley: Valley, pick: Pick | null): string
   if (!pick) return '';
   if (pick.kind === 'plant') { const p = world.plants.find((x) => x.id === pick.id); return p ? `${p.name} · ${p.days} ${p.days === 1 ? 'day' : 'days'}` : ''; }
   if (pick.kind === 'planting') { const p = valley.plantings.find((x) => x.tile === pick.tile); return p ? `${NAME[p.kind]} · goal met, week of ${fmt(p.week)}` : ''; }
-  if (pick.kind === 'animal') { const a = world.animals.find((x) => x.id === pick.id); return a ? `${NAME[a.kind]} · from ${a.habit}` : ''; }
+  if (pick.kind === 'animal') { const a = world.animals.find((x) => x.id === pick.id); return a ? `${a.pair ? 'Deer pair' : NAME[a.kind]} · from ${a.habit}` : ''; }
   if (pick.kind === 'flag') { const f = world.flags[pick.i]; return f ? `${f.grade} · ${fmt(f.date)}` : ''; }
   if (pick.kind === 'summit') { const s = world.summits[pick.i]; return s ? `Summit · ${s.goal} · ${fmt(s.date)}` : ''; }
   if (pick.kind === 'lantern') return world.lanterns.find((l) => l.id === pick.id)?.title ?? '';
+  if (pick.kind === 'hive') return `Hive · ${world.workHours.toLocaleString('en-US')} work hours`;
+  if (pick.kind === 'firefly') return `Good nights · ${world.goodNights}`;
+  if (pick.kind === 'cloud') return `Rest · ${world.restHours.toLocaleString('en-US')} hours`;
   const s = world.stars[pick.i];
   return s ? `Perfect day · ${fmt(s.date)}` : '';
 }
@@ -141,6 +145,7 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
     <>
       <defs>
         <Symbols season={world.season} />
+        <pattern id="v-grass" width={TILE} height={TILE} patternUnits="userSpaceOnUse" x={0} y={SKY}>{use('grass', 0, 0)}</pattern>
         <linearGradient id="v-sky" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={SKY}>
           <stop offset="0" stopColor="#0B0D14" />
           <stop offset="0.55" stopColor="#3B2747" />
@@ -151,6 +156,8 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       {/* Sky and ground run far past the scene, so the page never shows a frame. */}
       <rect x={-4000} y={-4000} width={W + 8000} height={4000 + SKY} fill="url(#v-sky)" />
       <rect x={-4000} y={SKY} width={W + 8000} height={4000} fill={pal.g} />
+      {/* The grass texture runs past the field too, so the edges never look empty. */}
+      <rect x={-4000} y={SKY} width={W + 8000} height={4000} fill="url(#v-grass)" />
 
       <g aria-label={`${world.stars.length} perfect days`}>
         {world.stars.map((s, i) => (
@@ -162,7 +169,13 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
       </g>
       {world.constellations.map((c, i) => (
         <g key={`c${i}`} aria-label={`${c.habit} constellation`}>
-          {c.stars.slice(1).map((p, j) => <line key={j} x1={c.stars[j].x} y1={c.stars[j].y} x2={p.x} y2={p.y} stroke="rgba(155,140,255,0.55)" strokeWidth={0.5} />)}
+          {/* Join each star to its nearest earlier neighbour only when close: a light figure, never a web. */}
+          {c.stars.map((p, j) => {
+            let best: { x: number; y: number } | null = null;
+            let d = 18 * 18;
+            for (let k = 0; k < j; k++) { const q = c.stars[k]; const dd = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (dd < d) { d = dd; best = q; } }
+            return best ? <line key={j} x1={best.x} y1={best.y} x2={p.x} y2={p.y} stroke="rgba(155,140,255,0.4)" strokeWidth={0.5} /> : null;
+          })}
           {c.stars.map((p, j) => <rect key={`p${j}`} x={p.x - 0.5} y={p.y - 0.5} width={1.5} height={1.5} fill="#C9C2FF" />)}
         </g>
       ))}
@@ -170,6 +183,14 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
         <Hit key={l.id} pick={{ kind: 'lantern', id: l.id }} picked={picked} onPick={onPick} label={l.title} ring={{ x: l.x - 4, y: l.y - 5, w: 8, h: 10 }}>
           {use('sky-lantern', l.x - 8, l.y - 8)}
         </Hit>
+      ))}
+
+      {world.clouds.map((c, i) => (
+        <g key={`cl${i}`} className="world-cloud" style={{ animationDelay: `${-i * 23}s`, ['--cloud-from' as string]: `${-(c.x + 32)}px`, ['--cloud-to' as string]: `${W - c.x + 8}px` }}>
+          <Hit tab={false} pick={{ kind: 'cloud', i }} picked={picked} onPick={onPick} label={`Rest, ${world.restHours} hours`} ring={{ x: c.x, y: c.y - 6, w: c.size === 1 ? 24 : 18, h: 12 }}>
+            {use(c.size === 1 ? 'cloud-1' : 'cloud-2', c.x, c.y - 8, c.size === 1 ? 24 : 18)}
+          </Hit>
+        </g>
       ))}
 
       {world.mountain ? (
@@ -183,12 +204,14 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
             return (
               <Hit key={`f${i}`} pick={{ kind: 'flag', i }} picked={picked} onPick={onPick} label={`${f.grade}, ${f.date}`} ring={{ x: p.x - 1, y: p.y - 9, w: 7, h: 10 }}>
                 {use('flag', p.x, p.y - 16)}
+                <text x={p.x + 6} y={p.y - 4} className="world-label">{f.grade}</text>
               </Hit>
             );
           })}
           {world.summits.map((s, i) => (
             <Hit key={`su${i}`} pick={{ kind: 'summit', i }} picked={picked} onPick={onPick} label={`Summit, ${s.goal}, ${s.date}`} ring={{ x: peak[0] - 1 + i * 6, y: peak[1] - 9, w: 7, h: 10 }}>
               {use('flag', peak[0] + i * 6, peak[1] - 16)}
+              <text x={peak[0] + i * 6 + 6} y={peak[1] - 11 - i * 6} className="world-label">{s.goal}</text>
             </Hit>
           ))}
         </g>
@@ -213,6 +236,17 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
         );
       })}
 
+      <Decorations world={world} valley={valley} />
+
+      {world.hives.map((h, i) => {
+        const { x, y } = tileXY(h.tile);
+        return (
+          <Hit key={`hv${i}`} pick={{ kind: 'hive', i }} picked={picked} onPick={onPick} label={`Hive, ${world.workHours} work hours`} ring={{ x, y, w: TILE, h: TILE }}>
+            {use('hive', x, y)}
+          </Hit>
+        );
+      })}
+
       {[...world.plants].sort((a, b) => a.row - b.row).map((p) => {
         const h = p.stage < 4 ? TILE : Math.round(p.tiles * TILE);
         const base = SKY + (p.row + 1) * TILE;
@@ -222,9 +256,53 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
           </Hit>
         );
       })}
+      <Bees world={world} valley={valley} />
+      {world.fireflies.map((f, i) => (
+        <Hit key={`ff${i}`} tab={false} pick={{ kind: 'firefly', i }} picked={picked} onPick={onPick} label={`Good nights, ${world.goodNights}`} ring={{ x: f.x - 3, y: f.y - 3, w: 6, h: 6 }} className="world-firefly" style={{ animationDelay: `${(i % 9) * 0.45}s` }}>
+          {use('firefly-1', f.x - 8, f.y - 8)}
+        </Hit>
+      ))}
     </>
   );
 });
+
+const DECOR = ['tuft', 'wildflower', 'pebbles', 'tuft'] as const;
+
+/** Small things with no meaning, so no part of the ground looks empty: empty horizon spots, free field tiles, and past the field. */
+function Decorations({ world, valley }: { world: World; valley: Valley }) {
+  const taken = new Set<string>();
+  for (const p of world.plants) taken.add(`${p.col},${p.row}`);
+  for (const t of [...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile), ...world.animals.map((a) => a.tile)]) taken.add(`${t % BASE_COLS},${Math.floor(t / BASE_COLS)}`);
+  const out: ReactElement[] = [];
+  for (let col = -10; col < world.cols + 10; col++) {
+    for (let row = 0; row < FIELD_ROWS; row++) {
+      if (taken.has(`${col},${row}`)) continue;
+      const inField = col >= 0 && col < BASE_COLS;
+      const h = ((col + 20) * 73856093) ^ (row * 19349663);
+      const roll = Math.abs(h) % 7;
+      if (inField ? roll > 1 : roll > 2) continue;
+      out.push(<g key={`d${col},${row}`} aria-hidden="true">{use(DECOR[Math.abs(h >> 3) % DECOR.length], col * TILE, SKY + row * TILE)}</g>);
+    }
+  }
+  return <g pointerEvents="none">{out}</g>;
+}
+
+/** A few bees around the sunflowers, one per hive (max 6), drifting slowly. Still with reduced motion (CSS). */
+function Bees({ world, valley }: { world: World; valley: Valley }) {
+  const flowers = [
+    ...world.plants.filter((p) => p.kind === 'sun').map((p) => ({ x: p.col * TILE + 8, y: SKY + (p.row + 1) * TILE - Math.round((p.stage < 4 ? 1 : p.tiles) * TILE) + 6 })),
+    ...valley.plantings.filter((p) => p.kind === 'sun').map((p) => { const { x, y } = tileXY(p.tile); return { x: x + 8, y: y + 6 }; }),
+  ];
+  if (!flowers.length) return null;
+  return (
+    <g pointerEvents="none" aria-hidden="true">
+      {world.hives.map((_, i) => {
+        const f = flowers[(i * 5) % flowers.length];
+        return <g key={`bee${i}`} className="world-bee" style={{ animationDelay: `${-i * 1.3}s` }}>{use(i % 2 ? 'bee-2' : 'bee-1', f.x - 8 + (i % 3) * 3, f.y - 8)}</g>;
+      })}
+    </g>
+  );
+}
 
 /** Animals take a slow step to a free neighbouring tile now and then: at most 2 moving, never onto a planting or water. */
 const Animals = memo(function Animals({ animals, blocked, picked, onPick, still }: { animals: Animal[]; blocked: Set<number>; picked: Pick | null; onPick: (p: Pick | null) => void; still: boolean }) {
@@ -321,7 +399,7 @@ export default function WorldScene(props: SceneProps) {
   const { world, valley, latest, picked, onPick } = props;
   const W = world.cols * TILE;
   const still = useReducedMotion();
-  const blocked = useMemo(() => new Set([...waterTiles(BASE_COLS), ...valley.plantings.map((p) => p.tile)]), [valley]);
+  const blocked = useMemo(() => new Set([...waterTiles(BASE_COLS), ...HIVE_TILES, ...valley.plantings.map((p) => p.tile)]), [valley]);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block h-full w-full" style={{ overflow: 'visible' }} shapeRendering="crispEdges" role="group" aria-label={`Your valley: ${world.plants.length} habit plants, ${valley.plantings.length} plantings, ${world.animals.length} animals`} onClick={() => onPick(null)}>
       <StillLayers {...props} />

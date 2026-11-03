@@ -6,7 +6,7 @@ import { levelFor } from '@journaling/core/scoring';
 import { assignSlots, buildWorld, worldSummary, type PlantKind, type PlantRecord, type World } from '@journaling/core/world';
 import { categoryOf } from '@journaling/core/habitCategory';
 import {
-  appendDayScores, getLogsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, setSetting, tabCache,
+  appendDayScores, getLogsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, listHourLogs, listTimeCategories, setSetting, tabCache,
   type SheetAuth,
 } from '@journaling/sheets/googleSheets';
 import { listSidequests } from '@journaling/sheets/sidequests';
@@ -41,12 +41,12 @@ function plantRecords(input: GameInput, stored: Record<string, PlantRecord>): Re
   return assignSlots(first, stored, kinds);
 }
 
-function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests'>): World {
+function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests' | 'hours' | 'cats'>): World {
   const days = dayScores({ ...input, locked, lockedTo, withZero: true });
   const points = days.reduce((n, d) => n + d.points, 0);
   return buildWorld({
     today: input.today, logs: input.logs, activities: input.activities, records, days,
-    climbs: extra?.climbs ?? [], goals: extra?.goals ?? [], sidequests: extra?.sidequests ?? [], level: levelFor(points).level,
+    climbs: extra?.climbs ?? [], goals: extra?.goals ?? [], sidequests: extra?.sidequests ?? [], hours: extra?.hours ?? [], cats: extra?.cats ?? [], level: levelFor(points).level,
   });
 }
 
@@ -84,10 +84,11 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
 
 /** The World, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
 export async function loadWorld(sa: SheetAuth, today: string): Promise<World> {
-  const [core, climbs, goals, sidequests] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa)]);
+  await tabCache.read(sa.spreadsheetId, ['hours', 'timeCategories', 'climbs', 'climbGoals', 'sidequests']);
+  const [core, climbs, goals, sidequests, hours, cats] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa), listHourLogs(sa), listTimeCategories(sa)]);
   const s = gameSettings(core.settings);
   const input = { today, logs: core.logs, activities: core.activities, templates: s.templates, stamps: core.stamps, fills: core.fills };
   const locked = s.imported ? parseScoreRows(await listDayScores(sa)) : new Map();
   const records = plantRecords(input, parseWorldPlants(core.settings.worldPlants));
-  return worldFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests });
+  return worldFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests, hours, cats });
 }
