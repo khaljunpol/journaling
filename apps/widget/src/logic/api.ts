@@ -3,10 +3,12 @@
 import type { DeviceClimb } from '@journaling/core/deviceClimb';
 import type { DeviceInsights } from '@journaling/core/deviceInsights';
 import type { DeviceHistoryDay, DeviceHours, DeviceRequest, DeviceState, DeviceWeekDay } from '@journaling/core/deviceState';
+import type { DeviceGame } from '@journaling/core/game';
+import type { DeviceWorld } from '@journaling/core/world';
 
 export type Conn = { url: string; key: string };
 export type Action = DeviceRequest;
-export type { DeviceClimb, DeviceHistoryDay, DeviceHours, DeviceInsights, DeviceState, DeviceWeekDay };
+export type { DeviceClimb, DeviceGame, DeviceHistoryDay, DeviceHours, DeviceInsights, DeviceState, DeviceWeekDay, DeviceWorld };
 export type Result =
   | { kind: 'ok'; state: DeviceState; reason?: 'no_template' | 'all_filled' }
   | { kind: 'key' } // refused: show "Key not valid"
@@ -113,6 +115,30 @@ export async function getClimb(conn: Conn): Promise<DeviceClimb | null> {
     if (!res.ok) return null;
     const v = (await res.json()) as { climb?: DeviceClimb };
     return v.climb ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Level, points and the best streak. Null when they can't be read now, or the server is older. */
+export async function getGame(conn: Conn): Promise<DeviceGame | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=game`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as { game?: DeviceGame };
+    return v.game ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The valley's still picture. Null when it can't be read now, or the server is older. */
+export async function getWorld(conn: Conn): Promise<DeviceWorld | null> {
+  try {
+    const res = await fetch(`${conn.url}/api/device?include=world`, { headers: { Authorization: `Bearer ${conn.key}` } });
+    if (!res.ok) return null;
+    const v = (await res.json()) as { world?: DeviceWorld };
+    return v.world ?? null;
   } catch {
     return null;
   }

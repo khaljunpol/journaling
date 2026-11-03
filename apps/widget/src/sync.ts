@@ -1,6 +1,6 @@
 // The widget's saved state and its trip to Journal. One job at a time, because taps can arrive fast.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connFromCode, getClimb, getHistory, getHours, getInsights, getState, getWeek, postAction, type Action, type Conn, type DeviceClimb, type DeviceHistoryDay, type DeviceHours, type DeviceInsights, type DeviceState, type DeviceWeekDay } from './logic/api';
+import { connFromCode, getClimb, getGame, getHistory, getHours, getInsights, getState, getWeek, getWorld, postAction, type Action, type Conn, type DeviceClimb, type DeviceGame, type DeviceHistoryDay, type DeviceHours, type DeviceInsights, type DeviceState, type DeviceWeekDay, type DeviceWorld } from './logic/api';
 import { applyLocal, enqueue, remove, sendable, type QueueItem } from './logic/queue';
 
 const KEY = 'journal-widget';
@@ -24,12 +24,16 @@ export type Snapshot = {
   insights: DeviceInsights | null;
   /** The climb widget's numbers, as last read. */
   climb: DeviceClimb | null;
+  /** The level widget's numbers, as last read. */
+  game: DeviceGame | null;
+  /** The valley widget's picture, as last read. */
+  world: DeviceWorld | null;
   /** Which sentence the insight widget is on. Only ever grows. */
   lineAt: number;
   queue: QueueItem[];
 };
 
-const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, climb: null, lineAt: 0, queue: [] };
+const EMPTY: Snapshot = { conn: null, state: null, picked: [], keyBad: false, noUsualHours: false, lastWeight: null, hours: null, week: null, history: null, insights: null, climb: null, game: null, world: null, lineAt: 0, queue: [] };
 
 export async function snapshot(): Promise<Snapshot> {
   try {
@@ -166,6 +170,30 @@ export function refreshClimb(): Promise<Snapshot> {
     const climb = await getClimb(s.conn);
     if (!climb) return s;
     const next = { ...s, climb };
+    await save(next);
+    return next;
+  });
+}
+
+export function refreshGame(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const game = await getGame(s.conn);
+    if (!game) return s;
+    const next = { ...s, game };
+    await save(next);
+    return next;
+  });
+}
+
+export function refreshWorld(): Promise<Snapshot> {
+  return oneAtATime(async () => {
+    const s = await snapshot();
+    if (!s.conn) return s;
+    const world = await getWorld(s.conn);
+    if (!world) return s;
+    const next = { ...s, world };
     await save(next);
     return next;
   });

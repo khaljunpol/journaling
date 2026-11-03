@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  assignSlots, buildWorld, fieldOrder, inMountain, plantHeight, slotPosition, waterTiles, worldSummary,
+  assignSlots, buildWorld, deviceWorld, fieldOrder, inMountain, plantHeight, slotPosition, waterTiles, worldSummary,
   type PlantRecord,
 } from '../src/world.ts';
 import { addDaysISO } from '../src/quickWeek.ts';
@@ -231,4 +231,28 @@ test('summary says whether there are climbing logs', () => {
   assert.equal(worldSummary(buildWorld(base)).climbed, false);
   const climbs = [{ id: '1', date: '2026-01-01', session: 0, type: 'boulder' as const, grade: '5', attempts: 1 }];
   assert.equal(worldSummary(buildWorld({ ...base, climbs })).climbed, true);
+});
+
+test('deviceWorld: a small picture for the widget', () => {
+  const activities = [{ id: 'g', name: 'Gym' }, { id: 'c', name: 'Coffee' }];
+  const logs = [...Array.from({ length: 100 }, (_, i) => tick(back(i), 'g')), ...Array.from({ length: 20 }, (_, i) => tick(back(i), 'c'))];
+  const climbs = [{ id: '1', date: '2026-01-01', session: 0, type: 'boulder' as const, grade: '5', attempts: 1 }];
+  const w = buildWorld({ ...base, activities, logs, climbs });
+  const d = deviceWorld(w);
+  assert.equal(d.cols, w.cols);
+  assert.equal(d.mountain, true);
+  assert.equal(d.flags, w.flags.length);
+  assert.deepEqual(d.plants.map((p) => p.name).sort(), ['Coffee', 'Gym']);
+  for (const p of d.plants) assert.deepEqual(Object.keys(p).sort(), ['col', 'kind', 'name', 'row', 'tiles']);
+  assert.ok(d.stars.length <= 40);
+  assert.deepEqual(d.week, w.weekGoal);
+  assert.deepEqual(d.tallest, worldSummary(w).tallest);
+});
+
+test('deviceWorld: stars are capped and keep their place', () => {
+  const days = Array.from({ length: 400 }, (_, i) => score(addDaysISO('2025-10-01', i), 1, 1, {}, true));
+  const w = buildWorld({ ...base, days });
+  const d = deviceWorld(w);
+  assert.equal(d.stars.length, Math.min(40, w.stars.length));
+  assert.deepEqual(d.stars[0], { x: w.stars[0].x, y: w.stars[0].y });
 });

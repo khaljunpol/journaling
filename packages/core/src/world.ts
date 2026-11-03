@@ -475,3 +475,28 @@ export function worldSummary(w: World): { planted: number; tallest: { name: stri
     climbed: w.mountain,
   };
 }
+
+/** The widget's still picture: plants at their real height, the mountain and its flags, some stars, and this week's goal. */
+export type DeviceWorld = {
+  cols: number;
+  mountain: boolean;
+  flags: number;
+  plants: Array<{ name: string; kind: PlantKind; col: number; row: 0 | 1; tiles: number }>;
+  stars: Array<{ x: number; y: number }>;
+  week: { done: number; total: number; met: boolean };
+  tallest: { name: string; tiles: number } | null;
+};
+
+const DEVICE_STARS = 40;
+
+export function deviceWorld(w: World): DeviceWorld {
+  return {
+    cols: w.cols,
+    mountain: w.mountain,
+    flags: w.flags.length,
+    plants: w.plants.map((p) => ({ name: p.name, kind: p.kind, col: p.col, row: p.row, tiles: p.tiles })),
+    stars: w.stars.slice(0, DEVICE_STARS).map((s) => ({ x: s.x, y: s.y })),
+    week: { ...w.weekGoal },
+    tallest: worldSummary(w).tallest,
+  };
+}

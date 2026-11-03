@@ -6,6 +6,8 @@ import { dark } from '@journaling/design';
 import { shownHabits, shownHistory, shownLine, shownWeek, sparkPoints } from '../logic/queue';
 import type { Snapshot } from '../sync';
 import { iconSvg, type IconName } from './icons';
+import { valleyLine, valleySvg } from '../logic/valley';
+import { levelShare } from '../logic/level';
 
 const c = dark as unknown as Record<keyof typeof dark, ColorProp>;
 const INSET = 6;
@@ -317,7 +319,7 @@ function Tile({ w, h, gap = 0, label, value, note, small }: { w: number; h: numb
 
 const signed = (d: number) => (d > 0 ? `+${d}` : d < 0 ? `\u2212${Math.abs(d)}` : undefined);
 
-/** The overview widget: the same answers as the Overview page. Tap to open it. */
+/** The home widget: the same answers as the Home page. Tap to open it. */
 export function JournalOverview({ s, width, height }: Size) {
   const ready = notReady(s, width);
   if (ready) return ready;
@@ -404,6 +406,71 @@ export function JournalClimb({ s, width, height }: Size) {
           <Tile {...tile} gap={4} label="Last climb" value={ago(k?.daysSince)} />
           <Tile {...tile} gap={4} label="Hardest" value={k?.hardest ?? none} />
           <Tile {...tile} gap={4} label="Weeks" value={k ? String(k.weeks) : none} />
+        </Capsule>
+      </FlexWidget>
+    </Centre>
+  );
+}
+
+/** The valley widget: a still picture of the valley and one line. Tap to open it. */
+export function JournalValley({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const w = Math.min(width, 420);
+  const h = Math.max(100, Math.min(220, height));
+  const LINE = 34;
+  const pic = h - INSET * 2 - LINE;
+  const inner = w - INSET * 2;
+  return (
+    <Centre>
+      <FlexWidget {...clickOf({ uri: `${s.conn?.url}/world` })} style={{ width: w, height: h, borderRadius: 28, backgroundColor: c.surface, padding: INSET }}>
+        {s.world ? (
+          <FlexWidget style={{ width: inner, height: pic, borderRadius: 22, overflow: 'hidden' }}>
+            <SvgWidget svg={valleySvg(s.world, inner, pic)} style={{ width: inner, height: pic }} />
+          </FlexWidget>
+        ) : (
+          <FlexWidget style={{ width: inner, height: pic, borderRadius: 22, backgroundColor: c['surface-2'] }} />
+        )}
+        <FlexWidget style={{ width: inner, height: LINE, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 }}>
+          <TextWidget text={s.world ? valleyLine(s.world) : 'Loading your valley'} maxLines={1} style={{ fontSize: 14, fontWeight: '600', color: s.world ? c['text-1'] : c['text-2'] }} />
+        </FlexWidget>
+      </FlexWidget>
+    </Centre>
+  );
+}
+
+/** A thin bar to the next level, ember like the level chip. */
+function levelBarSvg(share: number, w: number): string {
+  const h = 6;
+  const fill = Math.max(h, Math.round(w * Math.min(1, Math.max(0, share))));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+    + `<rect width="${w}" height="${h}" rx="3" fill="${dark['surface-3']}"/><rect width="${fill}" height="${h}" rx="3" fill="${dark.reward}"/></svg>`;
+}
+
+/** The level widget: level and the way to the next, the best streak, and perfect days. Tap to open You. */
+export function JournalLevel({ s, width, height }: Size) {
+  const ready = notReady(s, width);
+  if (ready) return ready;
+  const w = Math.min(width, 420);
+  const h = Math.max(44, Math.min(58, height));
+  const g = s.game;
+  const none = '–';
+  const third = Math.floor((w - INSET * 2 - 4 * 2) / 3);
+  const tile = { w: third, h: h - 12, small: true };
+  const streak = g?.topStreak ? `${g.topStreak.days}${g.topStreak.unit === 'weeks' ? 'w' : 'd'}` : none;
+  const share = g ? levelShare(g) : 0;
+  return (
+    <Centre>
+      <FlexWidget {...clickOf({ uri: `${s.conn?.url}/you` })} style={{ width: w, height: h }}>
+        <Capsule w={w} h={h}>
+          <FlexWidget style={{ width: third, height: h - 12, borderRadius: 16, backgroundColor: c['surface-2'], paddingHorizontal: 10, justifyContent: 'center' }}>
+            <TextWidget text={g ? `Level ${g.level}` : 'Level'} maxLines={1} style={{ fontSize: 13, fontWeight: '600', color: c['reward-text'] }} />
+            <FlexWidget style={{ marginTop: 4 }}>
+              <SvgWidget svg={levelBarSvg(share, third - 20)} style={{ width: third - 20, height: 6 }} />
+            </FlexWidget>
+          </FlexWidget>
+          <Tile {...tile} gap={4} label={g?.topStreak?.name ?? 'Streak'} value={streak} />
+          <Tile {...tile} gap={4} label="Perfect days" value={g ? String(g.perfectDays) : none} />
         </Capsule>
       </FlexWidget>
     </Centre>
