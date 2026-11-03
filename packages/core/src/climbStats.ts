@@ -266,3 +266,7 @@ export function byGym(logs: Log[]): Array<{ gym: string; count: number }> {
   }
   return [...counts.entries()].map(([gym, count]) => ({ gym, count })).sort((a, b) => b.count - a.count || a.gym.localeCompare(b.gym));
 }
+
+/** Rank and display label of a grade within its type (exported for the World's mountain flags). */
+export const gradeRank = rank;
+export const gradeLabel = label;

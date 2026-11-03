@@ -5,7 +5,7 @@ import { doneHabits, habitIcon, type HabitIcon } from './habitIcons.ts';
 export type HabitCategory = 'move' | 'wellbeing' | 'mind' | 'people' | 'bad' | 'other';
 
 export const CATEGORIES: Array<{ id: HabitCategory; label: string; color: string }> = [
-  { id: 'move', label: 'Move', color: 'var(--accent)' },
+  { id: 'move', label: 'Body', color: 'var(--accent)' },
   { id: 'wellbeing', label: 'Well-being', color: '#34D399' },
   { id: 'mind', label: 'Mind', color: '#38BDF8' },
   { id: 'people', label: 'People', color: '#FB7185' },

@@ -38,6 +38,8 @@ export type GameState = {
   rescued: number;
   /** false = live preview: nothing is locked yet. */
   imported: boolean;
+  /** The World in one line: plantings so far, the tallest habit plant, this week's goal. Added by the server. */
+  world?: { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean };
 };
 
 /** Logs by date, first habits stamp by date, and the first logged day. */
@@ -63,10 +65,10 @@ function index(input: GameInput) {
   return { byDate, first, stampAt, score };
 }
 
-/** Day scores to append: closed days after the cursor (or from the first logged day). Days with no points get no row. */
+/** Day scores to append: closed days after the cursor (or from the first logged day). A day with no points and no usual list gets no row; a 0-point day with a list is kept, so weekly totals stay the same after the lock. */
 export function scoresToLock(input: GameInput & { lockedTo: string | null }): DayScore[] {
   const { first, score } = index(input);
-  return daysToLock(input.lockedTo, first, input.today).map(score).filter((s) => s.points > 0);
+  return daysToLock(input.lockedTo, first, input.today).map(score).filter((s) => s.points > 0 || s.total > 0);
 }
 
 /** Per-date points for the calendar: locked rows win, every other date is worked out live. */
@@ -150,4 +152,21 @@ export function deviceGame(g: GameState): DeviceGame {
     today: { done: g.today.done, total: g.today.total },
     topStreak: top ? { name: top.name, days: top.current, unit: top.unit } : null,
   };
+}
+
+/** Every day that earned points, oldest first: locked rows win, open days are live, closed days with no row earned 0. For the World.
+ * `withZero`: also days with a usual list but no points (the weekly goal needs their totals). */
+export function dayScores(input: GameInput & { locked: Map<string, ScoreRow>; lockedTo?: string | null; withZero?: boolean }): DayScore[] {
+  const { first, score } = index(input);
+  const closed = (d: string) => !!input.lockedTo && d <= input.lockedTo;
+  const out = new Map<string, DayScore>();
+  for (const [d, r] of input.locked) if (d <= input.today && (r.points > 0 || (input.withZero && r.total > 0))) out.set(d, r);
+  if (first) {
+    for (let d = first; d <= input.today; d = addDaysISO(d, 1)) {
+      if (out.has(d) || input.locked.has(d) || closed(d)) continue;
+      const s = score(d);
+      if (s.points > 0 || (input.withZero && s.total > 0)) out.set(d, s);
+    }
+  }
+  return [...out.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

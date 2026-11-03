@@ -1,14 +1,20 @@
-// Reads the sheet and works out the game. With `lock`, closed days are appended to DayScores first.
-// Nothing is written until the history import has run (Settings gameImported = 1).
-import { gameState, lockCursor, scoresToLock, type GameState } from '@journaling/core/game';
-import { parseScoreRows } from '@journaling/core/ledger';
+// Reads the sheet and works out the game and the World. Nothing is written until the history import
+// has run (Settings gameImported = 1); after that, a run locks closed days and stores new plant slots.
+import { dayScores, gameState, lockCursor, scoresToLock, type GameInput, type GameState } from '@journaling/core/game';
+import { parseScoreRows, type ScoreRow } from '@journaling/core/ledger';
+import { levelFor } from '@journaling/core/scoring';
+import { assignSlots, buildWorld, worldSummary, type PlantKind, type PlantRecord, type World } from '@journaling/core/world';
+import { categoryOf } from '@journaling/core/habitCategory';
 import {
-  appendDayScores, getLogsBetween, getSettings, listActivities, listDayScores, listDayStamps, listFillMarks, setSetting, tabCache, type SheetAuth,
+  appendDayScores, getLogsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, setSetting, tabCache,
+  type SheetAuth,
 } from '@journaling/sheets/googleSheets';
-import { gameSettings } from './gameInput';
+import { listSidequests } from '@journaling/sheets/sidequests';
+import { gameSettings, parseWorldPlants } from './gameInput';
 
-/** `import`: the one-time history import (the user's tap on "Count my history"). `read`: lock new closed days only if already imported. */
-export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'import'): Promise<GameState> {
+const KIND: Partial<Record<string, PlantKind>> = { move: 'tree', wellbeing: 'sun', other: 'bamboo' };
+
+async function readCore(sa: SheetAuth, today: string) {
   await tabCache.read(sa.spreadsheetId, ['activities', 'logs', 'settings', 'dayLogs']);
   const [logs, activities, settings, stamps, fills] = await Promise.all([
     getLogsBetween(sa, '2000-01-01', today),
@@ -17,6 +23,36 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
     listDayStamps(sa),
     listFillMarks(sa),
   ]);
+  return { logs, activities, settings, stamps, fills };
+}
+
+/** Plant slots with any new habits added: stored records first, then habits by first log. */
+function plantRecords(input: GameInput, stored: Record<string, PlantRecord>): Record<string, PlantRecord> {
+  const first = new Map<string, string>();
+  for (const l of input.logs) {
+    const d = l.date.slice(0, 10);
+    if (d <= input.today && (!first.has(l.activityId) || d < (first.get(l.activityId) as string))) first.set(l.activityId, d);
+  }
+  const kinds = new Map<string, { kind: PlantKind; name: string }>();
+  for (const a of input.activities) {
+    const k = KIND[categoryOf(a)];
+    if (k) kinds.set(a.id, { kind: k, name: a.name });
+  }
+  return assignSlots(first, stored, kinds);
+}
+
+function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests'>): World {
+  const days = dayScores({ ...input, locked, lockedTo, withZero: true });
+  const points = days.reduce((n, d) => n + d.points, 0);
+  return buildWorld({
+    today: input.today, logs: input.logs, activities: input.activities, records, days,
+    climbs: extra?.climbs ?? [], goals: extra?.goals ?? [], sidequests: extra?.sidequests ?? [], level: levelFor(points).level,
+  });
+}
+
+/** `import`: the one-time history import (the user's tap on "Count my history"). `read`: lock new closed days only if already imported. */
+export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'import'): Promise<GameState> {
+  const { logs, activities, settings, stamps, fills } = await readCore(sa, today);
   const s = gameSettings(settings);
   const imported = s.imported || mode === 'import';
   const input = { today, logs, activities, templates: s.templates, stamps, fills };
@@ -38,5 +74,20 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
   if (imported && Object.keys(state.badges).length !== Object.keys(s.badges).length) {
     await setSetting(sa, 'badges', JSON.stringify(state.badges));
   }
-  return state;
+  // Plant slots are stored once, so a deleted habit keeps its plant and slots never move.
+  const stored = parseWorldPlants(settings.worldPlants);
+  const records = plantRecords(input, stored);
+  if (imported && JSON.stringify(records) !== JSON.stringify(stored)) await setSetting(sa, 'worldPlants', JSON.stringify(records));
+  // The World's one-line summary rides along, so Overview needs no second full read.
+  return { ...state, world: worldSummary(worldFrom(input, locked, lockedTo, records)) };
+}
+
+/** The World, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
+export async function loadWorld(sa: SheetAuth, today: string): Promise<World> {
+  const [core, climbs, goals, sidequests] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa)]);
+  const s = gameSettings(core.settings);
+  const input = { today, logs: core.logs, activities: core.activities, templates: s.templates, stamps: core.stamps, fills: core.fills };
+  const locked = s.imported ? parseScoreRows(await listDayScores(sa)) : new Map();
+  const records = plantRecords(input, parseWorldPlants(core.settings.worldPlants));
+  return worldFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests });
 }

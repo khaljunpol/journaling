@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { categoryOf, doneGoodHabits, goodIds, parseCategory, parseCategoryMap, splitHabits } from '../src/habitCategory.ts';
+import { CATEGORIES, categoryOf, doneGoodHabits, goodIds, parseCategory, parseCategoryMap, splitHabits } from '../src/habitCategory.ts';
 
 test('categoryOf: the saved value wins', () => {
   assert.equal(categoryOf({ name: 'Beer', category: 'people' }), 'people');
@@ -53,4 +53,8 @@ test('doneGoodHabits leaves a ticked bad habit off the Today tile', () => {
   const logs = [{ activityId: 'a', completed: true }, { activityId: 'b', completed: true }];
   const list = [{ id: 'b', name: 'Beer' }, { id: 'a', name: 'Gym' }];
   assert.deepEqual(doneGoodHabits(logs, list, 0).map((h) => h.label), ['Gym']);
+});
+
+test('the move category is shown as Body', () => {
+  assert.equal(CATEGORIES.find((c) => c.id === 'move')?.label, 'Body');
 });

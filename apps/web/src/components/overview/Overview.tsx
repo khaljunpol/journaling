@@ -8,7 +8,7 @@ import { useFirstVisit } from '@/components/ui/useFirstVisit';
 import { parseLocalDate } from '@journaling/core/date';
 import HabitsSection from './HabitsSection';
 import KeepingCard from './KeepingCard';
-import { ClimbLine, LineSkeleton, ProgressLine } from './LinesRow';
+import { ClimbLine, LineSkeleton, ProgressLine, WorldLine } from './LinesRow';
 import MoodSection from './MoodSection';
 import OverviewSheets, { type OverviewDetail } from './OverviewSheets';
 import RecapCard, { RecapSkeleton } from './RecapCard';
@@ -89,6 +89,7 @@ export default function Overview() {
           <Enter i={7} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
             {view.quests || dashFailed ? <ProgressLine quests={view.quests} /> : <LineSkeleton />}
           </Enter>
+          <WorldLine className="lg:col-span-2" />
         </div>
       </div>
 

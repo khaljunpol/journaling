@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { fetchGame } from '@/components/game/useGame';
 import LevelChip from '@/components/shell/LevelChip';
 import Skeleton from '@/components/ui/Skeleton';
 import { parseLocalDate } from '@journaling/core/date';
@@ -51,5 +53,34 @@ export function ProgressLine({ quests }: { quests: OverviewView['quests'] }) {
         <span aria-hidden="true" style={{ color: 'var(--accent)' }}>›</span>
       </Link>
     </div>
+  );
+}
+
+/** "World · planted this week ›", or the tallest habit plant. Hidden while loading or on error. */
+export function WorldLine({ className = '' }: { className?: string }) {
+  const [world, setWorld] = useState<{ planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    // Shares the page's one /api/game request (the level chip uses it too).
+    fetchGame().then((g) => { if (!cancelled && g.world) setWorld(g.world); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  if (!world) return null;
+  const { tallest, weekMet } = world;
+  const tiles = tallest ? Math.round(tallest.tiles * 10) / 10 : 0;
+  return (
+    <Link href="/world" className={`${ROW} ${className}`} style={{ color: 'var(--text-1)' }}>
+      <span className="min-w-0 flex-1">
+        World ·{' '}
+        {weekMet ? (
+          <>planted this week</>
+        ) : tallest && tiles >= 1 ? (
+          <>{tallest.name} is <span className="num">{tiles}</span> {tiles === 1 ? 'tile' : 'tiles'} tall</>
+        ) : (
+          <>your valley</>
+        )}
+      </span>
+      <span aria-hidden="true" style={{ color: 'var(--accent)' }}>›</span>
+    </Link>
   );
 }

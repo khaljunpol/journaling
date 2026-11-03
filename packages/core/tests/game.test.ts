@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { earnedBadges, mergeBadges } from '../src/badges.ts';
-import { dayPoints, deviceGame, gameState, scoresToLock } from '../src/game.ts';
+import { dayPoints, dayScores, deviceGame, gameState, scoresToLock } from '../src/game.ts';
 import { parseScoreRows, scoreRowValues } from '../src/ledger.ts';
 import { addDaysISO } from '../src/quickWeek.ts';
 
@@ -77,11 +77,30 @@ test('deviceGame: exactly the spec keys, top streak from good habits only', () =
 test('gameState: a closed day with no row stays 0 after a re-tag (it was locked at 0)', () => {
   const logs = [done(20, 'x'), ...range(0, 3).map((i) => done(i, 'a'))]; // day 20: only Beer (bad) → 0, no row
   const rows = scoresToLock({ ...base, logs, lockedTo: null }).map((s) => scoreRowValues(s, 'T'));
-  assert.equal(rows.length, 0);
+  assert.equal(rows.length, 13); // every closed day from the first log has a usual list, so each is locked (day 20 at 0 points)
   const retagged = [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Read' }, { id: 'x', name: 'Beer', category: 'wellbeing' as const }];
   const g = gameState({ ...base, activities: retagged, logs, locked: parseScoreRows(rows), imported: true, lockedTo: back(8) });
-  const live = gameState({ ...base, activities: retagged, logs, locked: parseScoreRows(rows), imported: false, lockedTo: null });
+  const live = gameState({ ...base, activities: retagged, logs, locked: new Map(), imported: false, lockedTo: null });
   assert.equal(live.points - g.points, 10);
   const pts = dayPoints({ ...base, activities: retagged, logs, locked: parseScoreRows(rows), lockedTo: back(8) }, back(25), today);
   assert.equal(pts.has(back(20)), false);
+});
+
+test('dayScores: date order, locked rows win, closed days with no row are left out', () => {
+  const logs = [done(20, 'x'), ...range(0, 12).map((i) => done(i, 'a'))];
+  const rows = parseScoreRows([scoreRowValues({ date: back(12), points: 99, done: 1, total: 2, perfect: false, byCat: { move: 99, wellbeing: 0, mind: 0, people: 0, other: 0 } }, 'T')]);
+  const retagged = [{ id: 'a', name: 'Gym' }, { id: 'x', name: 'Beer', category: 'wellbeing' as const }];
+  const list = dayScores({ ...base, activities: retagged, logs, locked: rows, lockedTo: back(8) });
+  assert.deepEqual(list.map((d) => d.date), [back(12), ...range(0, 7).reverse().map(back)]);
+  assert.equal(list[0].points, 99);
+});
+
+test('locking keeps 0-point days with a usual list, so a week counts the same before and after the lock', () => {
+  // Week Mon 2026-10-12 .. Sun 10-18: Gym + Read listed; 5 days both done, 2 days nothing done.
+  const logs = [12, 13, 14, 15, 16].flatMap((d) => [{ date: `2026-10-${d}`, activityId: 'a', completed: true }, { date: `2026-10-${d}`, activityId: 'b', completed: true }]);
+  const live = dayScores({ ...base, logs, locked: new Map(), withZero: true }).filter((d) => d.date >= '2026-10-12' && d.date <= '2026-10-18');
+  const rows = scoresToLock({ ...base, logs, lockedTo: null }).map((s) => scoreRowValues(s, 'T'));
+  const after = dayScores({ ...base, logs, locked: parseScoreRows(rows), lockedTo: back(8), withZero: true }).filter((d) => d.date >= '2026-10-12' && d.date <= '2026-10-18');
+  assert.equal(live.reduce((n, d) => n + d.total, 0), after.reduce((n, d) => n + d.total, 0));
+  assert.equal(after.length, 7);
 });

@@ -10,7 +10,7 @@ import { NAV_ICONS } from './icons';
 import { disconnectSheet } from './disconnectSheet';
 import { useTheme } from './useTheme';
 
-const MORE_IDS = ['trends', 'climbing', 'settings'] as const;
+const MORE_IDS = ['trends', 'climbing', 'world', 'settings'] as const;
 const FOCUSABLE = 'a[href], button:not([disabled])';
 
 const rowClass = 'flex min-h-12 w-full items-center gap-3 rounded-[10px] px-3 text-left text-[15px]';

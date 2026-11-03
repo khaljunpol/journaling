@@ -1,8 +1,8 @@
 // Pure route data for the shell. No React, no icons: icon names are strings
 // that the shell maps to lucide components.
 
-export type NavId = 'today' | 'overview' | 'trends' | 'climbing' | 'progress' | 'settings';
-export type IconName = 'CalendarCheck' | 'LayoutGrid' | 'LineChart' | 'Mountain' | 'Trophy' | 'Settings';
+export type NavId = 'today' | 'overview' | 'trends' | 'climbing' | 'progress' | 'world' | 'settings';
+export type IconName = 'CalendarCheck' | 'LayoutGrid' | 'LineChart' | 'Mountain' | 'Trophy' | 'Sunrise' | 'Settings';
 
 export type NavItem = { id: NavId; label: string; href: string; key: string; icon: IconName };
 
@@ -12,6 +12,7 @@ export const NAV: readonly NavItem[] = [
   { id: 'trends', label: 'Trends', href: '/trends', key: 'r', icon: 'LineChart' },
   { id: 'climbing', label: 'Climbing', href: '/climbing', key: 'c', icon: 'Mountain' },
   { id: 'progress', label: 'Progress', href: '/progress', key: 'p', icon: 'Trophy' },
+  { id: 'world', label: 'World', href: '/world', key: 'w', icon: 'Sunrise' },
   { id: 'settings', label: 'Settings', href: '/settings', key: ',', icon: 'Settings' },
 ];
 

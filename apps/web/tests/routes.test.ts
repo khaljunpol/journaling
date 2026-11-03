@@ -27,9 +27,9 @@ describe('legacy redirects', () => {
 });
 
 describe('nav', () => {
-  it('lists the six places in order with their keys', () => {
-    assert.deepEqual(NAV.map((n) => n.id), ['today', 'overview', 'trends', 'climbing', 'progress', 'settings']);
-    assert.deepEqual(NAV.map((n) => n.key), ['q', 'o', 'r', 'c', 'p', ',']);
+  it('lists the seven places in order with their keys', () => {
+    assert.deepEqual(NAV.map((n) => n.id), ['today', 'overview', 'trends', 'climbing', 'progress', 'world', 'settings']);
+    assert.deepEqual(NAV.map((n) => n.key), ['q', 'o', 'r', 'c', 'p', 'w', ',']);
   });
 
   it('points Today at /quick and Overview at /', () => {
