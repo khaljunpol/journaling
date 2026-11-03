@@ -5,7 +5,7 @@ import { habitIcon, doneHabits } from '../src/habitIcons.ts';
 test('habitIcon reads the habit name', () => {
   assert.equal(habitIcon('Gym'), 'gym');
   assert.equal(habitIcon('Weights'), 'gym');
-  assert.equal(habitIcon('Squash with Tom'), 'racket');
+  assert.equal(habitIcon('Squash with a friend'), 'racket');
   assert.equal(habitIcon('Bouldering'), 'climb');
   assert.equal(habitIcon('Morning run'), 'run');
   assert.equal(habitIcon('Swim'), 'swim');

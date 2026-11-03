@@ -1,0 +1,12 @@
+# Text files use LF in the repo and in the working tree, on every OS.
+* text=auto eol=lf
+
+# Binary files are never changed.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.jar binary
+*.keystore binary

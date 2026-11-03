@@ -11,11 +11,11 @@ test('groupOf guesses the seven groups from common names', () => {
   const want: Record<string, string> = {
     sleep: 'sleep', nap: 'sleep',
     work: 'work', freelance: 'work', 'office meeting': 'work',
-    wife: 'people', friends: 'people', party: 'people', family: 'people', partner: 'people',
-    'relaxation / leisure': 'rest', gaming: 'rest', tv: 'rest',
+    kids: 'people', friends: 'people', party: 'people', family: 'people', partner: 'people',
+    'leisure time': 'rest', gaming: 'rest', tv: 'rest',
     'exercise / sports': 'body', gym: 'body', climbing: 'body',
-    'hobbies / projects': 'mind', 'REDACTED-11 class': 'mind', study: 'mind',
-    chores: 'admin', travel: 'admin', 'brain rot / misc': 'admin', commute: 'admin',
+    'hobbies / projects': 'mind', 'language class': 'mind', study: 'mind',
+    chores: 'admin', travel: 'admin', 'misc stuff': 'admin', commute: 'admin',
   };
   for (const [name, g] of Object.entries(want)) assert.equal(groupOf({ name }), g, name);
   assert.equal(groupOf({ name: 'xyz' }), null);
