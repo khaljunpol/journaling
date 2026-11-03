@@ -115,6 +115,8 @@ type Props = {
   queue: OutboxItem[];
   onOpen: (date: string, key: ItemKey) => void;
   onFill?: (date: string) => void;
+  /** Opens the climbing quick log for this date. */
+  onClimb?: (date: string) => void;
   /** Older days: count only these kinds. */
   only?: ItemKey[];
   /** The one main action on the page. The other day shows a quieter button. */
@@ -217,7 +219,7 @@ export function SkeletonDay({ label, count = 6 }: { label: string; count?: numbe
   );
 }
 
-export default function DaySection({ date, label, payload, queue, onOpen, onFill, only, primary = false }: Props) {
+export default function DaySection({ date, label, payload, queue, onOpen, onFill, onClimb, only, primary = false }: Props) {
   const day = payload.days[date];
   const reward = useReward(date);
   const [confetti, setConfetti] = useState<{ key: number } | null>(null);
@@ -304,6 +306,19 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
               />
             );
           })}
+        {onClimb ? (
+          <Tile
+            name="Climb"
+            prompt="Log"
+            value={day.climbs > 0 ? String(day.climbs) : ''}
+            big
+            filled={day.climbs > 0}
+            counts={false}
+            pending={false}
+            failed={false}
+            onClick={() => onClimb(date)}
+          />
+        ) : null}
       </div>
       {missing > 0 ? (
         <Button variant={primary ? 'primary' : 'outline'} onClick={() => onFill?.(date)} className="w-full font-semibold">

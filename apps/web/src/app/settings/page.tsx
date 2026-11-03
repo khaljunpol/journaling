@@ -17,10 +17,10 @@ import PageHeader from '@/components/ui/PageHeader';
 import { signOutClean } from '@/lib/signOut';
 
 const SECTIONS = [
-  { id: 'activities', label: 'Habits' },
+  { id: 'activities', label: 'Your habits' },
   { id: 'time', label: 'Time categories' },
   { id: 'hours', label: 'Usual hours' },
-  { id: 'habits', label: 'Usual habits' },
+  { id: 'habits', label: 'Usual habits per day' },
   { id: 'reminder', label: 'Reminder' },
   { id: 'devices', label: 'Devices' },
   { id: 'appearance', label: 'Appearance' },

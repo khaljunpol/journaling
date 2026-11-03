@@ -213,8 +213,8 @@ function More({ s, leave, reload }: { s: Snapshot; leave: Leave; reload: () => P
       )}
       <View style={styles.buttons}>
         <Pressable onPress={() => open('/climbing?tab=log')} style={[styles.secondary, styles.grow]}><Icon name="climb" color={dark['text-2']} size={16} /><Text style={styles.linkText}>Climbing</Text></Pressable>
-        <Pressable onPress={() => open('/?stay=1')} style={[styles.secondary, styles.grow]}><Icon name="overview" color={dark['text-2']} size={16} /><Text style={styles.linkText}>Overview</Text></Pressable>
-        <Pressable onPress={() => open('/trends')} style={[styles.secondary, styles.grow]}><Icon name="trends" color={dark['text-2']} size={16} /><Text style={styles.linkText}>Trends</Text></Pressable>
+        <Pressable onPress={() => open('/')} style={[styles.secondary, styles.grow]}><Icon name="overview" color={dark['text-2']} size={16} /><Text style={styles.linkText}>Home</Text></Pressable>
+        <Pressable onPress={() => open('/insights')} style={[styles.secondary, styles.grow]}><Icon name="trends" color={dark['text-2']} size={16} /><Text style={styles.linkText}>Insights</Text></Pressable>
       </View>
     </View>
   );

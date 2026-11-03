@@ -33,7 +33,7 @@ export default function LevelCard({ game }: { game: ReturnType<typeof useGame> }
   const stats = [
     { label: 'Points', value: fmt(points) },
     { label: 'Perfect days', value: fmt(perfectDays) },
-    { label: 'Today', value: today.total ? `${Math.min(today.done, today.total)} of ${today.total}` : '–' },
+    { label: 'Habits today', value: today.total ? `${Math.min(today.done, today.total)} of ${today.total}` : '–' },
   ];
 
   async function count() {

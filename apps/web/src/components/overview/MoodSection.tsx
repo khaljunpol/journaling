@@ -1,27 +1,11 @@
-import Link from 'next/link';
 import Answer from '@/components/climbing/overview/Answer';
 import { parseLocalDate } from '@journaling/core/date';
 import { hm } from '@journaling/core/overviewStats';
-import { insightLine } from '@journaling/core/insights';
-import { useInsights } from '@/components/insights/useInsights';
 import type { OverviewView } from './derive';
 import { Section, SectionSkeleton, signed } from './Section';
 import TrendChip from './TrendChip';
 
 const Q = 'How am I doing?';
-
-/** The top insight, or how many mood days are still needed. Opens Trends > Insights. Hidden until known. */
-function InsightLine() {
-  const { data } = useInsights();
-  if (!data) return null;
-  const top = data.lifts[0];
-  const text = top ? `${insightLine(top)}.` : data.moreDays > 0 ? `${data.moreDays} more ${data.moreDays === 1 ? 'day' : 'days'} of mood to see insights.` : 'No clear mood link yet.';
-  return (
-    <Link href="/trends?tab=insights" className="press -mx-1 mt-1 block rounded-[8px] px-1 text-[13px]" style={{ color: 'var(--text-2)' }}>
-      {text} <span style={{ color: 'var(--accent)' }}>›</span>
-    </Link>
-  );
-}
 
 export default function MoodSection({ mood, today, onDetails }: { mood: OverviewView['mood']; today: string; onDetails: () => void }) {
   if (!mood) return <SectionSkeleton question={Q} />;
@@ -39,7 +23,6 @@ export default function MoodSection({ mood, today, onDetails }: { mood: Overview
           <TrendChip text={delta === 0 ? 'same as last week' : `${signed(delta)} vs last week`} delta={delta} />
         </div>
       ) : null}
-      <InsightLine />
       <div className="mt-auto pt-4">
         <div
           className="flex h-24 items-end gap-1"

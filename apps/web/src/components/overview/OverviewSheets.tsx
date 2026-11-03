@@ -85,7 +85,7 @@ function MoodSheet({ mood, open, onClose }: { mood: NonNullable<OverviewView['mo
           )}
         </section>
 
-        <TrendsLink href="/trends?tab=insights">Week rhythm and more on Insights ›</TrendsLink>
+        <TrendsLink href="/insights">Week rhythm and more on Insights ›</TrendsLink>
       </div>
     </Sheet>
   );
@@ -99,7 +99,7 @@ function HabitsSheet({ habits, open, onClose }: { habits: NonNullable<OverviewVi
         <p className="text-[14px]" style={{ color: 'var(--text-1)' }}>
           Best streak this year: <span className="num">{habits.best}</span> {habits.best === 1 ? 'day' : 'days'}
         </p>
-        <TrendsLink href="/trends?tab=habits">Habits on Trends ›</TrendsLink>
+        <TrendsLink href="/insights?section=habits">Habits on Insights ›</TrendsLink>
       </div>
     </Sheet>
   );
@@ -135,7 +135,7 @@ function TimeSheet({ time, open, onClose }: { time: NonNullable<OverviewView['ti
             })}
           </tbody>
         </table>
-        <TrendsLink href="/trends?tab=time">Time on Trends ›</TrendsLink>
+        <TrendsLink href="/insights?section=time">Time on Insights ›</TrendsLink>
       </div>
     </Sheet>
   );

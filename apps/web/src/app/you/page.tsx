@@ -5,6 +5,7 @@ import type { Sidequest, SidequestLog } from '@journaling/core/types';
 import SidequestCard from '@/components/SidequestCard';
 import Badges from '@/components/game/Badges';
 import LevelCard from '@/components/game/LevelCard';
+import WorldTile from '@/components/world/WorldTile';
 import StreakCard from '@/components/game/StreakCard';
 import StreakShareSheet from '@/components/game/StreakShareSheet';
 import type { Streak } from '@journaling/core/streaks';
@@ -123,8 +124,8 @@ function ProgressView() {
   return (
     <div className="space-y-4 pb-8 lg:space-y-6">
       <PageHeader
-        title="Progress"
-        context={`Personal goals and challenges for ${year}`}
+        title="You"
+        context="Your level, streaks, valley and goals."
         actions={
           <>
             <Select aria-label="Year" value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
@@ -148,7 +149,8 @@ function ProgressView() {
       {/* The game: level, streaks, badges. Phone: stacked. Desktop: level 2 columns, streaks 1. */}
       <div className="grid gap-3 lg:grid-cols-3 lg:gap-4">
         <div className="lg:col-span-2"><LevelCard game={game} /></div>
-        {game.state ? <StreakCard streaks={game.state.streaks} onShare={setSharing} /> : null}
+        {game.state ? <StreakCard streaks={game.state.streaks} onShare={setSharing} hideClimb={game.state.world?.climbed ?? false} /> : null}
+        <div className="lg:col-span-3"><WorldTile /></div>
         {game.state ? <div className="lg:col-span-3"><Badges badges={game.state.badges} next={game.state.next} /></div> : null}
       </div>
 

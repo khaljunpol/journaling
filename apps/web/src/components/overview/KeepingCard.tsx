@@ -22,7 +22,7 @@ const weekLabel = (iso: string) => parseLocalDate(iso).toLocaleDateString(undefi
 const dayLabel = (iso: string) => parseLocalDate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
 /** Four weeks of logging. A dot opens that day, so a missed day is one tap from being filled in. */
-export default function KeepingCard({ keeping, onDetails }: { keeping: KeepingUp; onDetails: () => void }) {
+export default function KeepingCard({ keeping, onDetails }: { keeping: KeepingUp; onDetails?: () => void }) {
   const { lines, weeks } = keeping;
   return (
     <Section question="Keeping up" onDetails={onDetails}>

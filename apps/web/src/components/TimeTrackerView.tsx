@@ -51,11 +51,13 @@ export default function TimeTrackerView() {
   const catsSorted = useMemo(() => [...cats].sort((a, b) => a.order - b.order), [cats]);
   const logs = useMemo(() => yearLogs ?? [], [yearLogs]);
 
-  // Last 7 days, stacked by category.
+  // This week, Monday to Sunday (the same window as the Home time card), stacked by category.
   const week = useMemo(() => {
+    const monday = new Date();
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
       const iso = localISO(d);
       const row: Record<string, number | string> = { iso, label: d.toLocaleDateString(undefined, { weekday: 'short' }), total: 0 };
       for (const l of logs) {
@@ -98,11 +100,11 @@ export default function TimeTrackerView() {
   return (
     <div className="space-y-3 sm:space-y-4">
       <Card>
-        <CardHeader title="Last 7 days" meta={<span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{weekTotal}h logged</span>} />
+        <CardHeader title="This week" meta={<span className="num text-[13px]" style={{ color: 'var(--text-2)' }}>{weekTotal}h logged</span>} />
         {loading ? (
           <Skeleton className="h-36 w-full" />
         ) : (
-          <div className="h-36 w-full" role="img" aria-label={`Stacked bars of hours per category for the last 7 days, ${weekTotal} hours in total`}>
+          <div className="h-36 w-full" role="img" aria-label={`Stacked bars of hours per category for this week, ${weekTotal} hours in total`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={week} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
@@ -135,7 +137,7 @@ export default function TimeTrackerView() {
       </Card>
 
       <Card>
-        <CardHeader title="Weekly balance" meta={<span className="text-[13px]" style={{ color: 'var(--text-2)' }}>Productive, rest, sleep</span>} />
+        <CardHeader title="By group" meta={<span className="text-[13px]" style={{ color: 'var(--text-2)' }}>This week</span>} />
         {loading ? (
           <Skeleton className="h-14 w-full" />
         ) : balanceTotal === 0 ? (

@@ -34,8 +34,8 @@ export default function LevelChip({ compact = false }: { compact?: boolean }) {
 
   return (
     <Link
-      href="/progress"
-      aria-label={`Level ${level}. Open Progress`}
+      href="/you"
+      aria-label={`Level ${level}. Open You`}
       title={`Level ${level}`}
       className={`num inline-flex items-center gap-1 rounded-full font-medium ${compact ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-[13px]'}`}
       style={{ background: 'var(--reward)', color: 'var(--on-reward)' }}

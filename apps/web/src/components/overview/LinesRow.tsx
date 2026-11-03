@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fetchGame } from '@/components/game/useGame';
+import { useInsights } from '@/components/insights/useInsights';
+import { insightLine } from '@journaling/core/insights';
 import LevelChip from '@/components/shell/LevelChip';
 import Skeleton from '@/components/ui/Skeleton';
 import { parseLocalDate } from '@journaling/core/date';
@@ -35,20 +37,46 @@ export function ClimbLine({ climb }: { climb: NonNullable<OverviewView['climb']>
   );
 }
 
+/** The one insight on Home: the strongest link, or how many mood days are still needed. Opens Insights. */
+export function BestInsightLine() {
+  const { data } = useInsights();
+  if (!data) return <LineSkeleton />;
+  const top = data.lifts[0];
+  const text = top ? `${insightLine(top)}.` : data.moreDays > 0 ? `${data.moreDays} more ${data.moreDays === 1 ? 'day' : 'days'} of mood to see insights.` : 'No clear mood link yet.';
+  return (
+    <Link href="/insights" className={ROW} style={{ color: 'var(--text-1)' }}>
+      <span className="min-w-0 flex-1">{text}</span>
+      <span aria-hidden="true" style={{ color: 'var(--accent)' }}>›</span>
+    </Link>
+  );
+}
+
 /** LevelChip + "3 side quests active ›". The chip is its own link, so the row holds two links side by side. quests null = dashboard failed: no count, no claim. */
+/** The You row: level chip, side quests, and one line about the valley. Opens You. */
 export function ProgressLine({ quests }: { quests: OverviewView['quests'] }) {
+  const [valley, setValley] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchGame().then((g) => {
+      if (cancelled || !g.world) return;
+      const t = g.world.tallest;
+      setValley(g.world.weekMet ? 'planted this week' : t && t.tiles >= 1 ? `${t.name} ${Math.round(t.tiles * 10) / 10} tiles tall` : null);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div className="card flex min-h-14 min-w-0 items-center gap-2 py-1 pl-4 pr-1 sm:pl-5">
       <LevelChip />
-      <Link href="/progress" className="press flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] px-2 text-[15px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--text-1)' }}>
+      <Link href="/you" className="press flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] px-2 text-[15px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--text-1)' }}>
         <span className="min-w-0 flex-1">
           {quests === null ? (
-            <>Open Progress</>
+            <>Open You</>
           ) : quests.active > 0 ? (
             <><span className="num">{quests.active}</span> {quests.active === 1 ? 'side quest' : 'side quests'} active</>
           ) : (
             <>Start a side quest</>
           )}
+          {valley ? <span style={{ color: 'var(--text-2)' }}> · {valley}</span> : null}
         </span>
         <span aria-hidden="true" style={{ color: 'var(--accent)' }}>›</span>
       </Link>

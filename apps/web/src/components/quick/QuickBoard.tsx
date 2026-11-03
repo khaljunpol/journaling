@@ -18,6 +18,9 @@ import { useOutbox } from './useOutbox';
 import { useWeek } from './useWeek';
 import { useCatchUp } from './useCatchUp';
 import WeekPanel from './WeekPanel';
+import KeepingPanel from './KeepingPanel';
+import Link from 'next/link';
+import QuickLog from '@/components/climbing/QuickLog';
 import WelcomeCard from './WelcomeCard';
 import WeekStrip, { type StripDay } from './WeekStrip';
 import DaySection, { SkeletonDay } from './DaySection';
@@ -79,6 +82,9 @@ export default function QuickBoard() {
   const [menu, setMenu] = useState(false);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
   const [stack, setStack] = useState<{ steps: CatchUpStep[]; weekRun: boolean } | null>(null);
+  const [climbDate, setClimbDate] = useState<string | null>(null);
+  const [wide, setWide] = useState(false);
+  const [savedTick, setSavedTick] = useState(0);
   const fillButton = useRef<HTMLElement | null>(null);
   const [categories, setCategories] = useState<TimeCategory[]>([]);
   const [quests, setQuests] = useState<QuestInfo>({});
@@ -278,12 +284,19 @@ export default function QuickBoard() {
   // The Catch up Sheet is phone-only: close it if the window grows to the desktop layout.
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
-    const onChange = () => { if (mq.matches) setMenu(false); };
+    const onChange = () => { setWide(mq.matches); if (mq.matches) setMenu(false); };
+    setWide(mq.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
   const sync = syncState(queue, persistOk);
+  // Keeping up reads again once taps finish saving, so filled days show.
+  const lastSync = useRef(sync);
+  useEffect(() => {
+    if (lastSync.current === 'saving' && sync === 'saved') setSavedTick((t) => t + 1);
+    lastSync.current = sync;
+  }, [sync]);
   const dateLine = today ? parseLocalDate(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
 
   const panel = payload && week.shown && (
@@ -366,8 +379,8 @@ export default function QuickBoard() {
           {today && other ? (
             payload ? (
               <>
-                {week.isCurrent && <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} primary />}
-                <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} only={onlyOf(other)} primary={!week.isCurrent} />
+                {week.isCurrent && <DaySection date={today} label="Today" payload={payload} queue={queue} onOpen={open} onFill={fill} onClimb={setClimbDate} primary />}
+                <DaySection date={other} label={dayLabel(other, yesterday ?? '')} payload={payload} queue={queue} onOpen={open} onFill={fill} onClimb={setClimbDate} only={onlyOf(other)} primary={!week.isCurrent} />
               </>
             ) : (
               <>
@@ -386,13 +399,29 @@ export default function QuickBoard() {
         {panel && (
           <aside className="card hidden space-y-3 p-5 lg:sticky lg:top-6 lg:block">
             <h2 className="text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>Catch up</h2>
+            {today && wide ? <KeepingPanel today={today} refresh={savedTick} /> : null}
             {panel}
           </aside>
         )}
       </div>
 
       <Sheet open={menu} onClose={() => setMenu(false)} title="Catch up">
-        {panel}
+        <div className="space-y-3">
+          {today && menu ? <KeepingPanel today={today} refresh={savedTick} /> : null}
+          {panel}
+        </div>
+      </Sheet>
+
+      {/* Climbing is logged from Today too: the same quick log as on Climbing, for the tapped day. */}
+      <Sheet open={climbDate !== null} onClose={() => setClimbDate(null)} title="Log a climb">
+        {climbDate && today ? (
+          <>
+            <QuickLog today={today} date={climbDate} onDateChange={setClimbDate} onChanged={() => { void fetchRange(climbDate, climbDate); }} />
+            <Link href="/climbing" className="press mt-3 flex min-h-11 items-center justify-between rounded-[10px] px-3 text-[15px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--text-1)' }}>
+              Open Climbing <span aria-hidden="true" style={{ color: 'var(--accent)' }}>›</span>
+            </Link>
+          </>
+        ) : null}
       </Sheet>
 
       {stack && payload && (

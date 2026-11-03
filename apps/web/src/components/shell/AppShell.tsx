@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { NAV, OVERVIEW_STAY, PHONE_MAX_WIDTH } from '@/lib/routes';
+import { NAV } from '@/lib/routes';
 import BottomTabs from './BottomTabs';
 import Sidebar from './Sidebar';
 
@@ -34,9 +34,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       const item = NAV.find((n) => n.key === e.key);
       if (!item) return;
       e.preventDefault();
-      // On a phone-width window, `/` would bounce to Today, so keep it.
-      const href = item.id === 'overview' && window.innerWidth <= PHONE_MAX_WIDTH ? OVERVIEW_STAY : item.href;
-      router.push(href);
+      router.push(item.href);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

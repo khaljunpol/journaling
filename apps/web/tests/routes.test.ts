@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { LEGACY_REDIRECTS, NAV, shouldOpenToday } from '../src/lib/routes.ts';
+import { LEGACY_REDIRECTS, NAV, PHONE_TABS, navIdForPath } from '../src/lib/routes.ts';
 
 describe('legacy redirects', () => {
   const map = new Map(LEGACY_REDIRECTS.map((r) => [r.source, r.destination]));
 
-  it('maps every old page as in the design', () => {
+  it('maps every old page to its new home', () => {
     assert.equal(map.get('/journal'), '/quick');
-    assert.equal(map.get('/mood'), '/trends?tab=mood');
-    assert.equal(map.get('/time'), '/trends?tab=time');
-    assert.equal(map.get('/sidequests'), '/progress');
+    assert.equal(map.get('/mood'), '/insights');
+    assert.equal(map.get('/time'), '/insights?section=time');
+    assert.equal(map.get('/trends'), '/insights');
+    assert.equal(map.get('/progress'), '/you');
+    assert.equal(map.get('/sidequests'), '/you');
     assert.equal(map.get('/activities'), '/settings#activities');
     assert.equal(map.get('/time-categories'), '/settings#time');
     assert.equal(map.get('/climbing-log'), '/climbing?tab=log');
@@ -27,28 +29,19 @@ describe('legacy redirects', () => {
 });
 
 describe('nav', () => {
-  it('lists the seven places in order with their keys', () => {
-    assert.deepEqual(NAV.map((n) => n.id), ['today', 'overview', 'trends', 'climbing', 'progress', 'world', 'settings']);
-    assert.deepEqual(NAV.map((n) => n.key), ['q', 'o', 'r', 'c', 'p', 'w', ',']);
+  it('lists the five pages and Settings, in order, with their keys', () => {
+    assert.deepEqual(NAV.map((n) => n.id), ['today', 'home', 'insights', 'climbing', 'you', 'settings']);
+    assert.deepEqual(NAV.map((n) => n.href), ['/quick', '/', '/insights', '/climbing', '/you', '/settings']);
+    assert.deepEqual(NAV.map((n) => n.key), ['q', 'o', 'i', 'c', 'y', ',']);
   });
 
-  it('points Today at /quick and Overview at /', () => {
-    assert.equal(NAV[0].href, '/quick');
-    assert.equal(NAV[1].href, '/');
+  it('phone tabs are Today, Home, Insights, You', () => {
+    assert.deepEqual(PHONE_TABS, ['today', 'home', 'insights', 'you']);
   });
-});
 
-describe('shouldOpenToday', () => {
-  it('opens Today on a phone-width screen', () => {
-    assert.equal(shouldOpenToday(390, ''), true);
-    assert.equal(shouldOpenToday(639, ''), true);
-  });
-  it('stays when ?stay=1 is set', () => {
-    assert.equal(shouldOpenToday(390, '?stay=1'), false);
-    assert.equal(shouldOpenToday(390, 'stay=1'), false);
-  });
-  it('stays on tablet and desktop', () => {
-    assert.equal(shouldOpenToday(640, ''), false);
-    assert.equal(shouldOpenToday(768, ''), false);
+  it('the World belongs to You', () => {
+    assert.equal(navIdForPath('/world'), 'you');
+    assert.equal(navIdForPath('/'), 'home');
+    assert.equal(navIdForPath('/insights'), 'insights');
   });
 });

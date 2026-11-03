@@ -1,8 +1,5 @@
 "use client";
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { shouldOpenToday } from '@/lib/routes';
 
 const Overview = dynamic(() => import('@/components/overview/Overview'), { ssr: false, loading: () => <OverviewSkeleton /> });
 
@@ -20,18 +17,7 @@ function OverviewSkeleton() {
     );
 }
 
+/** Home: how is my week. The same page on every device. */
 export default function Page() {
-    const router = useRouter();
-    const [ready, setReady] = useState(false);
-
-    // On a phone-width screen "/" opens Today (unless ?stay=1). Skeleton first, so no dashboard flash.
-    useEffect(() => {
-        if (shouldOpenToday(window.innerWidth, window.location.search)) {
-            router.replace('/quick');
-            return;
-        }
-        setReady(true);
-    }, [router]);
-
-    return ready ? <Overview /> : <OverviewSkeleton />;
+    return <Overview />;
 }

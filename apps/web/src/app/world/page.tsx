@@ -44,8 +44,8 @@ export default function WorldPage() {
         <p className="absolute inset-x-0 top-1/3 text-center text-[14px]" style={{ color: '#A4AEC4' }}>Couldn&apos;t load your valley. Try again later.</p>
       ) : null}
 
-      <Link href="/?stay=1" className="press absolute left-2 top-2 flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[14px]" style={{ color: '#A4AEC4' }}>
-        <ChevronLeft size={18} aria-hidden="true" />Overview
+      <Link href="/you" className="press absolute left-2 top-2 flex min-h-11 items-center gap-1 rounded-[10px] px-2 text-[14px]" style={{ color: '#A4AEC4' }}>
+        <ChevronLeft size={18} aria-hidden="true" />You
       </Link>
 
       {world && valley ? <Legend world={world} valley={valley} open={legend} onToggle={() => setLegend((o) => !o)} /> : null}

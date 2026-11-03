@@ -7,8 +7,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { useFirstVisit } from '@/components/ui/useFirstVisit';
 import { parseLocalDate } from '@journaling/core/date';
 import HabitsSection from './HabitsSection';
-import KeepingCard from './KeepingCard';
-import { ClimbLine, LineSkeleton, ProgressLine, WorldLine } from './LinesRow';
+import { BestInsightLine, ClimbLine, LineSkeleton, ProgressLine } from './LinesRow';
 import MoodSection from './MoodSection';
 import OverviewSheets, { type OverviewDetail } from './OverviewSheets';
 import RecapCard, { RecapSkeleton } from './RecapCard';
@@ -26,7 +25,8 @@ function Enter({ i, animate, className = '', children }: { i: number; animate: b
 }
 
 /**
- * Overview: 3 questions (mood + sleep, habits, time), then Remember, last week's recap, Keeping up, then the Climbing and Progress lines.
+ * Home: how is my week. 3 questions (mood + sleep, habits, time), the best insight, Remember, last week's recap (Mon–Wed),
+ * then Climbing and one You row. Logging lives on Today; insights on Insights.
  * Phone: one column. Tablet: Q1 full width, Q2 | Q3. Desktop: the 3 questions side by side.
  */
 export default function Overview() {
@@ -37,8 +37,8 @@ export default function Overview() {
   if (failed) {
     return (
       <div className="mx-auto w-full max-w-[1280px] space-y-4">
-        <PageHeader title="Overview" />
-        <EmptyState title="Could not load Overview" hint="Check your connection and try again." action={<Button onClick={retry}>Try again</Button>} />
+        <PageHeader title="Home" />
+        <EmptyState title="Could not load Home" hint="Check your connection and try again." action={<Button onClick={retry}>Try again</Button>} />
       </div>
     );
   }
@@ -46,12 +46,15 @@ export default function Overview() {
   const dateLabel = parseLocalDate(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   // Skeleton while the dashboard loads; no row when there are no logs or the read failed with no cache.
   const showClimb = view.climb !== null || (!hasDash && !dashFailed);
-  const showRecap = view.recap !== null || (!hasDash && !dashFailed);
+  // Last week's recap is news early in the week only.
+  const weekday = parseLocalDate(today).getDay();
+  const earlyWeek = weekday >= 1 && weekday <= 3;
+  const showRecap = earlyWeek && (view.recap !== null || (!hasDash && !dashFailed));
 
   return (
     <>
       <div className="mx-auto w-full max-w-[1280px] space-y-3 pb-4 lg:space-y-4">
-        <PageHeader title="Overview" context={dateLabel} />
+        <PageHeader title="Home" context={dateLabel} />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
           <Enter i={0} animate={animate} className="sm:col-span-2 lg:col-span-1">
@@ -64,16 +67,14 @@ export default function Overview() {
             <TimeSection time={view.time} failed={dashFailed} onDetails={() => setDetail('time')} />
           </Enter>
           <Enter i={3} animate={animate} className="sm:col-span-2 lg:col-span-3">
+            <BestInsightLine />
+          </Enter>
+          <Enter i={3} animate={animate} className="sm:col-span-2 lg:col-span-3">
             <RememberStrip remember={view.remember} />
           </Enter>
           {showRecap ? (
             <Enter i={4} animate={animate} className="sm:col-span-2 lg:col-span-3">
               {view.recap ? <RecapCard recap={view.recap} /> : <RecapSkeleton />}
-            </Enter>
-          ) : null}
-          {view.keeping ? (
-            <Enter i={5} animate={animate} className="sm:col-span-2 lg:col-span-3">
-              <KeepingCard keeping={view.keeping} onDetails={() => setDetail('keeping')} />
             </Enter>
           ) : null}
         </div>
@@ -89,7 +90,6 @@ export default function Overview() {
           <Enter i={7} animate={animate} className={showClimb ? '' : 'lg:col-span-2'}>
             {view.quests || dashFailed ? <ProgressLine quests={view.quests} /> : <LineSkeleton />}
           </Enter>
-          <WorldLine className="lg:col-span-2" />
         </div>
       </div>
 

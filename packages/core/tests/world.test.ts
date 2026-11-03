@@ -226,3 +226,9 @@ test('a constellation draws at most 60 stars, however many Mind hours', () => {
   assert.equal(w.constellations[0].stars.length, 60);
   assert.equal(w.constellations[0].hours, 900);
 });
+
+test('summary says whether there are climbing logs', () => {
+  assert.equal(worldSummary(buildWorld(base)).climbed, false);
+  const climbs = [{ id: '1', date: '2026-01-01', session: 0, type: 'boulder' as const, grade: '5', attempts: 1 }];
+  assert.equal(worldSummary(buildWorld({ ...base, climbs })).climbed, true);
+});

@@ -9,6 +9,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import { layerCell, type DayTuple, type Layer } from '@journaling/core/yearDays';
 import LayerControl, { useLayer } from './LayerControl';
 import MonthSheet, { DayStrip, MONTH_NAMES, monthDates, type Cell } from './MonthSheet';
+import MoodMonths from './MoodMonths';
 
 type YearData = { year: number; days: Record<string, DayTuple>; summary: { logged: number; bestMonth: number | null } };
 
@@ -149,6 +150,8 @@ export default function YearCalendar({ today }: { today: string }) {
             })}
           </ol>
           <MonthSheet year={year} month={month} values={values} today={today} onClose={() => setMonth(null)} />
+          {/* The Mood layer also shows the month averages and the spread (they were the Mood tab). */}
+          {layer === 'mood' ? <MoodMonths year={year} /> : null}
         </>
       )}
     </Card>

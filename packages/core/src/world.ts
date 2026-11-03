@@ -466,11 +466,12 @@ export function buildWorld(input: {
 }
 
 /** One line for Overview: this week's goal, and the tallest habit plant. */
-export function worldSummary(w: World): { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean } {
+export function worldSummary(w: World): { planted: number; tallest: { name: string; tiles: number } | null; weekMet: boolean; climbed: boolean } {
   const tallest = w.plants.reduce<Plant | null>((a, p) => (!a || p.tiles > a.tiles || (p.tiles === a.tiles && p.days > a.days) ? p : a), null);
   return {
     planted: w.valleys.reduce((n, v) => n + v.plantings.length, 0),
     tallest: tallest ? { name: tallest.name, tiles: tallest.tiles } : null,
     weekMet: w.weekGoal.met,
+    climbed: w.mountain,
   };
 }
