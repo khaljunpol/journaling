@@ -75,9 +75,11 @@ export async function GET(req: Request) {
     if (include === 'insights') {
       const { payload, day } = await load(auth.sheetAuth, today);
       const from90 = addDaysISO(today, -89);
+      // Insights look back 180 days, plus the evening before for the first night.
+      const from180 = addDaysISO(today, -180);
       const [moods, hours, logs, cats, climb, weights, stamps] = await Promise.all([
-        getMoodsBetween(auth.sheetAuth, from90, today),
-        listHourLogs(auth.sheetAuth, from90, today),
+        getMoodsBetween(auth.sheetAuth, from180, today),
+        listHourLogs(auth.sheetAuth, from180, today),
         // Streaks reach back to the start of last year, same as the Overview.
         getLogsBetween(auth.sheetAuth, `${Number(today.slice(0, 4)) - 1}-01-01`, today),
         listTimeCategories(auth.sheetAuth),
@@ -86,7 +88,7 @@ export async function GET(req: Request) {
         listDayStamps(auth.sheetAuth),
       ]);
       const activeIds = goodIds(payload.ctx.activities);
-      const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds, weights, stamps });
+      const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds, activities: payload.ctx.activities, weights, stamps });
       insights.lines.push(...climb.lines);
       return NextResponse.json({ ...deviceState(day, payload.ctx), insights }, { status: 200, headers: NO_STORE });
     }

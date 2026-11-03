@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import Sheet from '@/components/ui/Sheet';
 import { parseLocalDate } from '@journaling/core/date';
+import { MIN_PAIRS, MIN_SIDE } from '@journaling/core/insights';
 import { hm } from '@journaling/core/overviewStats';
 import { SLEEP_CUT, type OverviewView } from './derive';
 import { signed } from './Section';
@@ -24,7 +25,7 @@ function TrendsLink({ href, children }: { href: string; children: ReactNode }) {
 }
 
 /** Label, a bar (value / max) and the value in mono. Static: sheets open at the final size. */
-function ValueRow({ label, value, max, text, color = 'var(--accent)' }: { label: ReactNode; value: number | null; max: number; text: ReactNode; color?: string }) {
+export function ValueRow({ label, value, max, text, color = 'var(--accent)' }: { label: ReactNode; value: number | null; max: number; text: ReactNode; color?: string }) {
   return (
     <li className="flex min-h-8 items-center gap-2 text-[14px]">
       <span className="w-28 shrink-0 truncate" style={{ color: 'var(--text-1)' }}>{label}</span>
@@ -41,7 +42,7 @@ function ValueRow({ label, value, max, text, color = 'var(--accent)' }: { label:
 }
 
 function MoodSheet({ mood, open, onClose }: { mood: NonNullable<OverviewView['mood']>; open: boolean; onClose: () => void }) {
-  const { split, nights, weekday, hasSleep } = mood.sheet;
+  const { split, nights, hasSleep } = mood.sheet;
   const maxNight = Math.max(9, ...nights.map((n) => n.hours ?? 0));
   const known = nights.filter((n) => n.hours !== null);
   const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
@@ -56,7 +57,7 @@ function MoodSheet({ mood, open, onClose }: { mood: NonNullable<OverviewView['mo
               <ValueRow label={`under ${SLEEP_CUT}h`} value={split.lo} max={10} text={<>{split.lo} · {days(split.nLo)}</>} />
             </ul>
           ) : (
-            <Quiet>{hasSleep ? 'Needs 10 days with mood and sleep, at least 3 on each side of 7h.' : 'Log sleep in your hours (a category named Sleep) to see this.'}</Quiet>
+            <Quiet>{hasSleep ? `Needs ${MIN_PAIRS} days with mood and sleep, at least ${MIN_SIDE} on each side of ${SLEEP_CUT}h.` : 'Log sleep in your hours (a category named Sleep) to see this.'}</Quiet>
           )}
         </section>
 
@@ -84,20 +85,7 @@ function MoodSheet({ mood, open, onClose }: { mood: NonNullable<OverviewView['mo
           )}
         </section>
 
-        <section>
-          <Head>Mood by weekday</Head>
-          {weekday.some((d) => d.avg !== null) ? (
-            <ul>
-              {weekday.map((d) => (
-                <ValueRow key={d.day} label={d.day} value={d.avg} max={10} text={d.avg !== null ? d.avg : <span style={{ color: 'var(--text-3)' }}>no mood</span>} />
-              ))}
-            </ul>
-          ) : (
-            <Quiet>No moods in the last 90 days.</Quiet>
-          )}
-        </section>
-
-        <TrendsLink href="/trends?tab=mood">Mood on Trends ›</TrendsLink>
+        <TrendsLink href="/trends?tab=insights">Week rhythm and more on Insights ›</TrendsLink>
       </div>
     </Sheet>
   );

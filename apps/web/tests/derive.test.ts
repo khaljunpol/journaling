@@ -35,7 +35,6 @@ test('brand-new user: every section has its empty answer and no NaN', () => {
   const v = deriveOverview({ today: TODAY, dash: empty, quick: null });
   assert.equal(v.mood?.avg, null);
   assert.equal(v.mood?.delta, null);
-  assert.equal(v.mood?.link, null); // no sleep category, no habits: nothing to link
   assert.equal(v.habits?.rate, null);
   assert.equal(v.habits?.streak, 0);
   assert.equal(v.habits?.count, 0);

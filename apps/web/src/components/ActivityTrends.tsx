@@ -114,9 +114,6 @@ export default function ActivityTrends() {
   return (
     <Card>
       <CardHeader title="Habits" meta={<span className="text-[13px]" style={{ color: 'var(--text-2)' }}>{wide ? 'Last 12 months' : 'Last 12 weeks'}</span>} />
-      <p className="num mb-3 text-[14px]" style={{ color: 'var(--text-2)' }}>
-        Last 7 days <strong style={{ color: 'var(--text-1)' }}>{grid.week}%</strong> · Week before <strong style={{ color: 'var(--text-1)' }}>{grid.prevWeek}%</strong>
-      </p>
 
       <div className="mb-1 flex items-end gap-2">
         <div className="flex-1 overflow-hidden" aria-hidden="true">

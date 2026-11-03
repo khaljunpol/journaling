@@ -1,17 +1,15 @@
 // The Overview's answers for a small screen: the same maths, fewer numbers. Pure. Relative imports only.
-import { parseLocalDate } from './date.ts';
 import { dayState, lateLines, type DayStamp } from './dayState.ts';
+import { insightLine, insights, SAME, SLEEP_CUT, type InsightInput } from './insights.ts';
 import { lastDates } from './overview.ts';
 import {
   avgKnown,
   bestStreak,
-  dailySeries,
   daySpan,
   findSleepIds,
   habitDays,
   habitRate,
   habitStreakGrace,
-  moodSplit,
   moodWeek,
   sleepNights,
   timeCompare,
@@ -43,39 +41,21 @@ export type DeviceInsights = {
 };
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
-/** The sleep cut-off, same as the Overview. */
-const SLEEP_CUT = 7;
-/** A smaller mood difference reads as "about the same". */
-const SAME = 0.3;
 /** Habit percent points that count as a real change. */
 const HABIT_SHIFT = 5;
 /** Hours that count as a real change in a week. */
 const TIME_SHIFT = 5;
-/** Mood days a weekday needs before we say anything about it. */
-const WEEKDAY_MIN = 3;
-const WEEKDAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
-
-/** Mean mood per weekday over the moods given, for weekdays with enough days. */
-function weekdayMeans(moods: MoodRow[], today: string): Array<{ day: string; avg: number }> {
-  const sums = WEEKDAYS.map(() => ({ s: 0, n: 0 }));
-  for (const p of dailySeries(moods, today, 90)) {
-    if (p.value === null) continue;
-    const i = parseLocalDate(p.date).getDay();
-    sums[i].s += p.value;
-    sums[i].n += 1;
-  }
-  return sums.flatMap((x, i) => (x.n >= WEEKDAY_MIN ? [{ day: WEEKDAYS[i], avg: x.s / x.n }] : []));
-}
-
 export function deviceInsights(args: {
   today: string;
-  /** The last 90 days. */
+  /** The last 180 days (the insight window). */
   moods: MoodRow[];
-  /** The last 90 days. */
+  /** The last 180 days. */
   hours: HourRow[];
   logs: HabitLog[];
   cats: Array<Cat & { group?: string }>;
   activeIds: Set<string>;
+  /** Names and categories, for the insight lines. Without it, active ids stand in, named by id. */
+  activities?: InsightInput['activities'];
   /** The last 90 days. */
   weights?: Array<{ date: string }>;
   stamps?: DayStamp[];
@@ -84,7 +64,6 @@ export function deviceInsights(args: {
   const mw = moodWeek(moods, today);
   const sleepIds = findSleepIds(cats);
   const dates14 = lastDates(today, 14);
-  const dates90 = lastDates(today, 90);
   const week = dates14.filter((d) => d >= weekWindow(today).from);
 
   let first = dates14[0];
@@ -105,20 +84,17 @@ export function deviceInsights(args: {
   const lines: DeviceLine[] = [];
 
   // Monday opens with last week.
-  const recap = today === mondayOf(today) ? weekRecap({ today, moods, hours, logs, cats, activeIds, weights, stamps }) : null;
+  const activities = args.activities ?? [...activeIds].map((id) => ({ id, name: id }));
+  const recap = today === mondayOf(today) ? weekRecap({ today, moods, hours, logs, cats, activeIds, activities, weights, stamps }) : null;
   if (recap) lines.push({ text: recapLine(recap), tone: 'neutral' });
 
-  // Why: what goes with a better mood.
-  const sleepSide = new Map<string, boolean>();
-  if (sleepIds.size) for (const n of sleepNights(hours, sleepIds, dates90, today)) if (n.hours !== null) sleepSide.set(n.date, n.hours >= SLEEP_CUT);
-  const sleepSplit = sleepIds.size ? moodSplit(moods, sleepSide, today) : null;
-  if (sleepSplit && sleepSplit.diff >= SAME) lines.push({ text: `Mood is ${sleepSplit.diff} higher after ${SLEEP_CUT}h+ sleep`, tone: 'good' });
-  else if (sleepSplit && sleepSplit.diff <= -SAME) lines.push({ text: `Mood is ${Math.abs(sleepSplit.diff)} higher on shorter nights`, tone: 'neutral' });
-
-  const habitSide = new Map<string, boolean>();
-  if (activeIds.size) for (const d of habitDays(logs, activeIds, dates90)) habitSide.set(d.date, d.share >= 0.5);
-  const habitSplit = activeIds.size ? moodSplit(moods, habitSide, today) : null;
-  if (habitSplit && habitSplit.diff >= SAME) lines.push({ text: `Mood is ${habitSplit.diff} higher on good habit days`, tone: 'good' });
+  // Why: what goes with a better mood (same rules as the Insights tab).
+  const found = insights({ today, moods, hours, logs, activities, cats });
+  const lift = found.lifts[0];
+  // A bad habit never reads as a win.
+  if (lift) lines.push({ text: insightLine(lift), tone: lift.gap > 0 && !lift.bad ? 'good' : 'neutral' });
+  const next = found.nextDay[0];
+  if (next) lines.push({ text: insightLine(next, true), tone: next.gap > 0 && !next.bad ? 'good' : 'neutral' });
 
   // How this week is going.
   if (delta !== null && delta >= SAME) lines.push({ text: `Mood is up ${delta} on last week`, tone: 'good' });
@@ -143,10 +119,9 @@ export function deviceInsights(args: {
   lines.push(...lateLines(stamps, hasData, today));
 
   // Patterns and where the time went.
-  const means = weekdayMeans(moods, today).sort((a, b) => b.avg - a.avg);
-  if (means.length >= 2 && means[0].avg - means[means.length - 1].avg >= 1) {
-    lines.push({ text: `${means[0].day} are your best mood days`, tone: 'good' });
-    lines.push({ text: `${means[means.length - 1].day} are your lowest mood days`, tone: 'neutral' });
+  if (found.rhythm) {
+    lines.push({ text: `${found.rhythm.best.day}s are your best mood days`, tone: 'good' });
+    lines.push({ text: `${found.rhythm.low.day}s are your lowest mood days`, tone: 'neutral' });
   }
   const top = compare.top;
   if (top && top.delta >= TIME_SHIFT) lines.push({ text: `${top.name} is up ${top.delta}h on last week`, tone: 'neutral' });

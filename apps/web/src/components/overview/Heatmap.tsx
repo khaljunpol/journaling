@@ -1,5 +1,4 @@
 import type { KeyboardEvent } from 'react';
-import { moodColor, moodLabel } from '@journaling/core/mood';
 import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 const CELL = 10;
@@ -10,7 +9,10 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 type Props = {
   year: number;
-  moods: Record<string, number>;
+  /** Colour and label per date. A date with no entry is drawn as no data. */
+  values: Record<string, { color: string; label: string }>;
+  /** What the cells show, for the label: "Mood", "Habits", "Sleep". */
+  what: string;
   today: string;
   /** Makes the cells tappable (Trends). Without it the grid is a plain picture (Overview). */
   onSelect?: (date: string) => void;
@@ -18,11 +20,11 @@ type Props = {
 };
 
 /**
- * Year grid, one cell per day, coloured by mood. Own SVG.
+ * Year grid, one cell per day, coloured by the layer given. Own SVG.
  * Read-only by default. With `onSelect`, a cell is a button: tap, or arrow keys to move
  * (left/right = day, up/down = week) and Enter or Space to pick.
  */
-export default function Heatmap({ year, moods, today, onSelect, selected = null }: Props) {
+export default function Heatmap({ year, values, what, today, onSelect, selected = null }: Props) {
   const first = `${year}-01-01`;
   const start = mondayOf(first);
   const cols = 53;
@@ -33,7 +35,7 @@ export default function Heatmap({ year, moods, today, onSelect, selected = null 
       if (date.startsWith(`${year}-`)) cells.push({ date, col: c, row: r });
     }
   }
-  const logged = cells.filter((c) => moods[c.date] !== undefined).length;
+  const logged = cells.filter((c) => values[c.date] !== undefined).length;
   const monthStarts = new Map<number, number>();
   for (const c of cells) {
     const m = Number(c.date.slice(5, 7)) - 1;
@@ -63,18 +65,18 @@ export default function Heatmap({ year, moods, today, onSelect, selected = null 
       role={interactive ? 'group' : 'img'}
       aria-label={
         interactive
-          ? `Mood by day in ${year}: ${logged} days logged. Use the arrow keys to move between days.`
-          : `Mood by day in ${year}: ${logged} days logged. Open Trends for details.`
+          ? `${what} by day in ${year}: ${logged} days with data. Use the arrow keys to move between days.`
+          : `${what} by day in ${year}: ${logged} days with data.`
       }
     >
       {[...monthStarts.entries()].map(([m, col]) => (
         <text key={m} x={col * STEP} y={9} fontSize="9" fill="var(--text-3)">{MONTHS[m]}</text>
       ))}
       {cells.map((c) => {
-        const score = moods[c.date];
+        const v = values[c.date];
         const future = c.date > today;
         const isSel = selected === c.date;
-        const label = score !== undefined ? `${c.date}: ${moodLabel(score)} (${score}/10)` : `${c.date}: no mood`;
+        const label = v ? v.label : `${c.date}: no data`;
         return (
           <rect
             key={c.date}
@@ -84,8 +86,8 @@ export default function Heatmap({ year, moods, today, onSelect, selected = null 
             width={CELL}
             height={CELL}
             rx={2}
-            fill={score !== undefined ? moodColor(score) : 'var(--surface-3)'}
-            opacity={future ? 0.35 : score !== undefined ? 0.95 : 0.8}
+            fill={v ? v.color : 'var(--surface-3)'}
+            opacity={future ? 0.35 : v ? 0.95 : 0.8}
             stroke={isSel ? 'var(--text-1)' : 'none'}
             strokeWidth={isSel ? 1.5 : 0}
             {...(interactive

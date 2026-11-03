@@ -1,30 +1,31 @@
-import type { ReactNode } from 'react';
+import Link from 'next/link';
 import Answer from '@/components/climbing/overview/Answer';
 import { parseLocalDate } from '@journaling/core/date';
 import { hm } from '@journaling/core/overviewStats';
-import type { MoodLink, OverviewView } from './derive';
-import { Section, SectionSkeleton, SubLine, signed } from './Section';
+import { insightLine } from '@journaling/core/insights';
+import { useInsights } from '@/components/insights/useInsights';
+import type { OverviewView } from './derive';
+import { Section, SectionSkeleton, signed } from './Section';
 import TrendChip from './TrendChip';
 
 const Q = 'How am I doing?';
 
-/** The link line under the mood answer, in spec order (sleep, habits, n more days, about the same). */
-export function linkCopy(link: MoodLink): ReactNode {
-  switch (link.kind) {
-    case 'sleep':
-      return <>Mood is <span className="num">{link.diff}</span> higher {link.side === 'hi' ? 'after 7h+ sleep' : 'after nights under 7h'}.</>;
-    case 'habits':
-      return <>Mood is <span className="num">{link.diff}</span> higher on days you do half your habits.</>;
-    case 'more':
-      return <><span className="num">{link.days}</span> more {link.days === 1 ? 'day' : 'days'} of mood + sleep to see a link.</>;
-    case 'same':
-      return <>Mood looks about the same however you sleep.</>;
-  }
+/** The top insight, or how many mood days are still needed. Opens Trends > Insights. Hidden until known. */
+function InsightLine() {
+  const { data } = useInsights();
+  if (!data) return null;
+  const top = data.lifts[0];
+  const text = top ? `${insightLine(top)}.` : data.moreDays > 0 ? `${data.moreDays} more ${data.moreDays === 1 ? 'day' : 'days'} of mood to see insights.` : 'No clear mood link yet.';
+  return (
+    <Link href="/trends?tab=insights" className="press -mx-1 mt-1 block rounded-[8px] px-1 text-[13px]" style={{ color: 'var(--text-2)' }}>
+      {text} <span style={{ color: 'var(--accent)' }}>›</span>
+    </Link>
+  );
 }
 
 export default function MoodSection({ mood, today, onDetails }: { mood: OverviewView['mood']; today: string; onDetails: () => void }) {
   if (!mood) return <SectionSkeleton question={Q} />;
-  const { avg, prevAvg, delta, sleepAvg, link, bars } = mood;
+  const { avg, prevAvg, delta, sleepAvg, bars } = mood;
   const sleepPart = sleepAvg !== null ? [<>sleep <span className="num">{hm(sleepAvg)}</span> a night</>] : [];
   const parts = avg !== null
     ? [<>Mood <span className="num">{avg}</span> this week</>, ...sleepPart]
@@ -38,7 +39,7 @@ export default function MoodSection({ mood, today, onDetails }: { mood: Overview
           <TrendChip text={delta === 0 ? 'same as last week' : `${signed(delta)} vs last week`} delta={delta} />
         </div>
       ) : null}
-      {link ? <SubLine>{linkCopy(link)}</SubLine> : null}
+      <InsightLine />
       <div className="mt-auto pt-4">
         <div
           className="flex h-24 items-end gap-1"

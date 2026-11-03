@@ -90,17 +90,17 @@ test('note: no best day on a tie or with too few moods', () => {
 test('note: falls back to the sleep link', () => {
   const moods: Array<{ date: string; score: number }> = [];
   const hours: Array<{ date: string; hour: number; category: number }> = [];
-  for (let d = 1; d <= 6; d++) {
+  for (let d = 1; d <= 9; d++) {
     const date = `2026-10-0${d}`;
-    moods.push({ date, score: d <= 3 ? 8 : 5 });
-    for (let h = 0; h < (d <= 3 ? 8 : 5); h++) hours.push({ date, hour: h, category: 1 });
+    moods.push({ date, score: d <= 4 ? 8 : 5 });
+    for (let h = 0; h < (d <= 4 ? 8 : 5); h++) hours.push({ date, hour: h, category: 1 });
   }
-  for (const date of ['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-13']) {
+  for (const date of ['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14']) {
     moods.push({ date, score: 8 });
     for (let h = 0; h < 8; h++) hours.push({ date, hour: h, category: 1 });
   }
   moods.push({ date: '2026-11-10', score: 8 });
-  assert.deepEqual(weekRecap({ ...base, moods, hours })?.note, { text: 'Mood is 3 higher after 7h+ sleep', tone: 'good' });
+  assert.deepEqual(weekRecap({ ...base, moods, hours })?.note, { text: 'On days after 7h+ sleep, mood is 3 higher', tone: 'good' });
 });
 
 test('recapLine: one sentence from what exists', () => {

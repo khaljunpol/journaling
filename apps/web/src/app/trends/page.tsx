@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import ActivityTrendsClient from '@/components/ActivityTrendsClient';
 import DailyWeight from '@/components/DailyWeightClient';
+import InsightsView from '@/components/insights/InsightsView';
 import MoodYearGrid from '@/components/MoodYearGrid';
 import SummaryPromptPanel from '@/components/SummaryPromptPanel';
 import TimeTrackerViewClient from '@/components/TimeTrackerViewClient';
@@ -16,6 +17,7 @@ import WeightTrendChart from '@/components/WeightTrendChart';
 import { localTodayISO } from '@journaling/core/date';
 
 const TABS = [
+  { id: 'insights', label: 'Insights' },
   { id: 'mood', label: 'Mood' },
   { id: 'time', label: 'Time' },
   { id: 'body', label: 'Body' },
@@ -23,7 +25,8 @@ const TABS = [
 ] as const;
 
 const CONTEXT: Record<string, string> = {
-  mood: 'Your year in moods.',
+  insights: 'What goes with a better day.',
+  mood: 'Your mood, month by month.',
   time: 'Where the hours go.',
   body: 'Weight over time.',
   habits: 'How often each habit gets done.',
@@ -44,6 +47,7 @@ function TrendsTabs() {
       />
       <Tabs tabs={TABS} label="Trends" />
 
+      <TabPanel tabs={TABS} id="insights"><InsightsView today={today} /></TabPanel>
       <TabPanel tabs={TABS} id="mood"><MoodYearGrid /></TabPanel>
       <TabPanel tabs={TABS} id="time"><TimeTrackerViewClient /></TabPanel>
       <TabPanel tabs={TABS} id="body">

@@ -1,14 +1,13 @@
 // Last week in one short summary: Monday to Sunday, finished weeks only. Pure. Relative imports only.
 import { parseLocalDate } from './date.ts';
 import { dayState, TRACKING_START, type DayStamp, type Line } from './dayState.ts';
-import { lastDates } from './overview.ts';
+import { insightLine, lifts, type InsightInput } from './insights.ts';
 import {
   avgKnown,
   dailySeries,
   findSleepIds,
   habitDays,
   habitRate,
-  moodSplit,
   moodWeek,
   sleepNights,
   timeCompare,
@@ -39,34 +38,20 @@ export type WeekRecap = {
 };
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
-const SLEEP_CUT = 7;
-/** A smaller mood difference says nothing. */
-const SAME = 0.3;
 /** Mood days a week needs before one can be called the best. */
 const BEST_MIN = 3;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-/** Best mood day of the week first: it changes every week. The 90-day links are the fallback. */
-function noteFor(moods: MoodRow[], hours: HourRow[], logs: HabitLog[], cats: Cat[], activeIds: Set<string>, to: string): Line | null {
+/** Best mood day of the week first: it changes every week. The top lift from insights.ts is the fallback. */
+function noteFor(moods: MoodRow[], hours: HourRow[], logs: HabitLog[], cats: Cat[], activities: InsightInput['activities'], to: string): Line | null {
   const known = dailySeries(moods, to, 7).flatMap((p) => (p.value === null ? [] : [{ date: p.date, value: p.value }]));
   const top = Math.max(...known.map((p) => p.value));
   const best = known.filter((p) => p.value === top);
   if (known.length >= BEST_MIN && best.length === 1) {
     return { text: `${DAY_NAMES[parseLocalDate(best[0].date).getDay()]} was your best day, mood ${round1(top)}`, tone: 'good' };
   }
-
-  const dates = lastDates(to, 90);
-  const sleepIds = findSleepIds(cats);
-  const sleepSide = new Map<string, boolean>();
-  for (const n of sleepNights(hours, sleepIds, dates)) if (n.hours !== null) sleepSide.set(n.date, n.hours >= SLEEP_CUT);
-  const sleep = moodSplit(moods, sleepSide, to);
-  if (sleep && sleep.diff >= SAME) return { text: `Mood is ${sleep.diff} higher after ${SLEEP_CUT}h+ sleep`, tone: 'good' };
-
-  const habitSide = new Map<string, boolean>();
-  if (activeIds.size) for (const d of habitDays(logs, activeIds, dates)) habitSide.set(d.date, d.share >= 0.5);
-  const habit = moodSplit(moods, habitSide, to);
-  if (habit && habit.diff >= SAME) return { text: `Mood is ${habit.diff} higher on good habit days`, tone: 'good' };
-  return null;
+  const lift = lifts({ today: to, moods, hours, logs, activities, cats })[0];
+  return lift ? { text: insightLine(lift), tone: lift.gap > 0 && !lift.bad ? 'good' : 'neutral' } : null;
 }
 
 /** Null when last week has nothing to say. */
@@ -77,6 +62,8 @@ export function weekRecap(args: {
   logs: HabitLog[];
   cats: Array<Cat & { group?: string }>;
   activeIds: Set<string>;
+  /** Names and categories for the fallback note. Without it, active ids stand in, named by id. */
+  activities?: InsightInput['activities'];
   weights?: Array<{ date: string }>;
   stamps?: DayStamp[];
 }): WeekRecap | null {
@@ -108,7 +95,7 @@ export function weekRecap(args: {
     habits,
     days: tracked ? { onTime: count('onTime'), late: count('late'), missed: count('missed') } : null,
     time,
-    note: noteFor(moods, hours, logs, cats, activeIds, to),
+    note: noteFor(moods, hours, logs, cats, args.activities ?? [...activeIds].map((id) => ({ id, name: id })), to),
   };
 }
 

@@ -89,14 +89,14 @@ test('lines: short sleep is bad, enough sleep is good', () => {
   assert.ok(texts(deviceInsights({ ...base, hours: night('2026-10-27', 8) })).includes('good: Sleeping 8h a night this week'));
 });
 
-test('lines: mood linked to sleep needs enough days on both sides', () => {
-  const nights = Array.from({ length: 12 }, (_, i) => i).flatMap((i) => {
+test('lines: mood linked to sleep needs 14 days and 5 on each side', () => {
+  const nights = Array.from({ length: 14 }, (_, i) => i).flatMap((i) => {
     const date = `2026-10-${String(10 + i).padStart(2, '0')}`;
     return Array.from({ length: i % 2 ? 8 : 5 }, (_, hour) => ({ date, hour, category: 1 }));
   });
-  const moods = Array.from({ length: 12 }, (_, i) => ({ date: `2026-10-${String(10 + i).padStart(2, '0')}`, score: i % 2 ? 8 : 6 }));
-  assert.equal(deviceInsights({ ...base, hours: nights, moods }).lines[0].text, 'Mood is 2 higher after 7h+ sleep');
-  assert.ok(!texts(deviceInsights({ ...base, hours: nights.slice(0, 13), moods: moods.slice(0, 2) })).some((t) => t.includes('higher after')));
+  const moods = Array.from({ length: 14 }, (_, i) => ({ date: `2026-10-${String(10 + i).padStart(2, '0')}`, score: i % 2 ? 8 : 6 }));
+  assert.equal(deviceInsights({ ...base, hours: nights, moods }).lines[0].text, 'On days after 7h+ sleep, mood is 2 higher');
+  assert.ok(!texts(deviceInsights({ ...base, hours: nights, moods: moods.slice(0, 12) })).some((t) => t.includes('sleep, mood')));
 });
 
 test('lines: a streak names the best this year', () => {
@@ -104,13 +104,37 @@ test('lines: a streak names the best this year', () => {
   assert.ok(texts(deviceInsights({ ...base, logs })).includes('good: 5-day habit streak, your best this year'));
 });
 
-test('lines: weekdays need enough days and a real gap', () => {
-  // Mondays 8, Tuesdays 5, three of each.
-  const moods = ['2026-10-05', '2026-10-12', '2026-10-19'].flatMap((mon) => {
+test('lines: weekdays need 4 moods each and a real gap', () => {
+  // Mondays 8, Tuesdays 5, four of each; three of each says nothing.
+  const moods = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'].flatMap((mon) => {
     const tue = `${mon.slice(0, 8)}${String(Number(mon.slice(8)) + 1).padStart(2, '0')}`;
     return [{ date: mon, score: 8 }, { date: tue, score: 5 }];
   });
   const t = texts(deviceInsights({ ...base, moods }));
   assert.ok(t.includes('good: Mondays are your best mood days'));
   assert.ok(t.includes('neutral: Tuesdays are your lowest mood days'));
+  assert.ok(!texts(deviceInsights({ ...base, moods: moods.slice(2) })).some((x) => x.includes('mood days')));
+});
+
+test('lines: the top habit lift and next-day lines come from insights', () => {
+  const activities = [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Read' }];
+  const day = (i: number) => `2026-10-${String(i).padStart(2, '0')}`;
+  const logs = [
+    ...Array.from({ length: 10 }, (_, i) => ({ date: day(i + 1), activityId: 'a', completed: true })),
+    ...Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), activityId: 'b', completed: true })),
+  ];
+  const moods = Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), score: i < 10 ? 8 : 6 }));
+  const t = texts(deviceInsights({ ...base, activities, logs, moods }));
+  assert.ok(t.includes('good: On days when Gym is done, mood is 2 higher'));
+});
+
+test('lines: a bad habit never reads as a win, even with a higher mood', () => {
+  const activities = [{ id: 'a', name: 'Beer' }, { id: 'b', name: 'Read' }];
+  const day = (i: number) => `2026-10-${String(i).padStart(2, '0')}`;
+  const logs = [
+    ...Array.from({ length: 10 }, (_, i) => ({ date: day(i + 1), activityId: 'a', completed: true })),
+    ...Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), activityId: 'b', completed: true })),
+  ];
+  const moods = Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), score: i < 10 ? 8 : 6 }));
+  assert.ok(texts(deviceInsights({ ...base, activities, logs, moods })).includes('neutral: On days when Beer is done, mood is 2 higher'));
 });

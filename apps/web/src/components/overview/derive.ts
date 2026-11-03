@@ -27,7 +27,7 @@ import {
 } from '@journaling/core/overviewStats';
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
-import { parseLocalDate } from '@journaling/core/date';
+import { MIN_PAIRS, MIN_SIDE, SLEEP_CUT } from '@journaling/core/insights';
 import { goodIds } from '@journaling/core/habitCategory';
 import { keepingUp, type KeepingUp } from '@journaling/core/keepingUp';
 import { weekRecap, type WeekRecap } from '@journaling/core/weekRecap';
@@ -55,16 +55,8 @@ export type DashboardData = {
   sidequests?: Sidequest[];
 };
 
-/** The sleep cut-off for the mood link (default: 7h). */
-export const SLEEP_CUT = 7;
-/** A small difference reads as "about the same". */
-const SAME = 0.3;
-
-export type MoodLink =
-  | { kind: 'sleep'; diff: number; side: 'hi' | 'lo' }
-  | { kind: 'habits'; diff: number }
-  | { kind: 'more'; days: number }
-  | { kind: 'same' };
+/** The sleep cut-off, from the one insight rule set. */
+export { SLEEP_CUT };
 
 export type OverviewView = {
   mood: {
@@ -73,13 +65,11 @@ export type OverviewView = {
     /** this week minus last week (same days); null when either side has no mood */
     delta: number | null;
     sleepAvg: number | null;
-    link: MoodLink | null;
     bars: Array<{ date: string; value: number | null; thisWeek: boolean }>;
     sheet: {
       hasSleep: boolean;
       split: { hi: number; lo: number; nHi: number; nLo: number } | null;
       nights: Array<{ date: string; hours: number | null }>;
-      weekday: Array<{ day: string; avg: number | null; n: number }>;
     };
   } | null;
   habits: {
@@ -117,7 +107,6 @@ export type OverviewView = {
   keeping: KeepingUp | null;
 };
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
 /** Hour rows from the dashboard (this year) and the January tail, with Today's days (incl. unsent taps) on top. */
@@ -150,15 +139,6 @@ function mergeLogs(history: HabitLog[] | null, dash: DashboardData | null, quick
   const out = (history ?? dash?.logs30 ?? []).filter((l) => !own.has(l.date.slice(0, 10)));
   if (quick) for (const d of Object.values(quick.days)) for (const l of d.logs) out.push({ date: d.date, activityId: l.activityId, completed: l.completed });
   return out;
-}
-
-/** Mood days that have a known side, and how many fall on each side. */
-function pairCounts(moods: MoodRow[], side: Map<string, boolean>, today: string): { pairs: number; nHi: number; nLo: number } {
-  const dates = new Set(moods.filter((m) => m.date <= today).map((m) => m.date));
-  let nHi = 0;
-  let nLo = 0;
-  for (const [date, hi] of side) if (date <= today && dates.has(date)) (hi ? nHi++ : nLo++);
-  return { pairs: nHi + nLo, nHi, nLo };
 }
 
 export function deriveOverview(args: {
@@ -221,48 +201,21 @@ export function deriveOverview(args: {
     const hasSleep = sleepIds.size > 0;
     const sleepAvg = hasSleep ? avgKnown(sleepNights(hours, sleepIds, weekDates, today)) : null;
 
+    // The mood sheet's sleep split uses the Insights rules (14 days, 5 on each side).
     const sleepSide = new Map<string, boolean>();
     if (hasSleep) for (const n of sleepNights(hours, sleepIds, dates90, today)) if (n.hours !== null) sleepSide.set(n.date, n.hours >= SLEEP_CUT);
-    const sleepSplit = hasSleep ? moodSplit(moods, sleepSide, today) : null;
-
-    // Spec order: 1 sleep link, 2 habit link, 3 "n more days", 4 "about the same".
-    let link: MoodLink | null = null;
-    if (sleepSplit && Math.abs(sleepSplit.diff) >= SAME) {
-      link = { kind: 'sleep', diff: Math.abs(sleepSplit.diff), side: sleepSplit.diff > 0 ? 'hi' : 'lo' };
-    } else {
-      const goodSide = new Map<string, boolean>();
-      if (activeIds.size) for (const d of habitDays(logs, activeIds, dates90)) goodSide.set(d.date, d.share >= 0.5);
-      const habitSplit = activeIds.size ? moodSplit(moods, goodSide, today) : null;
-      if (habitSplit && habitSplit.diff >= SAME) link = { kind: 'habits', diff: habitSplit.diff };
-      else if (sleepSplit) link = { kind: 'same' };
-      else if (hasSleep) {
-        const c = pairCounts(moods, sleepSide, today);
-        const days = Math.max(10 - c.pairs, Math.max(0, 3 - c.nHi) + Math.max(0, 3 - c.nLo), 1);
-        link = { kind: 'more', days };
-      }
-    }
-
-    // Mood by weekday over the 90 days (Mon first).
-    const sums = WEEKDAYS.map(() => ({ s: 0, n: 0 }));
-    for (const p of dailySeries(moods, today, 90)) {
-      if (p.value === null) continue;
-      const i = (parseLocalDate(p.date).getDay() + 6) % 7;
-      sums[i].s += p.value;
-      sums[i].n += 1;
-    }
+    const sleepSplit = hasSleep ? moodSplit(moods, sleepSide, today, { pairs: MIN_PAIRS, side: MIN_SIDE }) : null;
 
     mood = {
       avg: mw.avg,
       prevAvg: mw.prevAvg,
       delta: mw.avg !== null && mw.prevAvg !== null ? round1(mw.avg - mw.prevAvg) : null,
       sleepAvg,
-      link,
       bars: dailySeries(moods, today, 14).map((p) => ({ ...p, thisWeek: p.date >= w.from })),
       sheet: {
         hasSleep,
         split: sleepSplit ? { hi: sleepSplit.hi, lo: sleepSplit.lo, nHi: sleepSplit.nHi, nLo: sleepSplit.nLo } : null,
         nights: hasSleep ? sleepNights(hours, sleepIds, dates14, today) : dates14.map((date) => ({ date, hours: null })),
-        weekday: WEEKDAYS.map((day, i) => ({ day, avg: sums[i].n ? round1(sums[i].s / sums[i].n) : null, n: sums[i].n })),
       },
     };
   }
@@ -307,6 +260,7 @@ export function deriveOverview(args: {
         logs,
         cats,
         activeIds,
+        activities: activeList,
         weights: Object.values(quick.days).filter((d) => d.weight !== null),
         stamps: quick.stamps,
       })

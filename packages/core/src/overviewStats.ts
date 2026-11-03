@@ -104,12 +104,20 @@ export function avgKnown(nights: Array<{ date: string; hours: number | null }>):
   return m == null ? null : round1(m);
 }
 
-/** Mean mood on high-side days vs low-side days. byDate: true = high side. Null under 10 pairs or 3 per side. */
+/** Sample standard deviation; 0 under 2 values. */
+function sd(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+  return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1));
+}
+
+/** Mean mood on high-side days vs low-side days. byDate: true = high side. Null under `min.pairs` pairs or `min.side` per side (default 10/3). */
 export function moodSplit(
   moods: MoodRow[],
   byDate: Map<string, boolean>,
   today: string,
-): { hi: number; lo: number; nHi: number; nLo: number; diff: number } | null {
+  min: { pairs: number; side: number } = { pairs: 10, side: 3 },
+): { hi: number; lo: number; nHi: number; nLo: number; diff: number; sdHi: number; sdLo: number } | null {
   const by = moodByDate(moods, today);
   const hi: number[] = [];
   const lo: number[] = [];
@@ -119,10 +127,10 @@ export function moodSplit(
     if (m == null) continue;
     (high ? hi : lo).push(m);
   }
-  if (hi.length + lo.length < 10 || hi.length < 3 || lo.length < 3) return null;
+  if (hi.length + lo.length < min.pairs || hi.length < min.side || lo.length < min.side) return null;
   const hiAvg = meanOrNull(hi) as number;
   const loAvg = meanOrNull(lo) as number;
-  return { hi: round1(hiAvg), lo: round1(loAvg), nHi: hi.length, nLo: lo.length, diff: round1(hiAvg - loAvg) };
+  return { hi: round1(hiAvg), lo: round1(loAvg), nHi: hi.length, nLo: lo.length, diff: round1(hiAvg - loAvg), sdHi: sd(hi), sdLo: sd(lo) };
 }
 
 /** Per date: completed checks of the active habits (each habit once) and their share. */

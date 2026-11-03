@@ -146,7 +146,7 @@ describe('moodSplit', () => {
   });
   it('computes sides and diff', () => {
     const m = moods(Array.from({ length: 10 }, (_, i) => [i + 1, i < 5 ? 4 : 3] as [number, number]));
-    assert.deepEqual(moodSplit(m, flags(10, 5), TODAY), { hi: 4, lo: 3, nHi: 5, nLo: 5, diff: 1 });
+    assert.deepEqual(moodSplit(m, flags(10, 5), TODAY), { hi: 4, lo: 3, nHi: 5, nLo: 5, diff: 1, sdHi: 0, sdLo: 0 });
   });
   it('ignores days without a mood or without a flag', () => {
     const m = moods(Array.from({ length: 10 }, (_, i) => [i + 1, 3] as [number, number]));
