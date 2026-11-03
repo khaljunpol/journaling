@@ -14,6 +14,7 @@ export const TABS = {
   sidequestLogs: 'SidequestLogs',
   settings: 'Settings',
   dayLogs: 'DayLogs',
+  dayScores: 'DayScores',
 } as const;
 
 export type TabKey = keyof typeof TABS;
@@ -32,6 +33,8 @@ export const HEADERS: Record<TabKey, string[]> = {
   sidequestLogs: ['id', 'sidequestId', 'date', 'value', 'value2', 'note', 'milestoneIndex'],
   settings: ['key', 'value'],
   dayLogs: ['date', 'kind', 'at'],
+  /** Locked days of the game: one row per date, written once. See packages/core/src/ledger.ts. */
+  dayScores: ['date', 'points', 'done', 'total', 'perfect', 'move', 'wellbeing', 'mind', 'people', 'other', 'at', 'v'],
 };
 
 /** A1 range with the tab name quoted; a single quote in the name is doubled. */

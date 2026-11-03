@@ -15,6 +15,7 @@ type YearData = { year: number; days: Record<string, DayTuple>; summary: { logge
 const LEGEND: Partial<Record<Layer, { color: string; steps: string[] }>> = {
   habits: { color: 'var(--accent)', steps: ['Some', 'Half', 'Most', 'All'] },
   sleep: { color: '#38BDF8', steps: ['<6h', '6–7h', '7–8h', '8h+'] },
+  points: { color: 'var(--accent)', steps: ['Some', 'More', 'Most', 'Max'] },
 };
 
 /** Draws `year:{year}` from cache first, then swaps in the fresh read. */
@@ -46,7 +47,8 @@ export default function YearCalendar({ today }: { today: string }) {
   const { data, failed } = useYear(year);
 
   const hasSleep = useMemo(() => Object.values(data?.days ?? {}).some((t) => t[2] !== null), [data]);
-  const layers: Layer[] = hasSleep ? ['mood', 'habits', 'sleep'] : ['mood', 'habits'];
+  const hasPoints = useMemo(() => Object.values(data?.days ?? {}).some((t) => (t[3] ?? 0) > 0), [data]);
+  const layers: Layer[] = ['mood', 'habits', ...(hasSleep ? (['sleep'] as const) : []), ...(hasPoints ? (['points'] as const) : [])];
   const layer = useLayer(layers);
   const values = useMemo(() => {
     const out: Record<string, Cell> = {};
@@ -59,7 +61,7 @@ export default function YearCalendar({ today }: { today: string }) {
 
   const years = Array.from({ length: 5 }, (_, i) => thisYear - 4 + i);
   const legend = LEGEND[layer];
-  const what = layer === 'mood' ? 'Mood' : layer === 'habits' ? 'Habits' : 'Sleep';
+  const what = layer === 'mood' ? 'Mood' : layer === 'habits' ? 'Habits' : layer === 'points' ? 'Points' : 'Sleep';
   const { logged = 0, bestMonth = null } = data?.summary ?? {};
 
   return (
@@ -88,6 +90,12 @@ export default function YearCalendar({ today }: { today: string }) {
                 {s}
               </li>
             ))}
+            {layer === 'points' ? (
+              <li className="flex items-center gap-1">
+                <span aria-hidden="true" className="size-2.5 rounded-[3px]" style={{ background: 'var(--reward)' }} />
+                Perfect
+              </li>
+            ) : null}
           </ul>
         ) : null}
       </div>

@@ -99,6 +99,11 @@ export function useCatchUp({ email, today, yesterday, payload, payloadRef, shown
     const days = upToToday.flatMap((d) => (p.days[d] ? [{ date: d, logs: p.days[d].logs }] : []));
     const plan = habitFillPlan(days, today, p.habitTemplates, p.ctx.activities);
     commit(plan.fills.flatMap((f) => habitLogSpecs(f.date, f.rows)));
+    // Filled days earn +10 per habit but no perfect bonus. Best effort: offline, the mark is lost.
+    const dates = plan.fills.map((f) => f.date);
+    if (dates.length) {
+      fetch('/api/game/fill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dates }) }).catch(() => {});
+    }
     setHabitMsg({ week: shown, text: habitMessage(plan) });
   }
 

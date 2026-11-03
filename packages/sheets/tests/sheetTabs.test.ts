@@ -35,12 +35,12 @@ describe('ensureCoreTabs', () => {
     const { client, calls } = fakeClient(['Logs', 'Moods']);
     const created = await ensureCoreTabs(client, 'id1');
     assert.equal(calls.addTabs.length, 1);
-    assert.equal(calls.addTabs[0].length, 11);
-    assert.equal(created.length, 11);
+    assert.equal(calls.addTabs[0].length, 12);
+    assert.equal(created.length, 12);
     assert.ok(!created.includes('Logs') && !created.includes('Moods'));
     assert.equal(calls.writeHeaders.length, 1);
     const entries = calls.writeHeaders[0];
-    assert.equal(entries.length, 11);
+    assert.equal(entries.length, 12);
     const titles = entries.map((e) => e.title);
     assert.ok(!titles.includes('Logs') && !titles.includes('Moods'));
     assert.deepEqual(entries.find((e) => e.title === TABS.activities)?.header, HEADERS.activities);

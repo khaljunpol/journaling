@@ -9,6 +9,8 @@ import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, h
 import type { StampKind } from '@journaling/core/dayState';
 import { deviceClimb } from '@journaling/core/deviceClimb';
 import { deviceInsights } from '@journaling/core/deviceInsights';
+import { deviceGame } from '@journaling/core/game';
+import { loadGame } from '@/lib/server/game';
 import { addDaysISO, mondayOf } from '@journaling/core/quickWeek';
 
 export const dynamic = 'force-dynamic';
@@ -57,7 +59,7 @@ async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceStat
   return deviceState(day, payload.ctx);
 }
 
-/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight; ?include=insights adds the Overview's answers; ?include=climb adds the climbing numbers. */
+/** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight; ?include=insights adds the Overview's answers; ?include=climb adds the climbing numbers; ?include=game adds points, level and the top streak. */
 export async function GET(req: Request) {
   try {
     const auth = await authDevice(req);
@@ -91,6 +93,10 @@ export async function GET(req: Request) {
       const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds, activities: payload.ctx.activities, weights, stamps });
       insights.lines.push(...climb.lines);
       return NextResponse.json({ ...deviceState(day, payload.ctx), insights }, { status: 200, headers: NO_STORE });
+    }
+    if (include === 'game') {
+      const [state, game] = await Promise.all([stateFor(auth.sheetAuth, today), loadGame(auth.sheetAuth, today, 'read')]);
+      return NextResponse.json({ ...state, game: deviceGame(game) }, { status: 200, headers: NO_STORE });
     }
     if (include === 'climb') {
       return NextResponse.json({ ...(await stateFor(auth.sheetAuth, today)), climb: await climbFor(auth.sheetAuth, today) }, { status: 200, headers: NO_STORE });

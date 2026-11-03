@@ -9,6 +9,8 @@ import { normalizeGrade } from '@journaling/core/climbing';
 import { withLock } from './keyedLock.ts';
 import type { DayStamp, StampKind } from '@journaling/core/dayState';
 import { pickEmptyEntries } from '@journaling/core/deviceState';
+import { onlyNewRows, scoreRowValues } from '@journaling/core/ledger';
+import type { DayScore } from '@journaling/core/scoring';
 import type { TabsClient } from './sheetTabs.ts';
 import { createTabCache, type RangeReader } from './sheetCache.ts';
 
@@ -145,6 +147,71 @@ export async function stampDay(sa: SheetAuth, date: string, kind: StampKind, at:
   } catch {
     console.warn('[sheets] could not save a day log time');
   }
+}
+
+/** Dates with a bulk-fill mark ("Fill usual habits"). Empty if the tab can't be read. */
+export async function listFillMarks(sa: SheetAuth): Promise<Set<string>> {
+  try {
+    const rows = await tabCache.readOne(sa.spreadsheetId, 'dayLogs');
+    return new Set(rows.filter((r) => r && r[1] === 'fill' && r[0]).map((r) => String(r[0]).trim()));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Marks days filled in bulk, so they earn no perfect bonus. One row per date, written once. Best effort. */
+export async function markFills(sa: SheetAuth, dates: string[], at: string): Promise<void> {
+  const { spreadsheetId } = sa;
+  const title = TABS.dayLogs;
+  try {
+    await withLock(`${spreadsheetId}:${title}`, async () => {
+      const sheets = getServiceSheets();
+      try {
+        const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:B') });
+        const have = new Set((res.data.values || []).filter((r) => r[1] === 'fill').map((r) => String(r[0])));
+        const values = [...new Set(dates)].filter((d) => !have.has(d)).map((d) => [d, 'fill', at]);
+        if (values.length === 0) return;
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW', requestBody: { values } });
+      } finally {
+        tabCache.invalidate(spreadsheetId, 'dayLogs');
+      }
+    });
+  } catch {
+    console.warn('[sheets] could not save a fill mark');
+  }
+}
+
+// ── Day scores: locked days of the game ──
+
+/** Every DayScores row. Empty if the tab can't be read: points must never break a page. */
+export async function listDayScores(sa: SheetAuth): Promise<unknown[][]> {
+  try {
+    return (await tabCache.readOne(sa.spreadsheetId, 'dayScores')) as unknown[][];
+  } catch {
+    return [];
+  }
+}
+
+/** Appends locked days. Re-reads under the lock and skips dates already there, so a repeat or a second tab adds nothing. */
+export async function appendDayScores(sa: SheetAuth, scores: DayScore[], at: string): Promise<number> {
+  if (scores.length === 0) return 0;
+  const { spreadsheetId } = sa;
+  const title = TABS.dayScores;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    const sheets = getServiceSheets();
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:L') });
+      const fresh = onlyNewRows((res.data.values || []) as unknown[][], scores);
+      if (fresh.length === 0) return 0;
+      await sheets.spreadsheets.values.append({
+        spreadsheetId, range: range(title, 'A1:L'), valueInputOption: 'RAW',
+        requestBody: { values: fresh.map((x) => scoreRowValues(x, at)) },
+      });
+      return fresh.length;
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'dayScores');
+    }
+  });
 }
 
 // ── Activities ──────────────────────────────────────────────

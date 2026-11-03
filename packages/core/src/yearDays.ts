@@ -4,16 +4,17 @@ import { firstSeen, type InsightInput } from './insights.ts';
 import { moodColor, moodLabel } from './mood.ts';
 import { findSleepIds, hm, sleepNights } from './overviewStats.ts';
 import { addDaysISO } from './quickWeek.ts';
+import { MAX_DAY } from './scoring.ts';
 
-/** [mood, share of good habits done, sleep hours, points]. Points stays null until stage 3. */
-export type DayTuple = [mood: number | null, habitShare: number | null, sleepHours: number | null, points: null];
+/** [mood, share of good habits done, sleep hours, points, perfect]. Points and perfect are null without game data. */
+export type DayTuple = [mood: number | null, habitShare: number | null, sleepHours: number | null, points: number | null, perfect?: boolean | null];
 export type Layer = 'mood' | 'habits' | 'sleep' | 'points';
 
 const day = (iso: string) => iso.slice(0, 10);
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
 /** Every date of `year` up to today with any value. Reads need 31 Dec of the year before, for the first night. */
-export function yearDays(year: number, input: InsightInput): Record<string, DayTuple> {
+export function yearDays(year: number, input: InsightInput, points?: Map<string, { points: number; perfect: boolean }>): Record<string, DayTuple> {
   const { today, moods, hours, logs, activities, cats } = input;
   const first = `${year}-01-01`;
   const last = `${year}-12-31` < today ? `${year}-12-31` : today;
@@ -61,9 +62,10 @@ export function yearDays(year: number, input: InsightInput): Record<string, DayT
       m ? round1(m.s / m.n) : null,
       logged.has(d) && goodBy(d) ? (doneGood.get(d)?.size ?? 0) / goodBy(d) : null,
       sleep.get(d) ?? null,
-      null,
+      points?.get(d)?.points ?? null,
+      points?.get(d)?.perfect ?? null,
     ];
-    if (t[0] !== null || t[1] !== null || t[2] !== null) out[d] = t;
+    if (t[0] !== null || t[1] !== null || t[2] !== null || (t[3] ?? 0) > 0) out[d] = t;
   }
   return out;
 }
@@ -91,7 +93,7 @@ const step = (base: string, n: number) => `color-mix(in srgb, ${base} ${n}%, var
 /** The cell's colour and label on a layer. null = no data (the cell uses --surface-3). */
 export function layerCell(layer: Layer, date: string, t: DayTuple | undefined): { color: string; label: string } | null {
   if (!t) return null;
-  const [mood, share, sleep] = t;
+  const [mood, share, sleep, pts, perfect] = t;
   if (layer === 'mood' && mood !== null) return { color: moodColor(mood), label: `${date}: ${moodLabel(mood)} (${mood}/10)` };
   if (layer === 'habits' && share !== null) {
     const n = share < 0.25 ? 25 : share < 0.5 ? 50 : share < 0.75 ? 75 : 100;
@@ -100,6 +102,12 @@ export function layerCell(layer: Layer, date: string, t: DayTuple | undefined): 
   if (layer === 'sleep' && sleep !== null) {
     const n = sleep < 6 ? 25 : sleep < 7 ? 50 : sleep < 8 ? 75 : 100;
     return { color: step('#38BDF8', n), label: `${date}: ${hm(sleep)} sleep` };
+  }
+  if (layer === 'points' && pts !== null && pts !== undefined && pts > 0) {
+    if (perfect) return { color: 'var(--reward)', label: `${date}: perfect day, ${pts} points` };
+    const r = pts / MAX_DAY;
+    const n = r < 0.25 ? 25 : r < 0.5 ? 50 : r < 0.75 ? 75 : 100;
+    return { color: step('var(--accent)', n), label: `${date}: ${pts} points` };
   }
   return null;
 }

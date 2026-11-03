@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState, Suspense } from 'react';
 import type { Sidequest, SidequestLog } from '@journaling/core/types';
 import SidequestCard from '@/components/SidequestCard';
+import Badges from '@/components/game/Badges';
+import LevelCard from '@/components/game/LevelCard';
+import StreakCard from '@/components/game/StreakCard';
+import StreakShareSheet from '@/components/game/StreakShareSheet';
+import type { Streak } from '@journaling/core/streaks';
+import { useGame } from '@/components/game/useGame';
 import SidequestForm from '@/components/SidequestForm';
 import { localTodayISO } from '@journaling/core/date';
 import Button from '@/components/ui/Button';
@@ -28,6 +34,8 @@ function ProgressView() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<SidequestWithLogs | null>(null);
   const filter = useRouteTab(TABS);
+  const game = useGame();
+  const [sharing, setSharing] = useState<Streak | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,11 +114,6 @@ function ProgressView() {
   const formOpen = showForm || editItem !== null;
   function closeForm() { setShowForm(false); setEditItem(null); }
 
-  const kpis = [
-    { label: 'Active', value: activeCount },
-    { label: `Done in ${year}`, value: doneCount },
-    { label: 'Logs this month', value: logsThisMonth },
-  ];
   const emptyCopy: Record<string, string> = {
     active: 'Nothing active right now. Start one when you feel like it.',
     done: 'Nothing finished yet. Each log counts toward it.',
@@ -142,19 +145,21 @@ function ProgressView() {
         />
       </Sheet>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 lg:gap-4">
-        {kpis.map((k) => (
-          <div key={k.label} className="card p-3 sm:p-5">
-            <div className="text-[12px] font-medium uppercase tracking-[0.04em]" style={{ color: 'var(--text-3)' }}>{k.label}</div>
-            {loading ? (
-              <Skeleton className="mt-2 h-7 w-10" />
-            ) : (
-              <div className="num mt-1 text-[28px] font-medium leading-tight" style={{ color: 'var(--text-1)' }}>{k.value}</div>
-            )}
-          </div>
-        ))}
+      {/* The game: level, streaks, badges. Phone: stacked. Desktop: level 2 columns, streaks 1. */}
+      <div className="grid gap-3 lg:grid-cols-3 lg:gap-4">
+        <div className="lg:col-span-2"><LevelCard game={game} /></div>
+        {game.state ? <StreakCard streaks={game.state.streaks} onShare={setSharing} /> : null}
+        {game.state ? <div className="lg:col-span-3"><Badges badges={game.state.badges} next={game.state.next} /></div> : null}
       </div>
+
+      <StreakShareSheet streak={sharing} level={game.numbers?.level ?? 1} bad={false} onClose={() => setSharing(null)} />
+
+      <h2 className="pt-2 text-[15px] font-medium" style={{ color: 'var(--text-1)' }}>Sidequests</h2>
+      {loading ? <Skeleton className="h-5 w-64" /> : (
+        <p className="num -mt-2 text-[14px]" style={{ color: 'var(--text-2)' }}>
+          {activeCount} active · {doneCount} done in {year} · {logsThisMonth} {logsThisMonth === 1 ? 'log' : 'logs'} this month
+        </p>
+      )}
 
       <Tabs tabs={TABS} label="Sidequest filter" />
 

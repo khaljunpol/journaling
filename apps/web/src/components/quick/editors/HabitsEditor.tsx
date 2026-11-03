@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { splitHabits } from '@journaling/core/habitCategory';
 import { habitLogSpecs, initialTicks, templateKind } from '@journaling/core/quickDay';
+import { localTodayISO } from '@journaling/core/date';
+import { rewardFor } from '@journaling/core/scoring';
+import { emitReward } from '@/components/game/rewardBus';
 import type { EditorProps } from './types';
 
 function HabitTile({ name, on, muted, onToggle }: { name: string; on: boolean; muted: boolean; onToggle: () => void }) {
@@ -47,7 +50,18 @@ export default function HabitsEditor({ date, payload, onSave }: EditorProps) {
   }
 
   function done() {
-    onSave(habitLogSpecs(date, list.map((a) => ({ activityId: a.id, completed: ticked.has(a.id) }))));
+    const rows = list.map((a) => ({ activityId: a.id, completed: ticked.has(a.id) }));
+    const r = rewardFor({
+      date,
+      today: localTodayISO(),
+      before: (day?.logs ?? []).map((l) => ({ date, activityId: l.activityId, completed: l.completed })),
+      after: rows.map((l) => ({ date, ...l })),
+      activities: list,
+      templates: payload.habitTemplates ?? { weekday: null, weekend: null },
+      stamps: payload.stamps ?? [],
+    });
+    onSave(habitLogSpecs(date, rows));
+    emitReward({ date, ...r });
   }
 
   return (

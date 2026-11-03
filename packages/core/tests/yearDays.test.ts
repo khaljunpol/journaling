@@ -54,7 +54,7 @@ test('layerCell: sleep steps under 6, 6-7, 7-8, 8+', () => {
   assert.equal(layerCell('sleep', '2026-06-01', [null, null, 7.5, null])?.label, '2026-06-01: 7h 30m sleep');
 });
 
-test('layerCell: mood uses moodColor; points is always null in stage 2', () => {
+test('layerCell: mood uses moodColor; no points means no cell', () => {
   assert.equal(layerCell('mood', '2026-06-01', [8, null, null, null])?.color, moodColor(8));
   assert.equal(layerCell('points', '2026-06-01', [8, 1, 8, null]), null);
   assert.equal(layerCell('mood', '2026-06-01', undefined), null);
@@ -65,4 +65,20 @@ test('yearDays: share counts only habits that existed that day', () => {
   const d = yearDays(2026, base({ logs: [log('2026-06-01', 'r'), log('2026-06-10', 'g'), log('2026-06-10', 'r', false)] }));
   assert.equal(d['2026-06-01'][1], 1);
   assert.equal(d['2026-06-10'][1], 0.5);
+});
+
+test('layerCell: points steps by share of 125, perfect days solid reward', () => {
+  const at = (p: number, perfect = false) => layerCell('points', '2026-06-01', [null, null, null, p, perfect]);
+  assert.equal(at(30)?.color, 'color-mix(in srgb, var(--accent) 25%, var(--surface-3))');
+  assert.equal(at(70)?.color, 'color-mix(in srgb, var(--accent) 75%, var(--surface-3))');
+  assert.equal(at(55, true)?.color, 'var(--reward)');
+  assert.equal(at(55, true)?.label, '2026-06-01: perfect day, 55 points');
+  assert.equal(at(30)?.label, '2026-06-01: 30 points');
+  assert.equal(at(0), null);
+});
+
+test('yearDays: points from the given map', () => {
+  const d = yearDays(2026, base({ logs: [log('2026-06-01', 'g')] }), new Map([['2026-06-01', { points: 35, perfect: true }], ['2026-06-05', { points: 10, perfect: false }]]));
+  assert.deepEqual(d['2026-06-01'].slice(3), [35, true]);
+  assert.deepEqual(d['2026-06-05'].slice(3), [10, false]);
 });

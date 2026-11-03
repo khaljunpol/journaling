@@ -237,3 +237,28 @@ a, button, .btn, .btn-outline, .input, select {
   .ring-pop, .ring-pop-play, .sync-pulse { animation: none; }
   .ring-arc { transition: none; }
 }
+
+/* Game rewards: "+40" on the habits tile, and perfect-day confetti. transform and opacity only. */
+@keyframes points-burst {
+  0% { transform: translateY(4px); opacity: 0; }
+  20% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-14px); opacity: 0; }
+}
+.points-burst { animation: points-burst 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes confetti-fly {
+  0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--cx)), calc(-50% + var(--cy))) rotate(var(--cr)); opacity: 0; }
+}
+.confetti-piece { animation: confetti-fly 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+@keyframes perfect-text {
+  0% { transform: scale(0.92); opacity: 0; }
+  15% { transform: scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.perfect-text { animation: perfect-text 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece { display: none; }
+  .points-burst { animation: fade-in 120ms ease-out; }
+  .perfect-text { animation: fade-in 120ms ease-out; }
+}

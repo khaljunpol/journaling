@@ -795,3 +795,45 @@ export async function renderYearStats(data: YearStatsData, opts: RenderOpts = {}
 export function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
 }
+
+// ── Streak share card (game) ──────────────────────────────────────────────────
+
+export const CARD_W = 1080;
+export const CARD_H = 1350;
+
+/** 1080 × 1350: the habit name (or "My streak"), the streak in Pixelify Sans and ember, then best and level. Nothing else. */
+export async function renderStreakCard(data: { title: string; streak: number; unit: 'days' | 'weeks'; best: number; level: number }): Promise<HTMLCanvasElement> {
+  const { canvas, c, text, measure, panel } = await setup(CARD_W, CARD_H);
+  const pixel = fontFamily('--font-pixel', 'ui-monospace, monospace');
+  try { await document.fonts.load(`400 300px ${pixel}`); } catch { /* fallback font */ }
+
+  c.fillStyle = BG;
+  c.fillRect(0, 0, CARD_W, CARD_H);
+  const glow = c.createRadialGradient(CARD_W / 2, 640, 40, CARD_W / 2, 640, 760);
+  glow.addColorStop(0, 'rgba(240,162,74,0.22)');
+  glow.addColorStop(1, 'rgba(240,162,74,0)');
+  c.fillStyle = glow;
+  c.fillRect(0, 0, CARD_W, CARD_H);
+
+  // Long names shrink to fit, then get cut with an ellipsis.
+  let size = 72;
+  let title = data.title;
+  while (size > 44 && measure(title, { size, weight: 600 }) > CARD_W - PAD * 2) size -= 4;
+  while (title.length > 1 && measure(title, { size, weight: 600 }) > CARD_W - PAD * 2) title = `${title.slice(0, -2)}…`;
+  text(title, CARD_W / 2, 330, { size, weight: 600, align: 'center' });
+
+  c.font = `400 ${data.streak >= 1000 ? 220 : 300}px ${pixel}`;
+  c.fillStyle = EMBER;
+  c.textAlign = 'center';
+  c.textBaseline = 'alphabetic';
+  c.fillText(String(data.streak), CARD_W / 2, 780);
+  const unit = data.unit === 'weeks' ? (data.streak === 1 ? 'week in a row' : 'weeks in a row') : (data.streak === 1 ? 'day in a row' : 'days in a row');
+  text(unit, CARD_W / 2, 880, { size: 48, weight: 500, color: TEXT2, align: 'center' });
+
+  panel(PAD, 1020, CARD_W - PAD * 2, 180, SURFACE, 32);
+  text(`Best ${data.best}`, CARD_W / 2 - 220, 1130, { size: 52, weight: 600, mono: true, align: 'center' });
+  text(`Level ${data.level}`, CARD_W / 2 + 220, 1130, { size: 52, weight: 600, mono: true, align: 'center', color: EMBER });
+  c.fillStyle = LINE;
+  c.fillRect(CARD_W / 2 - 1, 1060, 2, 100);
+  return canvas;
+}

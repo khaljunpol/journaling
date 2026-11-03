@@ -40,6 +40,7 @@ test('dataRange matches the ranges used today', () => {
     sidequestLogs: "'SidequestLogs'!A2:G",
     settings: "'Settings'!A2:B",
     dayLogs: "'DayLogs'!A2:C",
+    dayScores: "'DayScores'!A2:L",
   };
   for (const tab of Object.keys(TABS) as TabKey[]) {
     assert.equal(dataRange(tab), expected[tab], tab);
@@ -49,4 +50,8 @@ test('dataRange matches the ranges used today', () => {
 test('activities reads column D', () => {
   assert.deepEqual(HEADERS.activities, ['id', 'name', 'status', 'category']);
   assert.equal(dataRange('activities'), "'Activities'!A2:D");
+});
+
+test('DayScores has the ledger columns', () => {
+  assert.deepEqual(HEADERS.dayScores, ['date', 'points', 'done', 'total', 'perfect', 'move', 'wellbeing', 'mind', 'people', 'other', 'at', 'v']);
 });

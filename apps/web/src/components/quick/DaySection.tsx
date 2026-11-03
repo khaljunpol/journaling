@@ -1,7 +1,10 @@
 'use client';
 
 import { doneGoodHabits, goodIds } from '@journaling/core/habitCategory';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usualList } from '@journaling/core/scoring';
+import Confetti from '@/components/game/Confetti';
+import { firstPerfect, useReward } from '@/components/game/rewardBus';
 import {
   Beer, BicepsFlexed, Bike, BookOpen, Brain, Check, ChevronRight, Cigarette, Coffee, Dumbbell, Flame, Footprints, Gamepad2,
   GlassWater, Heart, Milk, Mountain, Music, PenLine, PersonStanding, Pill, Waves, Wine, type LucideProps,
@@ -133,8 +136,10 @@ function Tile(props: {
   onClick: () => void;
   /** Habits tile only: done habits, shown as chips on a 2-slot-wide tile. */
   chips?: DoneHabit[];
+  /** Habits tile only: points the last Done added, shown for 900ms. Never blocks a tap. */
+  burst?: { key: number; points: number } | null;
 }) {
-  const { name, prompt, value, big, filled, counts, pending, failed, onClick, chips } = props;
+  const { name, prompt, value, big, filled, counts, pending, failed, onClick, chips, burst } = props;
   const withChips = !failed && !!chips && chips.length > 0;
   // Pop once when the tile becomes filled (not on first paint).
   const [prev, setPrev] = useState(filled);
@@ -182,6 +187,11 @@ function Tile(props: {
           {prompt}
         </span>
       )}
+      {burst && burst.points > 0 ? (
+        <span key={burst.key} aria-hidden="true" className="points-burst num pointer-events-none absolute bottom-2.5 right-3 text-[15px] font-semibold" style={{ color: 'var(--reward-text)' }}>
+          +{burst.points}
+        </span>
+      ) : null}
       {pending && !failed && (
         <span
           className="sync-pulse absolute bottom-2 right-2 h-2 w-2 rounded-full"
@@ -209,13 +219,28 @@ export function SkeletonDay({ label, count = 6 }: { label: string; count?: numbe
 
 export default function DaySection({ date, label, payload, queue, onOpen, onFill, only, primary = false }: Props) {
   const day = payload.days[date];
+  const reward = useReward(date);
+  const [confetti, setConfetti] = useState<{ key: number } | null>(null);
+  useEffect(() => {
+    if (!reward?.perfect || !firstPerfect(date)) return;
+    navigator.vibrate?.(10);
+    setConfetti({ key: reward.key });
+  }, [reward, date]);
+  // Its own timer: the reward clears itself at 900ms, which must not cancel this one.
+  useEffect(() => {
+    if (!confetti) return;
+    const t = setTimeout(() => setConfetti(null), 1400);
+    return () => clearTimeout(t);
+  }, [confetti]);
   if (!day) return <SkeletonDay label={label} count={3} />;
 
   const status = dayStatus(day, payload.ctx, { only });
   const missing = missingInOrder(status).length;
   const weekday = parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'short' });
   const good = goodIds(payload.ctx.activities);
-  const habitsDone = day.logs.filter((l) => l.completed && good.has(l.activityId)).length;
+  // "4 of 6": done habits on the day's usual list (all good habits without one). Off-list ticks still earn points.
+  const usual = usualList(date, payload.habitTemplates ?? { weekday: null, weekend: null }, payload.ctx.activities);
+  const usualDone = usual.filter((id) => day.logs.some((l) => l.completed && l.activityId === id)).length;
   const questsCount = payload.ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === payload.ctx.year,
   ).length;
@@ -226,7 +251,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
       case 'mood':
         return day.mood === null ? '' : `${moodEmoji(day.mood)} ${day.mood}`;
       case 'habits':
-        return day.logs.length === 0 || good.size === 0 ? '' : `${habitsDone}/${good.size}`;
+        return day.logs.length === 0 || good.size === 0 || usual.length === 0 ? '' : `${usualDone} of ${usual.length}`;
       case 'weight':
         return day.weight === null ? '' : String(day.weight);
       case 'sidequests':
@@ -245,6 +270,8 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
 
   return (
     <section className="card space-y-3 p-4 sm:p-5" aria-label={label}>
+      {confetti ? <Confetti key={confetti.key} points={25} /> : null}
+      {reward && reward.points > 0 ? <span className="sr-only" role="status">{`+${reward.points} points${reward.perfect ? ', perfect day' : ''}`}</span> : null}
       <h2 className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: 'var(--text-1)' }}>
         {label}
         <span className="text-[13px] font-normal" style={{ color: 'var(--text-2)' }}>{weekday}</span>
@@ -273,6 +300,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
                 failed={items.some((q) => q.state === 'failed')}
                 onClick={() => onOpen(date, i.key)}
                 chips={i.key === 'habits' ? done : undefined}
+                burst={i.key === 'habits' && reward ? { key: reward.key, points: reward.points } : null}
               />
             );
           })}
