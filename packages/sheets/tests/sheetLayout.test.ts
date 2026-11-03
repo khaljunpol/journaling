@@ -27,7 +27,7 @@ test('every tab has headers', () => {
 
 test('dataRange matches the ranges used today', () => {
   const expected: Record<TabKey, string> = {
-    activities: "'Activities'!A2:C",
+    activities: "'Activities'!A2:D",
     logs: "'Logs'!A2:C",
     highlights: "'Highlights'!A2:B",
     weights: "'Weights'!A2:B",
@@ -44,4 +44,9 @@ test('dataRange matches the ranges used today', () => {
   for (const tab of Object.keys(TABS) as TabKey[]) {
     assert.equal(dataRange(tab), expected[tab], tab);
   }
+});
+
+test('activities reads column D', () => {
+  assert.deepEqual(HEADERS.activities, ['id', 'name', 'status', 'category']);
+  assert.equal(dataRange('activities'), "'Activities'!A2:D");
 });

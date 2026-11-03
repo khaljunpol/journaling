@@ -19,7 +19,7 @@ export const TABS = {
 export type TabKey = keyof typeof TABS;
 
 export const HEADERS: Record<TabKey, string[]> = {
-  activities: ['id', 'name', 'status'],
+  activities: ['id', 'name', 'status', 'category'],
   logs: ['date', 'activityId', 'completed'],
   highlights: ['date', 'text'],
   weights: ['date', 'weight'],

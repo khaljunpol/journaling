@@ -28,6 +28,7 @@ import {
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { parseLocalDate } from '@journaling/core/date';
+import { goodIds } from '@journaling/core/habitCategory';
 import { keepingUp, type KeepingUp } from '@journaling/core/keepingUp';
 import { weekRecap, type WeekRecap } from '@journaling/core/weekRecap';
 import type { Activity, MoodItem, Sidequest } from '@journaling/core/types';
@@ -181,8 +182,8 @@ export function deriveOverview(args: {
   const hours = mergeHours(dash, args.hoursTail ?? null, quick);
 
   // Habits first: the mood fallback link needs the good-day map.
-  const activeList = quick ? quick.ctx.activities : (dash?.activities ?? []); // every activity is a habit, same as Today
-  const activeIds = new Set(activeList.map((a) => a.id));
+  const activeList = quick ? quick.ctx.activities : (dash?.activities ?? []);
+  const activeIds = goodIds(activeList);
   const logs = mergeLogs(args.history ?? null, dash, quick);
 
   let habits: OverviewView['habits'] = null;
@@ -204,7 +205,7 @@ export function deriveOverview(args: {
       streak: activeIds.size ? habitStreakGrace(all, new Set(logs.map((l) => l.date.slice(0, 10))), today).streak : 0,
       best: activeIds.size ? bestStreak(all.filter((d) => d.date >= `${today.slice(0, 4)}-01-01`), today) : 0,
       bars: days14.map((d) => ({ date: d.date, share: d.share, done: d.done, active: d.active })),
-      table: activeList.map((a) => {
+      table: activeList.filter((a) => activeIds.has(a.id)).map((a) => {
         const flags = dates14.map((date) => doneSet.has(`${date}|${a.id}`));
         return { id: a.id, name: a.name, days: flags, pct: Math.round((flags.filter(Boolean).length / flags.length) * 100) };
       }),

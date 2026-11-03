@@ -41,8 +41,8 @@ test('empty day: nothing done, progress from dayStatus, icons set', () => {
   assert.deepEqual(
     s.habits,
     [
-      { id: 'a', name: 'Read', icon: habitIcon('Read'), done: false },
-      { id: 'b', name: 'Walk', icon: habitIcon('Walk'), done: false },
+      { id: 'a', name: 'Read', icon: habitIcon('Read'), done: false, category: null },
+      { id: 'b', name: 'Walk', icon: habitIcon('Walk'), done: false, category: null },
     ],
   );
 });
@@ -129,4 +129,9 @@ test('history: 30 days, oldest first, ending today, gaps are null', () => {
   assert.equal(h[0].date, '2026-10-02');
   assert.deepEqual(h[29], { date: '2026-10-31', mood: 7, weight: 80.5 });
   assert.deepEqual(h[0], { date: '2026-10-02', mood: null, weight: null });
+});
+
+test('habits carry the stored category, or null', () => {
+  const c = ctx({ activities: [{ id: 'a', name: 'Gym', category: 'bad' }, { id: 'b', name: 'Beer' }] });
+  assert.deepEqual(deviceState(emptyDay(), c).habits.map((h) => h.category), ['bad', null]);
 });

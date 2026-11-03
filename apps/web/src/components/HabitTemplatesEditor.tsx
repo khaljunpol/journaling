@@ -1,5 +1,6 @@
 "use client";
 
+import { splitHabits } from '@journaling/core/habitCategory';
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -32,7 +33,8 @@ export default function HabitTemplatesEditor() {
         const a = await aRes.json();
         if (!alive) return;
         if (!Array.isArray(a)) throw new Error('load failed');
-        const active = a as Activity[];
+        // A usual day never includes a bad habit.
+        const active = splitHabits(a as Activity[]).good;
         const ids = new Set(active.map((x) => x.id));
         // Ids of deleted habits are dropped from the view.
         const clean = (v: unknown): Ids => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && ids.has(x)) : []);

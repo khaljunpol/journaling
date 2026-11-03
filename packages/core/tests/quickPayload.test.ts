@@ -94,3 +94,11 @@ test('habitTemplates parse from settings; bad JSON gives null', () => {
   assert.deepEqual(p.habitTemplates.weekday, ['a1', 'a2']);
   assert.equal(p.habitTemplates.weekend, null);
 });
+
+test('a stored habit category reaches ctx', () => {
+  const p = buildQuickPayload(
+    { ...empty, activities: [{ id: 'a', name: 'Gym', status: 'active', category: 'bad' as const }] },
+    '2026-10-26', '2026-10-26', {},
+  );
+  assert.equal(p.ctx.activities[0].category, 'bad');
+});

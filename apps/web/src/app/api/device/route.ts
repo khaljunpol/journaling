@@ -1,3 +1,4 @@
+import { goodIds } from '@journaling/core/habitCategory';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
 import { authDevice } from '@/lib/server/deviceAuth';
@@ -84,7 +85,7 @@ export async function GET(req: Request) {
         getWeightsBetween(auth.sheetAuth, from90, today),
         listDayStamps(auth.sheetAuth),
       ]);
-      const activeIds = new Set(payload.ctx.activities.map((a) => a.id));
+      const activeIds = goodIds(payload.ctx.activities);
       const insights = deviceInsights({ today, moods, hours, logs, cats, activeIds, weights, stamps });
       insights.lines.push(...climb.lines);
       return NextResponse.json({ ...deviceState(day, payload.ctx), insights }, { status: 200, headers: NO_STORE });

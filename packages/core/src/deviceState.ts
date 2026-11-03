@@ -2,9 +2,10 @@
 import { dayStatus, templateKind, applyTemplate, type DayData, type Ctx } from './quickDay.ts';
 import { dayHasData, dayState, type DayStamp, type DayState } from './dayState.ts';
 import { addDaysISO, mondayOf, weekDates } from './quickWeek.ts';
+import type { HabitCategory } from './habitCategory.ts';
 import { habitIcon, type HabitIcon } from './habitIcons.ts';
 
-export type DeviceHabit = { id: string; name: string; icon: HabitIcon | null; done: boolean };
+export type DeviceHabit = { id: string; name: string; icon: HabitIcon | null; done: boolean; category: HabitCategory | null };
 export type DeviceState = {
   date: string;
   mood: number | null;
@@ -37,6 +38,7 @@ export function deviceState(day: DayData, ctx: Ctx): DeviceState {
       name: a.name,
       icon: habitIcon(a.name),
       done: doneIds.has(a.id),
+      category: a.category ?? null,
     })),
   };
 }

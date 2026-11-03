@@ -50,3 +50,13 @@ test('habitGrid: window ends today and fills exactly the logged days', async () 
   assert.deepEqual(filled, ['2026-10-24', '2026-10-27']);
   assert.equal(g.rows[0].rate30, Math.round((2 / 30) * 100));
 });
+
+test('habitGrid: bad habits sort last and stay out of the week %', async () => {
+  const { habitGrid } = await import('../src/overview.ts');
+  const days = ['2026-10-27', '2026-10-28'];
+  const logs = days.map((date) => ({ date, activityId: 'b', completed: true }));
+  const g = habitGrid([{ id: 'b', name: 'Beer' }, { id: 'a', name: 'Gym' }], logs, days);
+  assert.deepEqual(g.rows.map((r) => r.name), ['Gym', 'Beer']);
+  assert.deepEqual(g.rows.map((r) => r.bad), [false, true]);
+  assert.equal(g.week, 0);
+});

@@ -1,5 +1,6 @@
 // Pure week and catch-up logic for /quick. Dates are local YYYY-MM-DD strings; math uses UTC parts so DST cannot shift a day.
 import type { ItemKey } from './quickDay.ts';
+import type { HabitCategory } from './habitCategory.ts';
 import { applyTemplate, initialTicks, templateKind } from './quickDay.ts';
 
 const p2 = (n: number) => String(n).padStart(2, '0');
@@ -143,7 +144,7 @@ export function habitFillPlan(
   days: Array<{ date: string; logs: Array<{ activityId: string; completed: boolean }> }>,
   today: string,
   templates: { weekday: string[] | null; weekend: string[] | null },
-  activities: Array<{ id: string; status?: string }>,
+  activities: Array<{ id: string; name?: string; status?: string; category?: HabitCategory }>,
 ): HabitFillPlan {
   const fills: HabitFillPlan['fills'] = [];
   const missing = new Set<'weekday' | 'weekend'>();

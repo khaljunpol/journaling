@@ -216,3 +216,25 @@ test('initialTicks: logs present -> logs; none -> template minus deleted ids (an
   const emptyTpl = initialTicks([], [], acts);
   assert.equal(emptyTpl.fromTemplate, false);
 });
+
+test('initialTicks: a template never ticks a bad habit', () => {
+  const acts = [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Beer' }];
+  assert.deepEqual([...initialTicks([], ['a', 'b'], acts).ticked], ['a']);
+});
+
+test('initialTicks: only bad habits on the template means no template', () => {
+  assert.equal(initialTicks([], ['b'], [{ id: 'b', name: 'Beer' }]).fromTemplate, false);
+});
+
+test('initialTicks: a logged bad habit keeps its tick', () => {
+  const r = initialTicks([{ activityId: 'b', completed: true }], ['a'], [{ id: 'b', name: 'Beer' }]);
+  assert.deepEqual([...r.ticked], ['b']);
+});
+
+test('a day with only a bad tick still counts as logged', () => {
+  const s = dayStatus(
+    emptyDay({ logs: [{ activityId: 'b', completed: true }] }),
+    ctx({ activities: [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Beer' }] }),
+  );
+  assert.equal(item(s, 'habits').filled, true);
+});

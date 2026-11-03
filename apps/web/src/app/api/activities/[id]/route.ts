@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseCategory } from '@journaling/core/habitCategory';
 import { deleteActivity, updateActivity } from '@journaling/sheets/googleSheets';
 import { apiError, MAX_LEN, apiFailure } from '@/lib/apiHelpers';
 import { requireSheetContext } from '@/lib/sheetAuth';
@@ -11,9 +12,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const body = await req.json();
     const name = body?.name !== undefined ? String(body?.name || '').trim() : undefined;
     const status = body?.status !== undefined ? (String(body?.status || '').trim() as 'active' | 'stopped') : undefined;
-    if (name === undefined && status === undefined) return apiError('no fields to update', 400);
+    const category = body?.category !== undefined ? parseCategory(body.category) : undefined;
+    if (body?.category !== undefined && !category) return apiError('unknown category', 400);
+    if (name === undefined && status === undefined && category === undefined) return apiError('no fields to update', 400);
     if (name !== undefined && name.length > MAX_LEN.name) return apiError(`name must be ≤${MAX_LEN.name} characters`, 400);
-    const updated = await updateActivity(ctx.sheetAuth, id, { name, status });
+    const updated = await updateActivity(ctx.sheetAuth, id, { name, status, category });
     return NextResponse.json(updated);
   } catch (error: unknown) {
     return apiFailure(error, 'PATCH /api/activities/[id]');

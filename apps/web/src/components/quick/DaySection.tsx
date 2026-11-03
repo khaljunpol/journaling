@@ -1,5 +1,6 @@
 'use client';
 
+import { doneGoodHabits, goodIds } from '@journaling/core/habitCategory';
 import { useState } from 'react';
 import {
   Beer, BicepsFlexed, Bike, BookOpen, Brain, Check, ChevronRight, Cigarette, Coffee, Dumbbell, Flame, Footprints, Gamepad2,
@@ -8,7 +9,7 @@ import {
 import { dayStatus, missingInOrder, type ItemKey } from '@journaling/core/quickDay';
 import { itemsForTile } from '@journaling/core/quickApply';
 import { moodEmoji } from '@journaling/core/mood';
-import { doneHabits, type HabitIcon } from '@journaling/core/habitIcons';
+import type { HabitIcon } from '@journaling/core/habitIcons';
 import { parseLocalDate } from '@journaling/core/date';
 import type { QuickPayload } from '@journaling/core/quickPayload';
 import type { OutboxItem } from '@/lib/outbox';
@@ -213,8 +214,8 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
   const status = dayStatus(day, payload.ctx, { only });
   const missing = missingInOrder(status).length;
   const weekday = parseLocalDate(date).toLocaleDateString(undefined, { weekday: 'short' });
-  const activeIds = payload.ctx.activities.map((a) => a.id);
-  const habitsDone = day.logs.filter((l) => l.completed && activeIds.includes(l.activityId)).length;
+  const good = goodIds(payload.ctx.activities);
+  const habitsDone = day.logs.filter((l) => l.completed && good.has(l.activityId)).length;
   const questsCount = payload.ctx.sidequests.filter(
     (q) => (q.type === 'count' || q.type === 'timed') && !q.completedAt && q.year === payload.ctx.year,
   ).length;
@@ -225,7 +226,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
       case 'mood':
         return day.mood === null ? '' : `${moodEmoji(day.mood)} ${day.mood}`;
       case 'habits':
-        return day.logs.length === 0 ? '' : `${habitsDone}/${activeIds.length}`;
+        return day.logs.length === 0 || good.size === 0 ? '' : `${habitsDone}/${good.size}`;
       case 'weight':
         return day.weight === null ? '' : String(day.weight);
       case 'sidequests':
@@ -240,7 +241,7 @@ export default function DaySection({ date, label, payload, queue, onOpen, onFill
   }
 
   const complete = status.total > 0 && missing === 0;
-  const done = doneHabits(day.logs, payload.ctx.activities, day.climbs);
+  const done = doneGoodHabits(day.logs, payload.ctx.activities, day.climbs);
 
   return (
     <section className="card space-y-3 p-4 sm:p-5" aria-label={label}>

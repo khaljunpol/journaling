@@ -176,3 +176,9 @@ test('habitMessage is calm and specific', () => {
   assert.equal(habitMessage({ fills: [], missingKinds: ['weekday', 'weekend'], skippedHasLogs: 0 }), 'No usual habits yet. Set them on Time categories.');
   assert.equal(habitMessage({ fills: [], missingKinds: [], skippedHasLogs: 3 }), 'Every day already has habits.');
 });
+
+test('habitFillPlan never ticks a bad habit from a usual list', () => {
+  const list = [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Beer' }];
+  const plan = habitFillPlan([{ date: '2026-10-19', logs: [] }], '2026-10-26', { weekday: ['a', 'b'], weekend: null }, list);
+  assert.deepEqual(plan.fills[0].rows, [{ activityId: 'a', completed: true }, { activityId: 'b', completed: false }]);
+});

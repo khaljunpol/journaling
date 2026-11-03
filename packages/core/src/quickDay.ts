@@ -1,4 +1,6 @@
-// Pure model for the /quick check-in: which daily items are filled. No imports, so tests can load it.
+// Pure model for the /quick check-in: which daily items are filled. Relative imports only, so tests can load it.
+
+import { categoryOf, type HabitCategory } from './habitCategory.ts';
 
 export type ItemKey = 'mood' | 'habits' | 'weight' | 'sidequests' | 'hours' | 'highlight' | 'climb';
 
@@ -15,7 +17,7 @@ export type DayData = {
 };
 
 export type Ctx = {
-  activities: Array<{ id: string; name: string; status?: string }>;
+  activities: Array<{ id: string; name: string; status?: string; category?: HabitCategory }>;
   categoryIds: number[];
   sidequests: Array<{ id: string; type: string; completedAt?: string; year: number }>;
   year: number;
@@ -108,16 +110,17 @@ export function parseHabitTemplate(v: unknown): string[] | null {
   return v.every((x) => typeof x === 'string' && x !== '') ? (v as string[]) : null;
 }
 
-/** Starting ticks for the habits card. Logs win; on an empty day use the template (ids that still exist). */
+/** Starting ticks for the habits card. Logs win; on an empty day use the template (ids that still exist, never a bad habit). */
 export function initialTicks(
   logs: Array<{ activityId: string; completed: boolean }>,
   template: string[] | null,
-  activities: Array<{ id: string; status?: string }>,
+  activities: Array<{ id: string; name?: string; status?: string; category?: HabitCategory }>,
 ): { ticked: Set<string>; fromTemplate: boolean } {
   if (logs.length > 0) {
     return { ticked: new Set(logs.filter((l) => l.completed).map((l) => l.activityId)), fromTemplate: false };
   }
-  const active = new Set(activities.map((a) => a.id));
+  const isBad = (a: (typeof activities)[number]) => a.name !== undefined && categoryOf({ name: a.name, category: a.category }) === 'bad';
+  const active = new Set(activities.filter((a) => !isBad(a)).map((a) => a.id));
   const ticked = new Set((template ?? []).filter((id) => active.has(id)));
   return { ticked, fromTemplate: ticked.size > 0 };
 }

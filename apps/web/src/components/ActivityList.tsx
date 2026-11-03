@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { categoryOf, type HabitCategory } from '@journaling/core/habitCategory';
 import type { Activity } from '@journaling/core/types';
+import CategorySelect from '@/components/settings/CategorySelect';
+import SortHabitsSheet from '@/components/settings/SortHabitsSheet';
 import Button from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Chip from '@/components/ui/Chip';
@@ -18,6 +21,9 @@ export default function ActivityList() {
   const [editName, setEditName] = useState('');
   // Delete takes two taps: the first one asks, in the row itself.
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Unknown until the settings load; a failed read keeps the prompt hidden.
+  const [needsSort, setNeedsSort] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -44,6 +50,12 @@ export default function ActivityList() {
     if (actsCtrlRef.current) actsCtrlRef.current.abort();
     setItems([]);
     refresh();
+    let alive = true;
+    fetch('/api/settings')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((s) => { if (alive && s) setNeedsSort(!s.habitCategoriesConfirmed); })
+      .catch(() => undefined);
+    return () => { alive = false; };
   }, []);
 
   async function add() {
@@ -59,6 +71,20 @@ export default function ActivityList() {
   async function updateName(id: string, newName: string) {
     await fetch(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' } });
     refresh();
+  }
+
+  async function setCategory(a: Activity, category: HabitCategory) {
+    const failed = () => {
+      setItems((list) => list.map((x) => (x.id === a.id ? { ...x, category: a.category } : x)));
+      showToast("Couldn't save. Try again.");
+    };
+    setItems((list) => list.map((x) => (x.id === a.id ? { ...x, category } : x)));
+    try {
+      const res = await fetch(`/api/activities/${a.id}`, { method: 'PATCH', body: JSON.stringify({ category }), headers: { 'Content-Type': 'application/json' } });
+      if (!res.ok) failed();
+    } catch {
+      failed();
+    }
   }
 
   async function remove(a: Activity) {
@@ -96,6 +122,12 @@ export default function ActivityList() {
       )}
 
       <h2 className="text-[20px] font-semibold" style={{ color: 'var(--text-1)' }}>Habits</h2>
+
+      {needsSort && items.length > 0 ? (
+        <button type="button" className="press block min-h-11 text-left text-[14px]" style={{ color: 'var(--text-2)' }} onClick={() => setSortOpen(true)}>
+          Sort your habits into groups ›
+        </button>
+      ) : null}
 
       {/* Add */}
       <Card className="space-y-3">
@@ -156,6 +188,7 @@ export default function ActivityList() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                <CategorySelect value={categoryOf(a)} label={a.name} onChange={(c) => setCategory(a, c)} />
                 <Button variant="ghost" small onClick={() => setConfirmId(a.id)}>Delete</Button>
               </div>
             </div>
@@ -163,6 +196,12 @@ export default function ActivityList() {
         </div>
       </Card>
 
+      <SortHabitsSheet
+        open={sortOpen}
+        onClose={() => setSortOpen(false)}
+        habits={items}
+        onSaved={() => { setNeedsSort(false); showToast('Habits sorted'); refresh(); }}
+      />
     </section>
   );
 }

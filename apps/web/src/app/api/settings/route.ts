@@ -38,6 +38,7 @@ export async function GET() {
       habitTemplateWeekday: readHabits(s.habitTemplateWeekday),
       habitTemplateWeekend: readHabits(s.habitTemplateWeekend),
       reminderEnabled: s.reminderEnabled === '1',
+      habitCategoriesConfirmed: s.habitCategoriesConfirmed === '1',
     }, { status: 200 });
   } catch (error: unknown) {
     return apiFailure(error, 'GET /api/settings');

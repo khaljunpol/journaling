@@ -1,10 +1,11 @@
 // Pure builder for GET /api/quick. Gets typed rows (already parsed), returns the board payload.
+import type { HabitCategory } from './habitCategory.ts';
 import type { DayStamp } from './dayState.ts';
 import type { DayData, Ctx } from './quickDay.ts';
 import { parseTemplate, parseHabitTemplate } from './quickDay.ts';
 
 export type QuickRows = {
-  activities: Array<{ id: string; name: string; status?: string }>;
+  activities: Array<{ id: string; name: string; status?: string; category?: HabitCategory }>;
   logs: Array<{ date: string; activityId: string; completed: boolean }>;
   moods: Array<{ date: string; score: number }>;
   weights: Array<{ date: string; weight: number }>;
@@ -97,7 +98,7 @@ export function buildQuickPayload(
   for (const date of dates) days[date].sidequestLogIds = [...questSets[date]];
 
   const ctx: Ctx = {
-    activities: rows.activities.map((a) => ({ id: a.id, name: a.name, status: a.status })),
+    activities: rows.activities.map((a) => ({ id: a.id, name: a.name, status: a.status, category: a.category })),
     categoryIds: rows.categories.map((c) => Number(c.id)),
     sidequests: rows.sidequests.map((q) => ({ id: q.id, type: q.type, completedAt: q.completedAt, year: q.year })),
     year: Number(to.slice(0, 4)),

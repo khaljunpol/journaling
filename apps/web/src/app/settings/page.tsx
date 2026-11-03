@@ -47,7 +47,7 @@ function Section({ id, label, open, onToggle, children }: { id: SectionId; label
         {label}
         <ChevronDown size={18} aria-hidden="true" style={{ color: 'var(--text-2)', transform: open ? 'rotate(180deg)' : undefined }} />
       </button>
-      <div id={`section-${id}`} className={`${open ? 'block pt-3' : 'hidden'} lg:block max-lg:[&_h2]:sr-only`}>
+      <div id={`section-${id}`} className={`${open ? 'block pt-3' : 'hidden'} lg:block max-lg:[&_h2:not([role=dialog]_h2)]:sr-only`}>
         {children}
       </div>
     </section>

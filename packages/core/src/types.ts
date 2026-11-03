@@ -1,5 +1,6 @@
+import type { HabitCategory } from './habitCategory.ts';
 // Activity tracking
-export type Activity = { id: string; name: string; status?: string };
+export type Activity = { id: string; name: string; status?: string; category?: HabitCategory };
 export type Log = { date: string; activityId: string; completed: boolean };
 export type Week = { week: string; rate: number };
 

@@ -161,3 +161,30 @@ test('recap: needs every source, then shows last week', () => {
   assert.equal(recap?.from, '2026-10-19');
   assert.equal(recap?.mood.avg, 7);
 });
+
+test('a ticked bad habit does not raise the habit rate', () => {
+  const v = deriveOverview({
+    today: TODAY,
+    quick: null,
+    dash: {
+      ...empty,
+      activities: [{ id: 'a', name: 'Gym' }, { id: 'b', name: 'Beer' }],
+      logs30: [{ date: '2026-10-27', activityId: 'b', completed: true }, { date: '2026-10-28', activityId: 'b', completed: true }],
+    },
+  });
+  assert.equal(v.habits?.count, 1);
+  assert.equal(v.habits?.bars.reduce((n, d) => n + d.done, 0), 0);
+  assert.deepEqual(v.habits?.table.map((r) => r.name), ['Gym']);
+});
+
+test('all habits bad: the same as no habits, no crash', () => {
+  const v = deriveOverview({
+    today: TODAY,
+    quick: null,
+    dash: { ...empty, activities: [{ id: 'b', name: 'Beer' }], logs30: [{ date: '2026-10-27', activityId: 'b', completed: true }] },
+  });
+  assert.equal(v.habits?.count, 0);
+  assert.equal(v.habits?.rate, null);
+  assert.equal(v.habits?.streak, 0);
+  assert.deepEqual(numbers(v).filter(Number.isNaN), []);
+});

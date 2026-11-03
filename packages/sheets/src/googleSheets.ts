@@ -1,6 +1,8 @@
 import { google } from 'googleapis';
 import type { ClimbLog, ClimbGoal, HourLog, TimeCategory } from '@journaling/core/types';
+import type { HabitCategory } from '@journaling/core/habitCategory';
 import { parseGroup, type StoredGroup } from '@journaling/core/timeBalance';
+import { activityFromRow, categoryWrites } from './activityRows.ts';
 import { range, TABS } from './sheetLayout.ts';
 import { localISO } from '@journaling/core/date';
 import { normalizeGrade } from '@journaling/core/climbing';
@@ -152,11 +154,7 @@ export async function listActivities(sa: SheetAuth) {
   const rows = await tabCache.readOne(spreadsheetId, 'activities');
   return rows
     .filter((row) => row && row[0] && String(row[0]).trim() !== '')
-    .map(([id, name, status]) => ({
-      id: String(id).trim(),
-      name: String(name || '').trim(),
-      status: String(status || 'active').trim() || 'active',
-    }));
+    .map(activityFromRow);
 }
 
 export async function createActivity(sa: SheetAuth, name: string, options?: { status?: 'active' | 'stopped' }) {
@@ -168,8 +166,8 @@ export async function createActivity(sa: SheetAuth, name: string, options?: { st
       const id = newId();
       const status = options?.status ?? 'active';
       await sheets.spreadsheets.values.append({
-        spreadsheetId, range: range(title, 'A1:C'), valueInputOption: 'RAW',
-        requestBody: { values: [[id, name, status]] },
+        spreadsheetId, range: range(title, 'A1:D'), valueInputOption: 'RAW',
+        requestBody: { values: [[id, name, status, '']] },
       });
       return { id, name, status };
     } finally {
@@ -178,13 +176,13 @@ export async function createActivity(sa: SheetAuth, name: string, options?: { st
   });
 }
 
-export async function updateActivity(sa: SheetAuth, id: string, updates: { name?: string; status?: 'active' | 'stopped' }) {
+export async function updateActivity(sa: SheetAuth, id: string, updates: { name?: string; status?: 'active' | 'stopped'; category?: HabitCategory }) {
   const sheets = getServiceSheets();
   const { spreadsheetId } = sa;
   const title = TABS.activities;
   return withLock(`${spreadsheetId}:${title}`, async () => {
     try {
-      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:C') });
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:D') });
       const values = res.data.values || [];
       let rowIndex = -1;
       for (let i = 0; i < values.length; i++) {
@@ -194,11 +192,44 @@ export async function updateActivity(sa: SheetAuth, id: string, updates: { name?
       const existing = values[rowIndex - 2] || [];
       const name = updates.name ?? existing[1] ?? '';
       const status = updates.status ?? (existing[2] || 'active');
-      await sheets.spreadsheets.values.update({
-        spreadsheetId, range: range(title, `B${rowIndex}:C${rowIndex}`), valueInputOption: 'RAW',
-        requestBody: { values: [[name, status]] },
+      const category = updates.category ?? existing[3] ?? '';
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: [
+            { range: range(title, `B${rowIndex}:D${rowIndex}`), values: [[name, status, category]] },
+            // Sheets made before categories have no header here.
+            ...(updates.category ? [{ range: range(title, 'D1'), values: [['category']] }] : []),
+          ],
+        },
       });
-      return { id, name: String(name), status: String(status) };
+      return { id, name: String(name), status: String(status), category: updates.category };
+    } finally {
+      tabCache.invalidate(spreadsheetId, 'activities');
+    }
+  });
+}
+
+/** Saves many categories in one write. Ids no longer in the sheet are skipped. */
+export async function setActivityCategories(sa: SheetAuth, map: Record<string, HabitCategory>) {
+  const sheets = getServiceSheets();
+  const { spreadsheetId } = sa;
+  const title = TABS.activities;
+  return withLock(`${spreadsheetId}:${title}`, async () => {
+    try {
+      const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: range(title, 'A2:A') });
+      const writes = categoryWrites(res.data.values || [], map);
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: [
+            { range: range(title, 'D1'), values: [['category']] },
+            ...writes.map((w) => ({ range: range(title, `D${w.row}`), values: [[w.category]] })),
+          ],
+        },
+      });
     } finally {
       tabCache.invalidate(spreadsheetId, 'activities');
     }

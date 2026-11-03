@@ -1,4 +1,5 @@
 // Pure numbers for Overview and Trends. Only relative .ts imports of other pure libs, so tests can load it.
+import { categoryOf, type HabitCategory } from './habitCategory.ts';
 import { addDaysISO } from './quickWeek.ts';
 
 /** The last `n` dates up to and including `today`, oldest first. */
@@ -35,15 +36,15 @@ export function timeSplit(
   return { slices: [...all.slice(0, max), { id: 'other', name: 'Other', color: '#7A84A0', hours: rest }], total };
 }
 
-export type HabitGridRow = { id: string; name: string; done: boolean[]; rate30: number };
+export type HabitGridRow = { id: string; name: string; done: boolean[]; rate30: number; bad: boolean };
 
 /**
  * Per-day habit grid for Trends. `days` is oldest first. One row per habit, sorted by the
- * last-30-days rate (most often done first). Also gives the all-habit rate for the last 7 days
+ * last-30-days rate (most often done first), bad habits last. Also gives the good-habit rate for the last 7 days
  * and the 7 days before that. A habit counts as done only when a log says completed.
  */
 export function habitGrid(
-  habits: Array<{ id: string; name: string }>,
+  habits: Array<{ id: string; name: string; category?: HabitCategory }>,
   logs: Array<{ date: string; activityId: string; completed: boolean }>,
   days: string[],
 ): { rows: HabitGridRow[]; week: number; prevWeek: number } {
@@ -52,13 +53,14 @@ export function habitGrid(
     const flags = days.map((d) => done.has(`${d}|${h.id}`));
     const last30 = flags.slice(-30);
     const rate30 = last30.length ? Math.round((last30.filter(Boolean).length / last30.length) * 100) : 0;
-    return { id: h.id, name: h.name, done: flags, rate30 };
+    return { id: h.id, name: h.name, done: flags, rate30, bad: categoryOf(h) === 'bad' };
   });
-  rows.sort((a, b) => b.rate30 - a.rate30 || a.name.localeCompare(b.name));
+  rows.sort((a, b) => Number(a.bad) - Number(b.bad) || b.rate30 - a.rate30 || a.name.localeCompare(b.name));
+  const good = rows.filter((r) => !r.bad);
   const rate = (from: number, to: number) => {
-    const cells = rows.length * (to - from);
+    const cells = good.length * (to - from);
     if (cells <= 0) return 0;
-    const hit = rows.reduce((s, r) => s + r.done.slice(from, to).filter(Boolean).length, 0);
+    const hit = good.reduce((s, r) => s + r.done.slice(from, to).filter(Boolean).length, 0);
     return Math.round((hit / cells) * 100);
   };
   const n = days.length;
