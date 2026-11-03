@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react';
 import { fetchGame } from '@/components/game/useGame';
 import { getCache, setCache } from '@/lib/cache';
 
+/** The chip keeps its own saved level, so it never writes a partial copy into the full game numbers. */
+const KEY = 'game:level';
+
 /** Ember pill: the game level. Cached numbers first; hidden until the level is known or if the read fails. */
 export default function LevelChip({ compact = false }: { compact?: boolean }) {
   const [level, setLevel] = useState<number | null>(null);
@@ -13,7 +16,7 @@ export default function LevelChip({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     // Cached level after mount, so the server render and the first client render match.
-    const cached = getCache<{ level?: unknown }>('game:state')?.data?.level;
+    const cached = getCache<unknown>(KEY)?.data;
     if (typeof cached === 'number') setLevel(cached);
     (async () => {
       try {
@@ -21,10 +24,7 @@ export default function LevelChip({ compact = false }: { compact?: boolean }) {
         const lv = (data as { level?: unknown })?.level;
         if (typeof lv !== 'number' || cancelled) return;
         setLevel(lv);
-        try {
-          const prev = getCache<Record<string, unknown>>('game:state')?.data ?? {};
-          setCache('game:state', { ...prev, level: lv });
-        } catch { /* cache is optional */ }
+        try { setCache(KEY, lv); } catch { /* cache is optional */ }
       } catch { /* chip stays as it was */ }
     })();
     return () => { cancelled = true; };

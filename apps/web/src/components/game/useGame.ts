@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getCache, setCache } from '@/lib/cache';
 import { shared } from '@/lib/shared';
 import type { GameState } from '@journaling/core/game';
+import { cachedNumbers, type CachedGame } from '@/lib/gameCache';
 
 const KEY = 'game:state';
 
@@ -12,8 +13,7 @@ export const fetchGame = shared<GameState>(
   () => fetch('/api/game').then((r) => (r.ok ? r.json() : Promise.reject(new Error('read failed')))),
   10_000,
 );
-/** The cached copy holds numbers only: no habit names on a shared device. */
-type Cached = Pick<GameState, 'points' | 'level' | 'into' | 'toNext' | 'cost' | 'perfectDays' | 'today' | 'imported'>;
+type Cached = CachedGame;
 
 const numbersOnly = (g: GameState): Cached => ({
   points: g.points, level: g.level, into: g.into, toNext: g.toNext, cost: g.cost, perfectDays: g.perfectDays, today: g.today, imported: g.imported,
@@ -27,7 +27,7 @@ export function useGame(): {
   reload: () => void;
   runImport: () => Promise<boolean>;
 } {
-  const [numbers, setNumbers] = useState<Cached | null>(() => getCache<Cached>(KEY)?.data ?? null);
+  const [numbers, setNumbers] = useState<Cached | null>(() => cachedNumbers(getCache<unknown>(KEY)?.data));
   const [state, setState] = useState<GameState | null>(null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);

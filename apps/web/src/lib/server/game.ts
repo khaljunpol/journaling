@@ -41,7 +41,7 @@ function plantRecords(input: GameInput, stored: Record<string, PlantRecord>): Re
   return assignSlots(first, stored, kinds);
 }
 
-function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests' | 'hours' | 'cats'>): World {
+function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Partial<Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests' | 'hours' | 'cats'>>): World {
   const days = dayScores({ ...input, locked, lockedTo, withZero: true });
   const points = days.reduce((n, d) => n + d.points, 0);
   return buildWorld({
@@ -79,7 +79,9 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
   const records = plantRecords(input, stored);
   if (imported && JSON.stringify(records) !== JSON.stringify(stored)) await setSetting(sa, 'worldPlants', JSON.stringify(records));
   // The World's one-line summary rides along, so Overview needs no second full read.
-  return { ...state, world: worldSummary(worldFrom(input, locked, lockedTo, records)) };
+  // Climbing logs decide `climbed` (You hides a climbing habit's streak when the climbing log has its own).
+  const climbs = await listClimbLogs(sa);
+  return { ...state, world: worldSummary(worldFrom(input, locked, lockedTo, records, { climbs })) };
 }
 
 /** The World, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
