@@ -297,3 +297,11 @@ a, button, .btn, .btn-outline, .input, select {
 @media (prefers-reduced-motion: reduce) {
   .world-cloud, .world-bee, .world-firefly { animation: none; }
 }
+
+/* Watch your year: the sun and the moon turn slowly around the field, one turn per 4 weeks (3 s). No flashing. */
+@keyframes world-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.world-orbit { transform-box: view-box; animation: world-orbit 3s linear infinite; }
+.world-scrub { accent-color: #F0A24A; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .world-orbit { animation: none; }
+}

@@ -115,10 +115,14 @@ export function caption(world: World, valley: Valley, pick: Pick | null): string
   return s ? `Perfect day · ${fmt(s.date)}` : '';
 }
 
-type SceneProps = { world: World; valley: Valley; latest: boolean; fresh: Set<number>; picked: Pick | null; onPick: (p: Pick | null) => void };
+type SceneProps = {
+  world: World; valley: Valley; latest: boolean; fresh: Set<number>; picked: Pick | null; onPick: (p: Pick | null) => void;
+  /** Drawn in the sky, behind the mountain and the field (the timelapse's sun and moon). */
+  celestial?: ReactNode;
+};
 
 /** Everything that does not move. Memoised, so the animals and the bird never redraw it. */
-const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, onPick }: SceneProps) {
+const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, onPick, celestial }: SceneProps) {
   const W = world.cols * TILE;
   const pal = { ...PALETTE, ...SEASON[world.season] };
   const mount = mountainShape(FW);
@@ -181,6 +185,8 @@ const StillLayers = memo(function StillLayers({ world, valley, fresh, picked, on
         </Hit>
       ))}
       </g>
+
+      {celestial}
 
       {world.clouds.map((c, i) => (
         <g key={`cl${i}`} className="world-cloud" style={{ animationDelay: `${-i * 23}s`, ['--cloud-from' as string]: `${-(c.x + 32)}px`, ['--cloud-to' as string]: `${W - c.x + 8}px` }}>

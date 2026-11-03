@@ -4,9 +4,9 @@ import { gradeLabel, gradeRank } from './climbStats.ts';
 import { normalizeGrade } from './climbing.ts';
 import { categoryOf, type HabitCategory } from './habitCategory.ts';
 import { findSleepIds, sleepNights, type HabitLog, type HourRow } from './overviewStats.ts';
-import { groupOf, type StoredGroup } from './timeBalance.ts';
+import { groupOf, type StoredGroup, type TimeGroup } from './timeBalance.ts';
 import { addDaysISO, mondayOf } from './quickWeek.ts';
-import type { DayScore, GoodCategory } from './scoring.ts';
+import { levelFor, type DayScore, type GoodCategory } from './scoring.ts';
 import type { ClimbGoal, ClimbLog, Sidequest } from './types.ts';
 
 /** Columns of the base scene; more plants widen it. 16 px per tile. */
@@ -542,4 +542,210 @@ export function deviceWorld(w: World): DeviceWorld {
     week: { ...w.weekGoal },
     tallest: worldSummary(w).tallest,
   };
+}
+
+export type WorldInput = Parameters<typeof buildWorld>[0];
+
+/** When each thing in the valley appeared, so the year can be replayed. Dates, counts and weekly hours only. */
+export type Timeline = {
+  /** The day the timeline was built; the last week ends here. */
+  today: string;
+  /** Mondays, oldest first: the first week with any data up to this week. */
+  weeks: string[];
+  /** Plant id → its first log (done or not); null for a stored plant with no logs left. It stands from that day. */
+  plantFrom: Record<string, string | null>;
+  /** Plant id → days done so far at the end of each week (same length as `weeks`). */
+  plants: Record<string, number[]>;
+  /** The first climb, which raises the mountain. */
+  mountainFrom: string | null;
+  /** Sidequest id → the day it was finished. */
+  lanterns: Record<string, string>;
+  /** The day each hive, good night (firefly) and cloud was earned, in the valley's order. */
+  hives: string[];
+  fireflies: string[];
+  clouds: string[];
+  /** Per constellation, in the valley's order: the day each star was earned. */
+  constellations: string[][];
+  /** Level at the end of each week. */
+  level: number[];
+  /** Hours per time group in each week. */
+  groups: Array<Partial<Record<TimeGroup, number>>>;
+};
+
+/** Every n-th date of a sorted list: the day the 1st, 2nd, … unit was earned (n each), at most `max`. */
+const everyNth = (dates: string[], n: number, max: number) => Array.from({ length: Math.min(max, Math.floor(dates.length / n)) }, (_, i) => dates[(i + 1) * n - 1]);
+
+export function worldTimeline(input: WorldInput): Timeline {
+  const { today, logs, activities, days, climbs, sidequests } = input;
+  const hours = input.hours ?? [];
+  const cats = input.cats ?? [];
+  const world = buildWorld(input);
+  const day = (d: string) => d.slice(0, 10);
+
+  // Hour slots as buildWorld counts them: the first entry per date and hour, up to today.
+  const slot = new Set<string>();
+  const cells: Array<{ date: string; cat: string }> = [];
+  for (const h of [...hours].sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour)) {
+    const d = day(h.date);
+    if (d > today || slot.has(`${d}|${h.hour}`)) continue;
+    slot.add(`${d}|${h.hour}`);
+    cells.push({ date: d, cat: String(h.category) });
+  }
+  const groupOfCat = new Map(cats.map((c) => [String(c.id), groupOf(c)]));
+  const hourDatesOf = (cat: string) => cells.filter((c) => c.cat === cat).map((c) => c.date);
+  const groupDates = (g: TimeGroup) => cells.filter((c) => groupOfCat.get(c.cat) === g).map((c) => c.date);
+
+  const ticked = new Map<string, string[]>();
+  const firstLog = new Map<string, string>();
+  for (const l of logs) {
+    const d = day(l.date);
+    if (d > today) continue;
+    if (!firstLog.has(l.activityId) || d < (firstLog.get(l.activityId) as string)) firstLog.set(l.activityId, d);
+    if (!l.completed) continue;
+    const list = ticked.get(l.activityId) ?? [];
+    if (!list.includes(d)) list.push(d);
+    ticked.set(l.activityId, list);
+  }
+  for (const list of ticked.values()) list.sort();
+
+  const done = sidequests.filter((q) => q.completedAt && day(q.completedAt) <= today);
+  const firsts = [
+    ...logs.map((l) => day(l.date)), ...days.map((d) => d.date), ...cells.map((c) => c.date),
+    ...climbs.map((c) => day(c.date)), ...done.map((q) => day(q.completedAt as string)),
+  ].filter((d) => d <= today);
+  const first = firsts.length ? firsts.reduce((a, b) => (b < a ? b : a)) : today;
+  const weeks: string[] = [];
+  for (let m = mondayOf(first); m <= mondayOf(today); m = addDaysISO(m, 7)) weeks.push(m);
+  const ends = weeks.map((m) => addDaysISO(m, 6));
+  const countBy = (dates: string[]) => ends.map((e) => dates.filter((d) => d <= e).length);
+
+  const plants: Record<string, number[]> = {};
+  const plantFrom: Record<string, string | null> = {};
+  for (const p of world.plants) {
+    plants[p.id] = countBy(ticked.get(p.id) ?? []);
+    plantFrom[p.id] = firstLog.get(p.id) ?? null;
+  }
+
+  // Same sets as buildWorld (every climb, every finished sidequest); a date after today (time zones) counts as today.
+  const capped = (d: string) => (d > today ? today : d);
+  const climbDates = climbs.map((c) => capped(day(c.date))).sort();
+  const lanterns: Record<string, string> = {};
+  for (const q of sidequests) if (q.completedAt) lanterns[q.id] = capped(day(q.completedAt));
+
+  // Constellations in buildWorld's order: Mind habits, then Mind hour categories (by their first hour).
+  const constellations: string[][] = activities
+    .filter((a) => categoryOf(a) === 'mind')
+    .map((a) => everyNth(ticked.get(a.id) ?? [], DAYS_PER_STAR, Infinity));
+  const mindCats = cats.filter((c) => groupOf(c) === 'mind' && hourDatesOf(String(c.id)).length)
+    .sort((a, b) => hourDatesOf(String(a.id))[0].localeCompare(hourDatesOf(String(b.id))[0]) || String(a.id).localeCompare(String(b.id)));
+  for (const c of mindCats) constellations.push(everyNth(hourDatesOf(String(c.id)), HOURS_PER_MIND_STAR, MAX_MIND_STARS));
+
+  // Good nights, as buildWorld counts them.
+  let fireflies: string[] = [];
+  const sleepIds = new Set([...findSleepIds(cats.map((c) => ({ ...c, color: '' }))), ...cats.filter((c) => groupOf(c) === 'sleep').map((c) => String(c.id))]);
+  if (sleepIds.size && cells.length) {
+    const dates: string[] = [];
+    for (let d = cells.map((c) => c.date).sort()[0]; d <= today; d = addDaysISO(d, 1)) dates.push(d);
+    fireflies = sleepNights(hours, sleepIds, dates, today).filter((n) => (n.hours ?? 0) >= GOOD_NIGHT).map((n) => n.date).slice(0, MAX_FIREFLIES);
+  }
+
+  const points = days.filter((d) => d.date <= today).map((d) => ({ date: d.date, points: d.points }));
+  const level = ends.map((e) => levelFor(points.filter((d) => d.date <= e).reduce((n, d) => n + d.points, 0)).level);
+
+  const groups = weeks.map(() => ({}) as Partial<Record<TimeGroup, number>>);
+  for (const c of cells) {
+    const g = groupOfCat.get(c.cat);
+    const i = weeks.indexOf(mondayOf(c.date));
+    if (!g || i < 0) continue;
+    groups[i][g] = (groups[i][g] ?? 0) + 1;
+  }
+
+  return {
+    today,
+    weeks,
+    plantFrom,
+    plants,
+    mountainFrom: climbDates[0] ?? null,
+    lanterns,
+    hives: everyNth(groupDates('work'), HOURS_PER_HIVE, MAX_HIVES),
+    fireflies,
+    clouds: everyNth(groupDates('rest'), HOURS_PER_CLOUD, MAX_CLOUDS),
+    constellations,
+    level,
+    groups,
+  };
+}
+
+/** Today's world as it stood at the end of week i. Positions are today's: things only appear or grow. `valley`: which valley to show. */
+export function frameAt(world: World, t: Timeline, i: number): { world: World; valley: number } {
+  const monday = t.weeks[i];
+  const sunday = addDaysISO(monday, 6);
+  const end = t.today && t.today < sunday ? t.today : sunday;
+  const upTo = (dates: string[]) => dates.filter((d) => d <= end).length;
+
+  const plants = world.plants
+    .map((p) => {
+      const n = t.plants[p.id]?.[i] ?? 0;
+      return { ...p, days: n, ...plantHeight(n) };
+    })
+    .filter((p) => { const from = t.plantFrom?.[p.id]; return from === null || from === undefined ? p.days > 0 || i === t.weeks.length - 1 : from <= end; });
+
+  const kept = world.valleys.map((v) => ({ plantings: v.plantings.filter((p) => p.week <= monday) }));
+  let valley = 0;
+  kept.forEach((v, k) => { if (v.plantings.length) valley = k; });
+  const level = t.level[i] ?? 1;
+
+  return {
+    valley,
+    world: {
+      ...world,
+      plants,
+      valleys: kept.slice(0, valley + 1),
+      animals: world.animals.filter((a) => a.since <= end),
+      stars: world.stars.filter((s) => s.date <= end),
+      constellations: world.constellations.map((c, k) => ({ ...c, stars: c.stars.slice(0, upTo(t.constellations[k] ?? [])) })),
+      flags: world.flags.filter((f) => f.date <= end),
+      summits: world.summits.filter((s) => s.date <= end),
+      lanterns: world.lanterns.filter((l) => (t.lanterns[l.id] ?? '9999') <= end),
+      mountain: t.mountainFrom !== null && t.mountainFrom <= end,
+      water: { pond: level >= 5, stream: level >= 10, waterfall: level >= 20 },
+      level,
+      season: seasonOf(end),
+      weekGoal: { ...world.weekGoal, met: kept.some((v) => v.plantings.some((p) => p.week === monday)) },
+      hives: world.hives.slice(0, upTo(t.hives)),
+      fireflies: world.fireflies.slice(0, upTo(t.fireflies)),
+      clouds: world.clouds.slice(0, upTo(t.clouds)),
+    },
+  };
+}
+
+const KIND_NAME: Record<PlantKind, string> = { tree: 'young tree', sun: 'young sunflower', bamboo: 'young bamboo' };
+/** Waking time only: Sleep would lead almost every week. */
+const CAPTION_GROUPS: TimeGroup[] = ['work', 'people', 'rest', 'body', 'mind', 'admin'];
+
+/** One line for week i: its date, the top two waking time groups, and at most two things that happened. */
+export function weekCaption(world: World, t: Timeline, i: number): string {
+  const date = new Date(`${t.weeks[i]}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const g = t.groups[i] ?? {};
+  const hours = CAPTION_GROUPS.filter((k) => (g[k] ?? 0) > 0)
+    .sort((a, b) => (g[b] ?? 0) - (g[a] ?? 0) || a.localeCompare(b))
+    .slice(0, 2)
+    .map((k) => `${Math.round(g[k] ?? 0)}h ${k}`)
+    .join(', ');
+
+  const now = frameAt(world, t, i).world;
+  const before = i > 0 ? frameAt(world, t, i - 1).world : null;
+  const planted = now.valleys.flatMap((v) => v.plantings).filter((p) => p.week === t.weeks[i]);
+  const animals = now.animals.filter((a) => !before?.animals.some((b) => b.id === a.id));
+  const flags = now.flags.slice(before?.flags.length ?? 0);
+  const stars = now.stars.length - (before?.stars.length ?? 0);
+  const lanterns = now.lanterns.length - (before?.lanterns.length ?? 0);
+  const events = [
+    ...(planted.length ? [`planted a ${KIND_NAME[planted[0].kind]}`] : []),
+    ...(animals.length ? [`a ${animals[0].kind} arrived`] : []),
+    ...(flags.length ? [`new flag ${flags[flags.length - 1].grade}`] : []),
+    ...(stars > 0 ? [`${stars} perfect ${stars === 1 ? 'day' : 'days'}`] : []),
+    ...(lanterns > 0 ? ['a lantern rose'] : []),
+  ].slice(0, 2).join(', ');
+  return [date, hours, events].filter(Boolean).join(' · ');
 }

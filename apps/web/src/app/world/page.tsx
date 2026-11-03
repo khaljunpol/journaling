@@ -1,10 +1,11 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { markSeen, seenCount, useWorld } from '@/components/world/useWorld';
 import Legend from '@/components/world/Legend';
+import Timelapse from '@/components/world/Timelapse';
 import WorldScene, { caption, type Pick } from '@/components/world/WorldScene';
 
 const MAX_POP = 6;
@@ -15,6 +16,9 @@ export default function WorldPage() {
   const [index, setIndex] = useState<number | null>(null);
   const [picked, setPicked] = useState<Pick | null>(null);
   const [legend, setLegend] = useState(false);
+  const [watching, setWatching] = useState(false);
+  // Stable, so a refreshed world does not restart the timelapse's end timer.
+  const stopWatching = useCallback(() => { setWatching(false); setPicked(null); }, []);
   const [seen] = useState(() => (typeof window === 'undefined' ? 0 : seenCount()));
 
   const planted = world ? world.valleys.reduce((n, v) => n + v.plantings.length, 0) : 0;
@@ -34,6 +38,14 @@ export default function WorldPage() {
   const text = world && valley ? caption(world, valley, picked) : '';
   const go = (i: number) => { setIndex(i); setPicked(null); };
 
+  if (watching && world) {
+    return (
+      <main className="fixed inset-0 overflow-hidden" style={{ background: '#0B0D14', color: '#F3F5F9' }}>
+        <Timelapse world={world} onClose={stopWatching} />
+      </main>
+    );
+  }
+
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: '#0B0D14', color: '#F3F5F9' }}>
       {world && valley ? (
@@ -49,6 +61,11 @@ export default function WorldPage() {
       </Link>
 
       {world && valley ? <Legend world={world} valley={valley} open={legend} onToggle={() => setLegend((o) => !o)} /> : null}
+      {world ? (
+        <button type="button" onClick={() => { setLegend(false); setPicked(null); setWatching(true); }} className="press absolute right-14 top-2 flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[14px]" style={{ color: '#A4AEC4' }}>
+          <Play size={14} aria-hidden="true" fill="currentColor" />Watch your year
+        </button>
+      ) : null}
 
       {world && valley ? (
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 px-4 pb-[max(16px,env(safe-area-inset-bottom))]">

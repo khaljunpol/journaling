@@ -3,7 +3,7 @@
 import { dayScores, gameState, lockCursor, scoresToLock, type GameInput, type GameState } from '@journaling/core/game';
 import { parseScoreRows, type ScoreRow } from '@journaling/core/ledger';
 import { levelFor } from '@journaling/core/scoring';
-import { assignSlots, buildWorld, worldSummary, type PlantKind, type PlantRecord, type World } from '@journaling/core/world';
+import { assignSlots, buildWorld, worldSummary, worldTimeline, type PlantKind, type PlantRecord, type Timeline, type World, type WorldInput } from '@journaling/core/world';
 import { categoryOf } from '@journaling/core/habitCategory';
 import {
   appendDayScores, getLogsBetween, getSettings, listActivities, listClimbGoals, listClimbLogs, listDayScores, listDayStamps, listFillMarks, listHourLogs, listTimeCategories, setSetting, tabCache,
@@ -41,13 +41,17 @@ function plantRecords(input: GameInput, stored: Record<string, PlantRecord>): Re
   return assignSlots(first, stored, kinds);
 }
 
-function worldFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Partial<Pick<Parameters<typeof buildWorld>[0], 'climbs' | 'goals' | 'sidequests' | 'hours' | 'cats'>>): World {
+function worldInputFrom(input: GameInput, locked: Map<string, ScoreRow>, lockedTo: string | null, records: Record<string, PlantRecord>, extra?: Partial<Pick<WorldInput, 'climbs' | 'goals' | 'sidequests' | 'hours' | 'cats'>>): WorldInput {
   const days = dayScores({ ...input, locked, lockedTo, withZero: true });
   const points = days.reduce((n, d) => n + d.points, 0);
-  return buildWorld({
+  return {
     today: input.today, logs: input.logs, activities: input.activities, records, days,
     climbs: extra?.climbs ?? [], goals: extra?.goals ?? [], sidequests: extra?.sidequests ?? [], hours: extra?.hours ?? [], cats: extra?.cats ?? [], level: levelFor(points).level,
-  });
+  };
+}
+
+function worldFrom(...args: Parameters<typeof worldInputFrom>): World {
+  return buildWorld(worldInputFrom(...args));
 }
 
 /** `import`: the one-time history import (the user's tap on "Count my history"). `read`: lock new closed days only if already imported. */
@@ -84,13 +88,23 @@ export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'imp
   return { ...state, world: worldSummary(worldFrom(input, locked, lockedTo, records, { climbs })) };
 }
 
-/** The World, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
-export async function loadWorld(sa: SheetAuth, today: string): Promise<World> {
+/** Everything the World is built from, read-only: never locks and never writes. New habits get their slot in memory until the next game run stores it. */
+async function loadWorldInput(sa: SheetAuth, today: string): Promise<WorldInput> {
   await tabCache.read(sa.spreadsheetId, ['hours', 'timeCategories', 'climbs', 'climbGoals', 'sidequests']);
   const [core, climbs, goals, sidequests, hours, cats] = await Promise.all([readCore(sa, today), listClimbLogs(sa), listClimbGoals(sa), listSidequests(sa), listHourLogs(sa), listTimeCategories(sa)]);
   const s = gameSettings(core.settings);
   const input = { today, logs: core.logs, activities: core.activities, templates: s.templates, stamps: core.stamps, fills: core.fills };
   const locked = s.imported ? parseScoreRows(await listDayScores(sa)) : new Map();
   const records = plantRecords(input, parseWorldPlants(core.settings.worldPlants));
-  return worldFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests, hours, cats });
+  return worldInputFrom(input, locked, s.imported ? s.lockedTo : null, records, { climbs, goals, sidequests, hours, cats });
+}
+
+/** The World, read-only. */
+export async function loadWorld(sa: SheetAuth, today: string): Promise<World> {
+  return buildWorld(await loadWorldInput(sa, today));
+}
+
+/** The World and when each thing in it appeared (for "Watch your year"), read-only. */
+export async function loadTimeline(sa: SheetAuth, today: string): Promise<Timeline> {
+  return worldTimeline(await loadWorldInput(sa, today));
 }
