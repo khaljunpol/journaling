@@ -3,30 +3,30 @@ import assert from 'node:assert/strict';
 import { findAccountSets, planTabRename } from '../src/tabRename.ts';
 
 test('findAccountSets groups tabs by account and ignores other tabs', () => {
-  const sets = findAccountSets(['Logs_Alex', 'Activities_Alex', 'Logs_default', 'Notes']);
+  const sets = findAccountSets(['Logs_Sam', 'Activities_Sam', 'Logs_default', 'Notes']);
   assert.deepEqual(sets, [
-    { account: 'Alex', tabs: ['Logs_Alex', 'Activities_Alex'] },
+    { account: 'Sam', tabs: ['Logs_Sam', 'Activities_Sam'] },
     { account: 'default', tabs: ['Logs_default'] },
   ]);
 });
 
 test('SidequestLogs_Alex belongs to SidequestLogs, not Sidequests', () => {
-  const sets = findAccountSets(['SidequestLogs_Alex', 'Sidequests_Alex']);
-  assert.deepEqual(sets, [{ account: 'Alex', tabs: ['SidequestLogs_Alex', 'Sidequests_Alex'] }]);
-  assert.deepEqual(planTabRename(['SidequestLogs_Alex'], 'Alex').renames, [
-    { from: 'SidequestLogs_Alex', to: 'SidequestLogs' },
+  const sets = findAccountSets(['SidequestLogs_Sam', 'Sidequests_Sam']);
+  assert.deepEqual(sets, [{ account: 'Sam', tabs: ['SidequestLogs_Sam', 'Sidequests_Sam'] }]);
+  assert.deepEqual(planTabRename(['SidequestLogs_Sam'], 'Sam').renames, [
+    { from: 'SidequestLogs_Sam', to: 'SidequestLogs' },
   ]);
 });
 
 test('planTabRename skips when the plain tab exists', () => {
-  assert.deepEqual(planTabRename(['Logs_Alex', 'Logs', 'Moods_Alex'], 'Alex'), {
-    renames: [{ from: 'Moods_Alex', to: 'Moods' }],
-    skipped: [{ from: 'Logs_Alex', reason: 'plain-exists' }],
+  assert.deepEqual(planTabRename(['Logs_Sam', 'Logs', 'Moods_Sam'], 'Sam'), {
+    renames: [{ from: 'Moods_Sam', to: 'Moods' }],
+    skipped: [{ from: 'Logs_Sam', reason: 'plain-exists' }],
   });
 });
 
 test('account with no tabs gives an empty plan', () => {
-  assert.deepEqual(planTabRename(['Logs_Alex'], 'nobody'), { renames: [], skipped: [] });
+  assert.deepEqual(planTabRename(['Logs_Sam'], 'nobody'), { renames: [], skipped: [] });
 });
 
 test('BASES matches TABS', async () => {

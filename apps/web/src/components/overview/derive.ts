@@ -29,6 +29,7 @@ import type { QuickPayload } from '@journaling/core/quickPayload';
 import { addDaysISO } from '@journaling/core/quickWeek';
 import { MIN_PAIRS, MIN_SIDE, SLEEP_CUT } from '@journaling/core/insights';
 import { goodIds } from '@journaling/core/habitCategory';
+import { TRACKING_START } from '@journaling/core/dayState';
 import { keepingUp, type KeepingUp } from '@journaling/core/keepingUp';
 import { weekRecap, type WeekRecap } from '@journaling/core/weekRecap';
 import type { Activity, MoodItem, Sidequest } from '@journaling/core/types';
@@ -276,7 +277,14 @@ export function deriveOverview(args: {
     for (const l of logs) add(l.date, 'habits');
     for (const h of hours) add(h.date, 'hours');
     for (const d of Object.values(quick.days)) if (d.weight !== null) add(d.date, 'weight');
-    keeping = keepingUp({ today, stamps, hasPart: (date, kind) => has.has(`${date}|${kind}`) });
+    // Every logged day counts: start at the first one, not at TRACKING_START.
+    // A day with data and no stamp reads as on time; a saved late stamp marks it late.
+    let first: string = TRACKING_START;
+    for (const k of has) {
+      const d = k.slice(0, 10);
+      if (d < first) first = d;
+    }
+    keeping = keepingUp({ today, stamps, hasPart: (date, kind) => has.has(`${date}|${kind}`), start: first });
   }
 
   return { mood, habits, time, remember, climb, quests, recap, keeping };

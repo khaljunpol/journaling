@@ -12,7 +12,7 @@ export const MIN_PAIRS = 14;
 export const MIN_SIDE = 5;
 /** Smallest mood gap worth saying. */
 export const MIN_GAP = 0.5;
-/** The sleep cut-off (default: 7h). */
+/** The sleep cut-off in hours. */
 export const SLEEP_CUT = 7;
 /** A smaller week-on-week mood change reads as "about the same". */
 export const SAME = 0.3;

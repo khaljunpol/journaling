@@ -2,7 +2,6 @@
 // Dates are local YYYY-MM-DD. Weeks start Monday. Rows dated after today are ignored.
 import { daysSince, sessionsCount, type Log } from './climbStats.ts';
 import { localISO, parseLocalDate, weekStartLocal } from './date.ts';
-import { TRACKING_START } from './dayState.ts';
 import { addDaysISO } from './quickWeek.ts';
 
 export type MoodRow = { date: string; score: number | string };
@@ -184,9 +183,11 @@ const GRACE_DAYS = 7;
 
 /**
  * habitStreak, but a recent day with no habit rows waits to be filled in: it neither ends the streak nor adds to it.
- * `logged` holds dates with any habit row. Grace only applies from `start`, so old streaks don't change.
+ * `logged` holds dates with any habit row. Grace starts at `startAt`, or at the first logged day.
  */
-export function habitStreakGrace(days: HabitDay[], logged: Set<string>, today: string, start = TRACKING_START): { streak: number; waiting: number } {
+export function habitStreakGrace(days: HabitDay[], logged: Set<string>, today: string, startAt?: string): { streak: number; waiting: number } {
+  // Grace starts at the first logged day: a blank day before the user began is not waiting to be filled in.
+  const start = startAt ?? [...logged].reduce((a, b) => (b < a ? b : a), '9999-12-31');
   const by = new Map(days.filter((d) => d.date <= today).map((d) => [d.date, d]));
   const limit = addDaysISO(today, -GRACE_DAYS);
   let cursor = (by.get(today)?.share ?? 0) >= GOOD ? today : addDaysISO(today, -1);

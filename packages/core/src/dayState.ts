@@ -2,7 +2,7 @@
 import { parseLocalDate } from './date.ts';
 import { addDaysISO, mondayOf } from './quickWeek.ts';
 
-/** Days before this have no state, unless filled in from now on: older logs have no recorded time. */
+/** Stamps start here. Older days have no recorded time: with data they read as on time, empty ones have no state. */
 export const TRACKING_START = '2026-11-02';
 
 /** The parts that decide a day. Highlights, climbs and side quests don't count. */
@@ -35,11 +35,12 @@ export function dayHasData(day: { mood: number | null; weight: number | null; lo
   return day.mood !== null || day.weight !== null || day.logs.length > 0 || day.hours.some((h) => h !== null);
 }
 
-/** Null when there is nothing to say: a day before tracking with no stamp, or a day still to come. */
+/** Null when there is nothing to say: an empty day before `start` with no stamp, or a day still to come. */
 export function dayState(date: string, stamps: DayStamp[], hasData: boolean, today: string, start = TRACKING_START): DayState | null {
   if (date > today) return null;
   const own = stamps.filter((s) => s.date === date);
-  if (date < start && !own.length) return null;
+  // Before stamps existed: data means on time (never accuse on missing evidence); an empty day says nothing.
+  if (date < start && !own.length) return hasData ? 'onTime' : null;
   if (own.length) {
     const first = own.map((s) => s.at).reduce((a, b) => (new Date(b) < new Date(a) ? b : a));
     return appDay(new Date(first)) <= date ? 'onTime' : 'late';

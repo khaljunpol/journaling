@@ -13,7 +13,7 @@ test('missing email is never allowed', () => {
 
 test('spaces and caps still match', () => {
   assert.equal(isEmailAllowed(' A@B.C ', parseAllowlist(' a@b.c , x@y.z')), true);
-  assert.equal(isEmailAllowed('Alex@Gmail.com', parseAllowlist(' Alex@Gmail.com , x@y.z')), true);
+  assert.equal(isEmailAllowed('Sam@Gmail.com', parseAllowlist(' Sam@Gmail.com , x@y.z')), true);
 });
 
 test('parseAllowlist drops empties and handles undefined', () => {

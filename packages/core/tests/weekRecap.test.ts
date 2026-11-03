@@ -63,9 +63,9 @@ test('days: on time, late and missed, using stamps', () => {
   assert.deepEqual(weekRecap({ ...base, moods, stamps })?.days, { onTime: 1, late: 1, missed: 5 });
 });
 
-test('days: null for a week before tracking started', () => {
+test('days: a day with data before tracking started counts as on time', () => {
   const r = weekRecap({ ...base, today: '2026-11-01', moods: [{ date: '2026-10-20', score: 7 }] });
-  assert.equal(r?.days, null);
+  assert.deepEqual(r?.days, { onTime: 1, late: 0, missed: 0 });
 });
 
 test('note: names the best mood day when it stands alone', () => {
@@ -114,8 +114,13 @@ test('recapLine: one sentence from what exists', () => {
   );
 });
 
-test('days: a late stamp on a day before tracking stays out of the count', () => {
+test('days: a late stamp on a day before tracking counts as late', () => {
   const moods = [{ date: '2026-10-20', score: 7 }];
   const stamps = [{ date: '2026-10-20', kind: 'mood' as const, at: '2026-10-27T10:00:00.000Z' }];
-  assert.equal(weekRecap({ ...base, today: '2026-11-01', moods, stamps })?.days, null);
+  assert.deepEqual(weekRecap({ ...base, today: '2026-11-01', moods, stamps })?.days, { onTime: 0, late: 1, missed: 0 });
+});
+
+test('days: a week before tracking started counts days with data as on time', () => {
+  const moods = ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31'].map((date) => ({ date, score: 7 }));
+  assert.deepEqual(weekRecap({ ...base, today: '2026-11-02', moods })?.days, { onTime: 6, late: 0, missed: 0 });
 });

@@ -1,5 +1,5 @@
 // The Overview's answers for a small screen: the same maths, fewer numbers. Pure. Relative imports only.
-import { dayState, lateLines, type DayStamp } from './dayState.ts';
+import { dayState, lateLines, TRACKING_START, type DayStamp } from './dayState.ts';
 import { insightLine, insights, SAME, SLEEP_CUT, type InsightInput } from './insights.ts';
 import { lastDates } from './overview.ts';
 import {
@@ -116,7 +116,9 @@ export function deviceInsights(args: {
     if (shift <= -HABIT_SHIFT) lines.push({ text: `Habits down ${Math.abs(shift)}% on the 2 weeks before`, tone: 'bad' });
   }
 
-  lines.push(...lateLines(stamps, hasData, today));
+  // Count from the first day with data, not from when stamps started.
+  const dataStart = [...withData].reduce((a, b) => (b < a ? b : a), TRACKING_START);
+  lines.push(...lateLines(stamps, hasData, today, dataStart));
 
   // Patterns and where the time went.
   if (found.rhythm) {

@@ -7,7 +7,7 @@ import {
 } from '@journaling/sheets/googleSheets';
 import { gameSettings } from './gameInput';
 
-/** `import`: the one-time history import (the user's tap). `read`: lock new closed days only if already imported. */
+/** `import`: the one-time history import (the user's tap on "Count my history"). `read`: lock new closed days only if already imported. */
 export async function loadGame(sa: SheetAuth, today: string, mode: 'read' | 'import'): Promise<GameState> {
   await tabCache.read(sa.spreadsheetId, ['activities', 'logs', 'settings', 'dayLogs']);
   const [logs, activities, settings, stamps, fills] = await Promise.all([

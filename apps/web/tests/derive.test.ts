@@ -187,3 +187,29 @@ test('all habits bad: the same as no habits, no crash', () => {
   assert.equal(v.habits?.streak, 0);
   assert.deepEqual(numbers(v).filter(Number.isNaN), []);
 });
+
+test('keeping up: days before tracking count from the first logged day, by their stamps', () => {
+  const today = '2026-11-03';
+  const blank = (date: string) => ({
+    date, mood: null, weight: null, highlight: '', logs: [], hours: Array.from({ length: 24 }, () => null), climbs: 0, sidequestLogIds: [],
+  });
+  const quick: QuickPayload = {
+    ctx: { activities: [], categoryIds: [], sidequests: [], year: 2026 },
+    days: { [today]: blank(today) },
+    templates: { weekday: null, weekend: null },
+    habitTemplates: { weekday: null, weekend: null },
+    reminderEnabled: false,
+    stamps: [{ date: '2026-10-20', kind: 'mood', at: '2026-10-27T10:00:00.000Z' }],
+  };
+  // Moods every day from 14 Oct, except 25 Oct.
+  const moods90 = [];
+  for (let d = 14; d <= 31; d++) if (d !== 25) moods90.push({ date: `2026-10-${d}`, score: 6 });
+  moods90.push({ date: '2026-11-01', score: 6 }, { date: '2026-11-02', score: 6 });
+  const v = deriveOverview({ today, dash: empty, quick, moods90 });
+  const state = (date: string) => v.keeping?.weeks.flatMap((w) => w.days).find((d) => d.date === date)?.state;
+  assert.equal(state('2026-10-13'), null); // before the first logged day
+  assert.equal(state('2026-10-14'), 'onTime'); // data, no stamp: never accused
+  assert.equal(state('2026-10-20'), 'late'); // the history fill proved it late
+  assert.equal(state('2026-10-25'), 'missed');
+  assert.equal(v.keeping?.total, 20); // 14 Oct to 2 Nov
+});

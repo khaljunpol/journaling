@@ -80,7 +80,7 @@ test('lines: a better and a worse mood week read as good and bad', () => {
 
 test('lines: a small mood change says nothing', () => {
   const moods = [{ date: '2026-10-26', score: 7 }, { date: '2026-10-19', score: 6.9 }];
-  assert.deepEqual(deviceInsights({ ...base, moods }).lines, []);
+  assert.ok(!texts(deviceInsights({ ...base, moods })).some((t) => t.includes('Mood is')));
 });
 
 test('lines: short sleep is bad, enough sleep is good', () => {
@@ -137,4 +137,12 @@ test('lines: a bad habit never reads as a win, even with a higher mood', () => {
   ];
   const moods = Array.from({ length: 20 }, (_, i) => ({ date: day(i + 1), score: i < 10 ? 8 : 6 }));
   assert.ok(texts(deviceInsights({ ...base, activities, logs, moods })).includes('neutral: On days when Beer is done, mood is 2 higher'));
+});
+
+test('lines: the week count includes days before tracking started', () => {
+  // Today Wed 2026-10-28 (before tracking). Mon and Tue have moods.
+  const moods = [{ date: '2026-10-26', score: 7 }, { date: '2026-10-27', score: 7 }];
+  assert.ok(!texts(deviceInsights({ ...base, today: '2026-10-28', moods })).some((t) => t.includes('to fill in')));
+  const withGap = [{ date: '2026-10-26', score: 7 }, { date: '2026-10-28', score: 7 }];
+  assert.ok(texts(deviceInsights({ ...base, today: '2026-10-29', moods: withGap })).includes('bad: 1 day to fill in this week'));
 });

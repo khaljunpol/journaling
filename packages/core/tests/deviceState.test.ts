@@ -112,7 +112,8 @@ test('week: Monday to Sunday, past days scored, later days empty', () => {
   const week = deviceWeek(days, ctx(), '2026-10-28');
   assert.deepEqual(week.map((d) => d.date), ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01']);
   const st = dayStatus(mon, ctx());
-  assert.deepEqual(week[0], { date: '2026-10-26', filled: st.filled, total: st.total });
+  // A day with data before tracking started reads as on time; an empty one has no state.
+  assert.deepEqual(week[0], { date: '2026-10-26', filled: st.filled, total: st.total, state: 'onTime' });
   assert.deepEqual(week[3], { date: '2026-10-29', filled: 0, total: 0 });
 });
 

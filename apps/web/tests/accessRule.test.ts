@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decideAccess } from '../src/lib/accessRule.ts';
 
-const allowed = ['alex@x.com'];
+const allowed = ['sam@x.com'];
 
 test('public paths pass for anyone', () => {
   for (const pathname of ['/api/auth/x', '/_next/x', '/favicon.ico', '/manifest.webmanifest', '/sw.js', '/icon']) {
@@ -24,12 +24,12 @@ test('signed in but not allowed: login stays reachable (no loop)', () => {
 });
 
 test('empty allowlist denies a signed-in user', () => {
-  assert.equal(decideAccess({ pathname: '/', email: 'alex@x.com', allowed: [] }), 'to-denied');
+  assert.equal(decideAccess({ pathname: '/', email: 'sam@x.com', allowed: [] }), 'to-denied');
 });
 
 test('allowed user', () => {
-  assert.equal(decideAccess({ pathname: '/login', email: ' ALEX@X.com ', allowed }), 'to-home');
-  assert.equal(decideAccess({ pathname: '/journal', email: 'alex@x.com', allowed }), 'next');
+  assert.equal(decideAccess({ pathname: '/login', email: ' Sam@X.com ', allowed }), 'to-home');
+  assert.equal(decideAccess({ pathname: '/journal', email: 'sam@x.com', allowed }), 'next');
 });
 
 test('only the exact reminder run path is public', () => {
