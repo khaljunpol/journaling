@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { isDemo } from '@/lib/demo';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { setSetting } from '@journaling/sheets/googleSheets';
 import { isPushEndpoint } from '@/lib/reminder';
@@ -23,6 +24,7 @@ function cleanSubscription(v: unknown): Sub | null {
 }
 
 export async function POST(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
@@ -47,6 +49,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;

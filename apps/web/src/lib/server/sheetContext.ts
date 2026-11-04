@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { demoSheetId, isDemo } from '@/lib/demo';
 import { readSheetConnection, writeSheetConnection } from './sheetConnection.ts';
 import { buildSheetContext, getSessionUserKey } from './sheetContextCore.ts';
 
@@ -18,6 +19,8 @@ export async function getSheetContext() {
   const session = await auth();
   const email = getSessionUserKey(session);
   if (!email) return { ...buildSheetContext(null, null), email: null };
+  // Demo: each visitor has their own sandbox sheet; no connection cookie.
+  if (isDemo()) return { ...buildSheetContext(email, demoSheetId(email)), email };
   const { spreadsheetId, legacy } = await readSheetConnection(email);
   if (legacy && spreadsheetId) {
     // Upgrade the old bare-id cookie. Cookies are read-only outside route handlers,

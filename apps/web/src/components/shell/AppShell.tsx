@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NAV } from '@/lib/routes';
+import DemoBanner from '@/components/DemoBanner';
 import BottomTabs from './BottomTabs';
 import Sidebar from './Sidebar';
 
@@ -50,6 +51,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={`min-h-dvh sm:pl-16 ${expanded ? 'lg:pl-[220px]' : ''} ${animate ? 'shell-main-anim' : ''}`}>
       <Sidebar expanded={expanded} animate={animate} onToggle={toggle} />
+      <DemoBanner />
       <main
         className="mx-auto w-full max-w-5xl px-4 pb-[calc(56px+env(safe-area-inset-bottom)+24px)] pt-4 sm:px-8 sm:pb-6 sm:pt-6"
       >

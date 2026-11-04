@@ -45,3 +45,30 @@ test('only the exact device path is public; the keys route needs a session', () 
   assert.equal(decideAccess({ pathname: '/api/devicex', email: null, allowed }), 'json-401');
   assert.equal(decideAccess({ pathname: '/api/device/', email: null, allowed }), 'json-401');
 });
+
+test('demo: a demo email gets next', () => {
+  assert.equal(decideAccess({ pathname: '/', email: 'demo-abc@demo.invalid', allowed: [], demo: true }), 'next');
+  assert.equal(decideAccess({ pathname: '/api/logs', email: 'demo-abc@demo.invalid', allowed: [], demo: true }), 'next');
+  assert.equal(decideAccess({ pathname: '/login', email: 'demo-abc@demo.invalid', allowed: [], demo: true }), 'to-home');
+});
+
+test('demo: a real email is denied', () => {
+  assert.equal(decideAccess({ pathname: '/', email: 'sam@x.com', allowed, demo: true }), 'to-denied');
+  assert.equal(decideAccess({ pathname: '/api/logs', email: 'sam@x.com', allowed, demo: true }), 'json-403');
+  assert.equal(decideAccess({ pathname: '/', email: 'someone@demo.invalid.example.com', allowed: [], demo: true }), 'to-denied');
+});
+
+test('demo: /setup goes home', () => {
+  assert.equal(decideAccess({ pathname: '/setup', email: 'demo-abc@demo.invalid', allowed: [], demo: true }), 'to-home');
+  assert.equal(decideAccess({ pathname: '/setup', email: null, allowed: [], demo: true }), 'to-home');
+});
+
+test('demo: signed out still goes to login', () => {
+  assert.equal(decideAccess({ pathname: '/', email: null, allowed: [], demo: true }), 'to-login');
+  assert.equal(decideAccess({ pathname: '/login', email: null, allowed: [], demo: true }), 'next');
+});
+
+test('normal mode unchanged: demo emails are not special', () => {
+  assert.equal(decideAccess({ pathname: '/', email: 'demo-abc@demo.invalid', allowed }), 'to-denied');
+  assert.equal(decideAccess({ pathname: '/setup', email: 'sam@x.com', allowed, demo: false }), 'next');
+});

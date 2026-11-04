@@ -1,4 +1,4 @@
-// Chart look from tokens. Order per docs/design/direction.md section 3:
+// Chart look from tokens. Series order (see DESIGN.md, Colors):
 // accent, sky, green, rose, slate. Ember (reward) is never used in charts.
 export const CHART_SERIES = ['var(--accent)', 'var(--sync)', 'var(--ok)', 'var(--warn)', 'var(--text-3)'] as const;
 

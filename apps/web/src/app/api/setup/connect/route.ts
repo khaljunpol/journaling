@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { isDemo } from '@/lib/demo';
 import { getSessionUserKey } from '@/lib/server/sheetContext';
 import { writeSheetConnection } from '@/lib/server/sheetConnection';
 import { parseSpreadsheetId } from '@/lib/setup';
@@ -11,6 +12,7 @@ import { claimOrCheckOwner, ownedByAnother } from '@/lib/server/sheetOwner';
 const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
 
 export async function POST(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const session = await auth();
     const userKey = getSessionUserKey(session);

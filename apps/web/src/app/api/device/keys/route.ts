@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { isDemo } from '@/lib/demo';
 import { requireSheetContext, type SheetAuth } from '@/lib/sheetAuth';
 import { getSettings, newId, setSetting, tabCache } from '@journaling/sheets/googleSheets';
 import { withLock } from '@journaling/sheets/keyedLock';
@@ -32,6 +33,7 @@ async function freshKeys(sheetAuth: SheetAuth): Promise<StoredKey[]> {
 
 /** Connected devices. Hashes never leave the server. */
 export async function GET() {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     // Session only, and requireSheetContext checks the sheet's ownerEmail.
     const ctx = await requireSheetContext();
@@ -45,6 +47,7 @@ export async function GET() {
 
 /** Add a device. The code is returned once; only the hash is stored. */
 export async function POST(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return noStore(ctx);
@@ -77,6 +80,7 @@ export async function POST(req: Request) {
 
 /** Turn one device off. An unknown id is fine: the device is already off. */
 export async function DELETE(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return noStore(ctx);

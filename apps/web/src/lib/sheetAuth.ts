@@ -2,6 +2,7 @@ import { apiError } from '@/lib/apiHelpers';
 import { getSheetContext } from '@/lib/server/sheetContext';
 import { serviceTabsClient, type SheetAuth } from '@journaling/sheets/googleSheets';
 import { ensureCoreTabsOnce } from '@journaling/sheets/sheetTabs';
+import { isDemo } from '@/lib/demo';
 import { claimOrCheckOwner } from '@/lib/server/sheetOwner';
 
 export type { SheetAuth };
@@ -19,7 +20,8 @@ export async function requireSheetContext(): Promise<SheetContext | ReturnType<t
   const result = await getSheetContext();
   if (!result.ok) return apiError(result.message, result.status);
   const { spreadsheetId } = result.context.sheetAuth;
-  await ensureCoreTabsOnce(serviceTabsClient(), spreadsheetId);
+  // Demo sandboxes are seeded with every tab already.
+  if (!isDemo()) await ensureCoreTabsOnce(serviceTabsClient(), spreadsheetId);
   // Same reply as "not connected", so the app sends the person back to setup.
   if (!result.email || !(await claimOrCheckOwner(spreadsheetId, result.email))) return apiError('Setup required', 403);
   return result.context;

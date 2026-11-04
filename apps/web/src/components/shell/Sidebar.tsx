@@ -4,6 +4,7 @@ import { LogOut, Moon, NotebookPen, PanelLeft, Sun, Unplug, User } from 'lucide-
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useDemo } from '@/components/Providers';
 import { NAV, navIdForPath } from '@/lib/routes';
 import type { NavItem } from '@/lib/routes';
 import { signOutClean } from '@/lib/signOut';
@@ -35,6 +36,7 @@ export default function Sidebar({ expanded, animate, onToggle }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggle } = useTheme();
+  const demo = useDemo();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const active = navIdForPath(pathname ?? '/');
@@ -136,20 +138,24 @@ export default function Sidebar({ expanded, animate, onToggle }: Props) {
                 {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
                 {theme === 'dark' ? 'Light mode' : 'Dark mode'}
               </button>
-              <button
-                role="menuitem"
-                type="button"
-                onClick={() => { setMenuOpen(false); void disconnectSheet((p) => router.push(p)); }}
-                className={menuItem}
-                style={{ color: 'var(--text-1)' }}
-              >
-                <Unplug size={16} aria-hidden="true" />
-                Disconnect sheet
-              </button>
-              <button role="menuitem" type="button" onClick={() => void signOutClean()} className={menuItem} style={{ color: 'var(--text-1)' }}>
-                <LogOut size={16} aria-hidden="true" />
-                Sign out
-              </button>
+              {!demo && (
+                <>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => { setMenuOpen(false); void disconnectSheet((p) => router.push(p)); }}
+                    className={menuItem}
+                    style={{ color: 'var(--text-1)' }}
+                  >
+                    <Unplug size={16} aria-hidden="true" />
+                    Disconnect sheet
+                  </button>
+                  <button role="menuitem" type="button" onClick={() => void signOutClean()} className={menuItem} style={{ color: 'var(--text-1)' }}>
+                    <LogOut size={16} aria-hidden="true" />
+                    Sign out
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

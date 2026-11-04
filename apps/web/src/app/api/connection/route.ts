@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { demoSheetId, isDemo } from '@/lib/demo';
 import { getSessionUserKey } from '@/lib/server/sheetContext';
 import {
   clearSheetConnection,
@@ -16,7 +17,8 @@ export async function GET() {
     const email = getSessionUserKey(session);
     if (!email) return apiError('Unauthorized', 401);
 
-    const { spreadsheetId } = await readSheetConnection(email);
+    // Demo: the visitor's sandbox sheet is always connected.
+    const spreadsheetId = isDemo() ? demoSheetId(email) : (await readSheetConnection(email)).spreadsheetId;
     if (!spreadsheetId || !(await claimOrCheckOwner(spreadsheetId, email))) return apiError('Setup required', 403);
 
     return NextResponse.json({ connected: true, spreadsheetId });
@@ -26,6 +28,7 @@ export async function GET() {
 }
 
 export async function DELETE() {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const session = await auth();
     if (!getSessionUserKey(session)) return apiError('Unauthorized', 401);

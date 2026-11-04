@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createTabCache, type RangeReader } from '../src/sheetCache.ts';
+import { createTabCache, SWEEP_THRESHOLD, type RangeReader } from '../src/sheetCache.ts';
 import { dataRange } from '../src/sheetLayout.ts';
 
 function setup(opts: { fail?: boolean; gate?: boolean } = {}) {
@@ -119,5 +119,39 @@ describe('tab cache', () => {
     c.clear();
     await c.readOne('A', 'logs');
     assert.equal(s.calls.length, 2);
+  });
+
+  it('expired entries of other sheets are swept once the cache grows past the threshold', async () => {
+    const s = setup();
+    const c = createTabCache(s.reader, { now: s.now });
+    for (let i = 0; i <= SWEEP_THRESHOLD; i++) {
+      await c.readOne(`S${i}`, 'logs');
+      c.invalidate(`S${i}`, 'moods');
+    }
+    assert.equal(c.sizes().entries, SWEEP_THRESHOLD + 1);
+    s.clock.advance(30_001);
+    await c.readOne('Z', 'logs');
+    assert.deepEqual(c.sizes(), { entries: 1, gens: 0 });
+  });
+
+  it('invalidate still blocks a stale in-flight write after a sweep', async () => {
+    const s = setup({ gate: true });
+    const c = createTabCache(s.reader, { now: s.now });
+    const first = c.readOne('A', 'logs');
+    c.invalidate('A', 'logs');
+    const fills = Array.from({ length: SWEEP_THRESHOLD + 1 }, (_, i) => c.readOne(`S${i}`, 'logs'));
+    s.gates.slice(1).forEach((g) => g());
+    await Promise.all(fills);
+    s.clock.advance(30_001);
+    const sweeper = c.readOne('Z', 'logs');
+    s.gates[s.gates.length - 1]();
+    await sweeper;
+    s.gates[0]();
+    await first;
+    const callsBefore = s.calls.length;
+    const second = c.readOne('A', 'logs');
+    s.gates[s.gates.length - 1]();
+    await second;
+    assert.equal(s.calls.length, callsBefore + 1);
   });
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { apiError } from '@/lib/apiHelpers';
+import { isDemo } from '@/lib/demo';
 import { apiErrorBody } from '@/lib/server/apiError';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setSetting } from '@journaling/sheets/googleSheets';
@@ -82,9 +83,11 @@ async function run(req: Request): Promise<NextResponse> {
 }
 
 export async function GET(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   return run(req);
 }
 
 export async function POST(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   return run(req);
 }

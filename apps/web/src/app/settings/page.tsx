@@ -9,6 +9,7 @@ import HourTemplatesEditor from '@/components/HourTemplatesEditor';
 import TimeCategoriesEditor from '@/components/TimeCategoriesEditor';
 import DeviceKeysPanel from '@/components/settings/DeviceKeysPanel';
 import ReminderToggle from '@/components/settings/ReminderToggle';
+import { useDemo } from '@/components/Providers';
 import { disconnectSheet } from '@/components/shell/disconnectSheet';
 import { useTheme } from '@/components/shell/useTheme';
 import Button from '@/components/ui/Button';
@@ -28,6 +29,9 @@ const SECTIONS = [
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
+
+// Demo has no reminders, devices, sheet or sign-out.
+const DEMO_HIDDEN: readonly SectionId[] = ['reminder', 'devices', 'account'];
 
 /**
  * Phone: a row that opens its section. Desktop (lg): always open, the side list scrolls to it.
@@ -57,13 +61,15 @@ function Section({ id, label, open, onToggle, children }: { id: SectionId; label
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, toggle } = useTheme();
+  const demo = useDemo();
   const [openId, setOpenId] = useState<SectionId | null>(null);
+  const sections = demo ? SECTIONS.filter((s) => !DEMO_HIDDEN.includes(s.id)) : SECTIONS;
 
   // Legacy redirects land on /settings#activities etc.: open that section and scroll to it.
   useEffect(() => {
     function fromHash() {
       const id = window.location.hash.slice(1);
-      const found = SECTIONS.find((s) => s.id === id);
+      const found = sections.find((s) => s.id === id);
       if (!found) return;
       setOpenId(found.id);
       requestAnimationFrame(() => document.getElementById(found.id)?.scrollIntoView({ block: 'start' }));
@@ -71,7 +77,8 @@ export default function SettingsPage() {
     fromHash();
     window.addEventListener('hashchange', fromHash);
     return () => window.removeEventListener('hashchange', fromHash);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sections only changes with demo, which is fixed per load
+  }, [demo]);
 
   const section = (id: SectionId, children: ReactNode) => (
     <Section id={id} label={SECTIONS.find((s) => s.id === id)!.label} open={openId === id} onToggle={() => setOpenId(openId === id ? null : id)}>
@@ -89,7 +96,7 @@ export default function SettingsPage() {
     <div className="lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-8">
       <nav aria-label="Settings sections" className="hidden lg:block">
         <ul className="sticky top-6 space-y-1">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <li key={s.id}>
               <a href={`#${s.id}`} className="block rounded-[10px] px-3 py-2 text-[14px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--text-2)' }}>
                 {s.label}
@@ -100,14 +107,14 @@ export default function SettingsPage() {
       </nav>
 
       <div className="min-w-0 space-y-3 lg:space-y-8">
-        <PageHeader title="Settings" context="Your lists, usual days, reminder, devices and account." />
+        <PageHeader title="Settings" context={demo ? 'Your lists and usual days.' : 'Your lists, usual days, reminder, devices and account.'} />
 
         {section('activities', <ActivityList />)}
         {section('time', <TimeCategoriesEditor />)}
         {section('hours', <HourTemplatesEditor />)}
         {section('habits', <HabitTemplatesEditor />)}
-        {section('reminder', panel('Reminder', <ReminderToggle />))}
-        {section('devices', panel('Devices', <DeviceKeysPanel />))}
+        {!demo && section('reminder', panel('Reminder', <ReminderToggle />))}
+        {!demo && section('devices', panel('Devices', <DeviceKeysPanel />))}
         {section(
           'appearance',
           panel(
@@ -118,7 +125,7 @@ export default function SettingsPage() {
             </Button>,
           ),
         )}
-        {section(
+        {!demo && section(
           'account',
           panel(
             'Account',

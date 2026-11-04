@@ -1,5 +1,6 @@
 import { auth, allowedEmails } from '@/lib/auth';
 import { decideAccess } from '@/lib/accessRule';
+import { isDemo } from '@/lib/demo';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Session } from 'next-auth';
@@ -9,6 +10,7 @@ export default auth((req: NextRequest & { auth: Session | null }) => {
     pathname: req.nextUrl.pathname,
     email: req.auth?.user?.email ?? null,
     allowed: allowedEmails,
+    demo: isDemo(),
   });
 
   switch (access) {

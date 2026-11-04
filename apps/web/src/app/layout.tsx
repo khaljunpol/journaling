@@ -2,6 +2,7 @@ import ConnectionGate from '@/components/ConnectionGate';
 import LayoutGate from '@/components/LayoutGate';
 import Providers from '@/components/Providers';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import { isDemo } from '@/lib/demo';
 import type { ReactNode } from 'react';
 import { Geist, Geist_Mono, Pixelify_Sans } from 'next/font/google';
 // @ts-ignore: side-effect global CSS import for Next.js
@@ -38,7 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <script dangerouslySetInnerHTML={{ __html: themeScript }} />
             </head>
             <body className="min-h-dvh overflow-x-hidden">
-                <Providers>
+                <Providers demo={isDemo()}>
                     <ServiceWorkerRegister />
                     <LayoutGate>
                         <ConnectionGate>{children}</ConnectionGate>

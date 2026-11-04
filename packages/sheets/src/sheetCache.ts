@@ -17,6 +17,9 @@ function freezeRows(rows: Rows): Rows {
   return Object.freeze(rows) as Rows;
 }
 
+/** When the cache holds more entries than this, a read sweeps out dead keys. */
+export const SWEEP_THRESHOLD = 500;
+
 export function createTabCache(
   reader: RangeReader,
   opts: { ttlMs?: number; now?: () => number } = {},
@@ -26,11 +29,21 @@ export function createTabCache(
   const entries = new Map<string, Entry>();
   const inflight = new Map<string, Inflight>();
   const gens = new Map<string, number>();
+  // Fetches still running per key, including ones dropped by invalidate.
+  const live = new Map<string, number>();
 
   const keyOf = (id: string, tab: TabKey) => `${id}\u0000${tab}`;
   const genOf = (key: string) => gens.get(key) ?? 0;
 
+  // Drops expired entries, then generation counters that no entry or running fetch needs.
+  function sweep(): void {
+    const t = now();
+    for (const [key, e] of entries) if (e.expires <= t) entries.delete(key);
+    for (const key of gens.keys()) if (!entries.has(key) && !live.has(key)) gens.delete(key);
+  }
+
   async function read(spreadsheetId: string, tabs: TabKey[]): Promise<Record<TabKey, Rows>> {
+    if (entries.size > SWEEP_THRESHOLD) sweep();
     const unique = [...new Set(tabs)];
     const pending = new Map<TabKey, Promise<Rows>>();
     const missing: TabKey[] = [];
@@ -59,9 +72,14 @@ export function createTabCache(
           if (genOf(key) === gen) entries.set(key, { rows, expires: now() + ttlMs });
           return rows;
         });
+        live.set(key, (live.get(key) ?? 0) + 1);
         const record: Inflight = { promise, gen };
         inflight.set(key, record);
-        const clean = () => { if (inflight.get(key) === record) inflight.delete(key); };
+        const clean = () => {
+          if (inflight.get(key) === record) inflight.delete(key);
+          const left = (live.get(key) ?? 1) - 1;
+          if (left > 0) live.set(key, left); else live.delete(key);
+        };
         promise.then(clean, clean);
         pending.set(tab, promise);
       });
@@ -83,6 +101,8 @@ export function createTabCache(
       entries.delete(key);
       inflight.delete(key);
     },
+    /** Map sizes, for tests. */
+    sizes: () => ({ entries: entries.size, gens: gens.size }),
     clear(): void {
       for (const key of new Set([...entries.keys(), ...inflight.keys()])) gens.set(key, genOf(key) + 1);
       entries.clear();

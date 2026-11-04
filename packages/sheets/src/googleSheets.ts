@@ -12,6 +12,7 @@ import { pickEmptyEntries } from '@journaling/core/deviceState';
 import { onlyNewRows, scoreRowValues } from '@journaling/core/ledger';
 import type { DayScore } from '@journaling/core/scoring';
 import type { TabsClient } from './sheetTabs.ts';
+import { demoSheets } from './demoSheets.ts';
 import { createTabCache, type RangeReader } from './sheetCache.ts';
 
 /** Row id for new rows. Random, so two saves in the same millisecond can't share one. */
@@ -46,6 +47,7 @@ function currentCredentials(): Credentials {
 }
 
 export function getServiceSheets() {
+  if (process.env.DEMO_MODE === '1') return demoSheets() as unknown as ReturnType<typeof google.sheets>;
   const g = globalThis as typeof globalThis & {
     [globalAuthKey]?: ReturnType<typeof google.sheets>;
   };

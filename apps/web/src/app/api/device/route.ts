@@ -1,6 +1,7 @@
 import { goodIds } from '@journaling/core/habitCategory';
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
+import { isDemo } from '@/lib/demo';
 import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight, getLogsBetween, getMoodsBetween, listHourLogs, listClimbLogs, listClimbGoals, listDayStamps, stampDay, getWeightsBetween } from '@journaling/sheets/googleSheets';
@@ -62,6 +63,7 @@ async function stateFor(sheetAuth: SheetAuth, today: string): Promise<DeviceStat
 
 /** Today's device state. The server decides the date (the app's time zone). ?include=hours adds the categories and slots; ?include=week adds Monday to Sunday; ?include=history adds the last 30 days of mood and weight; ?include=insights adds the Overview's answers; ?include=climb adds the climbing numbers; ?include=game adds points, level and the top streak; ?include=world adds the valley's still picture. */
 export async function GET(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     const auth = await authDevice(req);
     if (!auth) return refused();
@@ -120,6 +122,7 @@ export async function GET(req: Request) {
 
 /** Run one action for today, then return the new state. Every action is safe to repeat. */
 export async function POST(req: Request) {
+  if (isDemo()) return apiError('Not found', 404);
   try {
     // Refuse a big body before reading it or the sheet; the check after reading covers a missing or wrong header.
     const declared = Number(req.headers.get('content-length') ?? 0);
