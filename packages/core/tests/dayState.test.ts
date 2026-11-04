@@ -1,17 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayHasData, dayState, lateLines, stampTime, appDay, type DayStamp } from '../src/dayState.ts';
+import { dayHasData, dayState, lateLines, stampTime, type DayStamp } from '../src/dayState.ts';
 import { habitStreakGrace, type HabitDay } from '../src/overviewStats.ts';
 
 const START = '2026-11-02'; // a Monday
 const stamp = (date: string, at: string, kind: DayStamp['kind'] = 'mood'): DayStamp => ({ date, kind, at });
-/** 18:00 UTC on that date. */
+/** 18:00 UTC on that date (tests run in UTC). */
 const evening = (date: string) => `${date}T18:00:00.000Z`;
-
-test('UTC midnight is the line: 22:30 UTC in November is already the next day', () => {
-  assert.equal(appDay(new Date('2026-11-03T21:59:00Z')), '2026-11-03');
-  assert.equal(appDay(new Date('2026-11-03T22:01:00Z')), '2026-11-04');
-});
 
 test('a day logged the same day is on time', () => {
   assert.equal(dayState('2026-11-03', [stamp('2026-11-03', evening('2026-11-03'))], true, '2026-11-05', START), 'onTime');

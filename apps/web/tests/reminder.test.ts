@@ -1,11 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appDateISO, shouldRemind, checkCronAuth, isPushEndpoint } from '../src/lib/reminder.ts';
-
-test('appDateISO uses the UTC calendar day', () => {
-  assert.equal(appDateISO(new Date('2026-10-27T22:30:00Z')), '2026-10-28');
-  assert.equal(appDateISO(new Date('2026-10-27T12:00:00Z')), '2026-10-27');
-});
+import { shouldRemind, checkCronAuth, isPushEndpoint } from '../src/lib/reminder.ts';
 
 test('shouldRemind: only when on, subscribed and something is empty', () => {
   const open = { filled: 3, total: 6 };

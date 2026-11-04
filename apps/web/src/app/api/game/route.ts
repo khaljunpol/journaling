@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiFailure } from '@/lib/apiHelpers';
-import { appDateISO } from '@/lib/reminder';
+import { appDay } from '@journaling/core/timeZone';
 import { loadGame } from '@/lib/server/game';
 import { requireSheetContext } from '@/lib/sheetAuth';
 
@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
-    const state = await loadGame(ctx.sheetAuth, appDateISO(new Date()), 'read');
+    const state = await loadGame(ctx.sheetAuth, appDay(new Date()), 'read');
     return NextResponse.json(state, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     return apiFailure(error, 'GET /api/game');

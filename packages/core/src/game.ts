@@ -2,7 +2,8 @@
 // Locked days come from DayScores; every other day is worked out live with the same rules,
 // so the preview before the history import equals what the import writes.
 import { BADGES, earnedBadges, mergeBadges } from './badges.ts';
-import { appDay, type DayStamp } from './dayState.ts';
+import { type DayStamp } from './dayState.ts';
+import { appDay } from './timeZone.ts';
 import type { HabitCategory } from './habitCategory.ts';
 import { daysToLock, type ScoreRow } from './ledger.ts';
 import type { HabitLog } from './overviewStats.ts';

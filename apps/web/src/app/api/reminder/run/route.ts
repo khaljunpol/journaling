@@ -6,7 +6,8 @@ import { apiErrorBody } from '@/lib/server/apiError';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setSetting } from '@journaling/sheets/googleSheets';
 import { dayStatus } from '@journaling/core/quickDay';
-import { checkCronAuth, shouldRemind, appDateISO } from '@/lib/reminder';
+import { checkCronAuth, shouldRemind } from '@/lib/reminder';
+import { appDay } from '@journaling/core/timeZone';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -69,7 +70,7 @@ async function run(req: Request): Promise<NextResponse> {
     return apiError('Reminder is not set up', 500);
   }
 
-  const today = appDateISO(new Date());
+  const today = appDay(new Date());
   let sent = 0;
   for (const id of sheetIds()) {
     try {

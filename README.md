@@ -79,6 +79,7 @@ Notes:
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: the OAuth client
    - `AUTH_SECRET`: any long random string (sign-in cookies)
    - `ALLOWED_EMAILS`: who may sign in, comma separated. Empty means nobody.
+   - `NEXT_PUBLIC_APP_TIME_ZONE` (optional): where your day starts and ends, as an IANA name such as `Europe/Paris`. Default is UTC. Set it before you build.
 4. From the repo root:
 
    ```
@@ -137,7 +138,7 @@ Needs Android Studio, with `ANDROID_HOME` and `JAVA_HOME` set. On Windows the C+
 
 - Use a separate Vercel project.
 - Set Root Directory to `apps/web`.
-- Env vars: `DEMO_MODE=1` and its own `AUTH_SECRET`.
+- Env vars: `DEMO_MODE=1` and its own `AUTH_SECRET`. Optional: `NEXT_PUBLIC_APP_TIME_ZONE`.
 - Add no Google variables.
 
 ## License

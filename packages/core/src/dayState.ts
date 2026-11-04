@@ -1,5 +1,6 @@
 // Was a day logged on time, late, or not at all? Pure. Relative imports only.
 import { parseLocalDate } from './date.ts';
+import { appDay } from './timeZone.ts';
 import { addDaysISO, mondayOf } from './quickWeek.ts';
 
 /** Stamps start here. Older days have no recorded time: with data they read as on time, empty ones have no state. */
@@ -18,11 +19,6 @@ const PATTERN_DAYS = 14;
 /** Tracked days this week before the week's count is worth saying. */
 const WEEK_MIN = 3;
 const WEEKDAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
-
-/** The UTC date of an instant, YYYY-MM-DD. The app's day always ends at UTC midnight. */
-export function appDay(at: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
-}
 
 /** The time to record. The tap time wins if it's believable: in the past, and at most 7 days old. */
 export function stampTime(sent: number | null, now: number): string {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiError, apiFailure } from '@/lib/apiHelpers';
-import { appDateISO } from '@/lib/reminder';
+import { appDay } from '@journaling/core/timeZone';
 import { insightInputFrom } from '@/lib/server/insightInput';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { dayPoints } from '@journaling/core/game';
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     const { sheetAuth } = ctx;
-    const today = appDateISO(new Date());
+    const today = appDay(new Date());
     // From 31 Dec of the year before: the night ending on 1 Jan starts that evening.
     const from = `${year - 1}-12-31`;
     const to = `${year}-12-31`;

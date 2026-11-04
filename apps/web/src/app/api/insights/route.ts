@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiFailure } from '@/lib/apiHelpers';
-import { appDateISO } from '@/lib/reminder';
+import { appDay } from '@journaling/core/timeZone';
 import { insightInputFrom } from '@/lib/server/insightInput';
 import { requireSheetContext } from '@/lib/sheetAuth';
 import { insights, WINDOW } from '@journaling/core/insights';
@@ -15,7 +15,7 @@ export async function GET() {
     const ctx = await requireSheetContext();
     if ('status' in ctx) return ctx;
     const { sheetAuth } = ctx;
-    const today = appDateISO(new Date());
+    const today = appDay(new Date());
     // One extra day back: the first night in the window needs the evening before.
     const from = addDaysISO(today, -WINDOW);
     await tabCache.read(sheetAuth.spreadsheetId, ['activities', 'logs', 'moods', 'timeCategories', 'hours']);

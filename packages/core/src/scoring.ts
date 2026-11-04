@@ -1,5 +1,5 @@
 // Points for one day, and the level maths. Pure. Relative imports only.
-import { appDay } from './dayState.ts';
+import { appDay } from './timeZone.ts';
 import { categoryOf, type HabitCategory } from './habitCategory.ts';
 import type { HabitLog } from './overviewStats.ts';
 import { templateKind } from './quickDay.ts';

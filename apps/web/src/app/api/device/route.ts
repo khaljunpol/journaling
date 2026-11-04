@@ -5,7 +5,7 @@ import { isDemo } from '@/lib/demo';
 import { authDevice } from '@/lib/server/deviceAuth';
 import { loadQuickPayload } from '@/lib/server/loadQuick';
 import { setMood, upsertLog, setWeight, upsertHourLogsBatch, tabCache, type SheetAuth, listTimeCategories, setHighlight, getLogsBetween, getMoodsBetween, listHourLogs, listClimbLogs, listClimbGoals, listDayStamps, stampDay, getWeightsBetween } from '@journaling/sheets/googleSheets';
-import { appDateISO } from '@/lib/reminder';
+import { appDay } from '@journaling/core/timeZone';
 import { deviceHistory, deviceState, deviceWeek, HISTORY_DAYS, usualHoursFill, hoursFillReason, parseDeviceAction, type DeviceState, type DeviceHours } from '@journaling/core/deviceState';
 import type { StampKind } from '@journaling/core/dayState';
 import { deviceClimb } from '@journaling/core/deviceClimb';
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
   try {
     const auth = await authDevice(req);
     if (!auth) return refused();
-    const today = appDateISO(new Date());
+    const today = appDay(new Date());
     const include = new URL(req.url).searchParams.get('include');
     if (include === 'week') {
       const { payload, day } = await load(auth.sheetAuth, today, mondayOf(today));
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
     const action = parseDeviceAction(body);
     if (!action) return fail('Invalid action', 400);
 
-    const today = appDateISO(new Date());
+    const today = appDay(new Date());
     // A device always logs today, on the server's clock.
     const mark = (kind: StampKind) => stampDay(sheetAuth, today, kind, new Date().toISOString());
     switch (action.kind) {

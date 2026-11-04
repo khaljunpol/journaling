@@ -1,5 +1,6 @@
 // How well logging keeps up with the days: four weeks of day states and a count per part. Pure. Relative imports only.
-import { dayState, lateLines, latePatterns, appDay, TRACKING_START, type DayStamp, type DayState, type StampKind } from './dayState.ts';
+import { dayState, lateLines, latePatterns, TRACKING_START, type DayStamp, type DayState, type StampKind } from './dayState.ts';
+import { appDay } from './timeZone.ts';
 import { addDaysISO, mondayOf, weekDates } from './quickWeek.ts';
 
 export type KeepingPart = { kind: StampKind; late: number; skipped: number };

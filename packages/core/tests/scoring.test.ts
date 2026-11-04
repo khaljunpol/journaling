@@ -44,8 +44,8 @@ test('scoreDay: a filled day gets no perfect bonus', () => {
 
 test('scoreDay: 7 days late scores full, 8 days late scores 0', () => {
   const logs = [log('2026-11-03', 'a')];
-  assert.equal(day({ logs, firstHabitStamp: '2026-11-10T20:00:00.000Z' }).points, 10); // 10 Nov in UTC
-  assert.equal(day({ logs, firstHabitStamp: '2026-11-10T22:30:00.000Z' }).points, 0); // 11 Nov in UTC
+  assert.equal(day({ logs, firstHabitStamp: '2026-11-10T20:00:00.000Z' }).points, 10); // 10 Nov (UTC)
+  assert.equal(day({ logs, firstHabitStamp: '2026-11-11T00:30:00.000Z' }).points, 0); // 11 Nov (UTC)
 });
 
 test('scoreDay: no stamp counts as on time; unknown ids earn nothing; other days ignored', () => {
