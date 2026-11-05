@@ -25,9 +25,10 @@ dist/
 .vscode/
 .idea/
 
-### Claude
+### Agent notes (local only)
 .claude/
 CLAUDE.md
+AGENTS.md
 
 ### OS junk
 .DS_Store

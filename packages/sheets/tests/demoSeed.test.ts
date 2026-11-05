@@ -36,6 +36,15 @@ test('all dates are on or before today and within 190 days', () => {
   }
 });
 
+test('today is left empty so a visitor can log it', () => {
+  const seed = demoSeed(TODAY);
+  for (const key of ['logs', 'highlights', 'weights', 'moods', 'hours'] as TabKey[]) {
+    assert.ok(!rowsOf(seed, key).some((r) => r[0] === TODAY), `${key} has a row for today`);
+  }
+  assert.ok(!rowsOf(seed, 'climbs').some((r) => r[1] === TODAY), 'climbs has a row for today');
+  assert.ok(rowsOf(seed, 'moods').some((r) => r[0] === '2026-06-14'), 'yesterday should still be logged');
+});
+
 test('same today gives identical output', () => {
   assert.deepEqual(demoSeed(TODAY), demoSeed(TODAY));
   assert.notDeepEqual(demoSeed(TODAY), demoSeed('2026-06-16'));

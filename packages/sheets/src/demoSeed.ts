@@ -93,6 +93,8 @@ export function demoSeed(today: string): Record<string, string[][]> {
   for (const k of Object.keys(TABS) as TabKey[]) out[k] = [];
 
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(today, i - (DAYS - 1)));
+  // Today stays empty so a visitor's first log shows up right away.
+  const past = dates.filter((d) => d !== today);
   const hardMonday = addDays(mondayOf(today), -35);
   const hardWeek = new Set(Array.from({ length: 7 }, (_, i) => addDays(hardMonday, i)));
   const betterWeek = new Set(Array.from({ length: 7 }, (_, i) => addDays(hardMonday, 7 + i)));
@@ -103,8 +105,8 @@ export function demoSeed(today: string): Record<string, string[][]> {
   // Logs: date, activityId, '1' or '0'. A few whole days are left unlogged (gaps); a done habit
   // is more likely again the next day (streaks).
   const prev: Record<string, boolean> = {};
-  for (const date of dates) {
-    if (date !== today && chance(0.07)) { for (const h of HABITS) prev[h.id] = false; continue; }
+  for (const date of past) {
+    if (chance(0.07)) { for (const h of HABITS) prev[h.id] = false; continue; }
     for (const h of HABITS) {
       let p = h.p + (prev[h.id] ? 0.2 : -0.05);
       if (hardWeek.has(date)) p *= 0.4;
@@ -115,7 +117,7 @@ export function demoSeed(today: string): Record<string, string[][]> {
   }
 
   // Moods: date, whole number. Mostly 6-8, one hard week (3-4), then a better one (6-8).
-  for (const date of dates) {
+  for (const date of past) {
     let score: number;
     if (hardWeek.has(date)) score = pick([3, 4, 4]);
     else if (betterWeek.has(date)) score = pick([6, 7, 7, 8]);
@@ -124,18 +126,18 @@ export function demoSeed(today: string): Record<string, string[][]> {
   }
 
   // Highlights on about one day in four.
-  for (const date of dates) if (chance(0.25)) out.highlights.push([date, pick(HIGHLIGHTS)]);
+  for (const date of past) if (chance(0.25)) out.highlights.push([date, pick(HIGHLIGHTS)]);
 
   // Weights: about weekly, a slow drift, one decimal.
   let weight = 78 + Math.floor(rand() * 5);
-  for (let i = 0; i < dates.length; i += 7) {
+  for (let i = 0; i < past.length; i += 7) {
     weight = Math.round((weight + (rand() - 0.55) * 0.8) * 10) / 10;
-    out.weights.push([dates[i], weight.toFixed(1)]);
+    out.weights.push([past[i], weight.toFixed(1)]);
   }
 
   // Time categories and the last 60 days of hours: date, then h1..h24 holding a category id (hour 0 = h1).
   out.timeCategories = TIME_CATEGORIES;
-  for (const date of dates.slice(-60)) {
+  for (const date of past.slice(-60)) {
     const dow = weekday(date);
     const workday = dow >= 1 && dow <= 5;
     const evening = pick(['4', '5', '4', '11']);
@@ -147,7 +149,7 @@ export function demoSeed(today: string): Record<string, string[][]> {
   let climbId = 0;
   for (let i = 3; i < dates.length; i += 7) {
     const date = addDays(dates[i], Math.floor(rand() * 3));
-    if (date > today) continue;
+    if (date >= today) continue;
     session += 1;
     const routes = 3 + Math.floor(rand() * 3);
     for (let r = 0; r < routes; r++) {
