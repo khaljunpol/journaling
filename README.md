@@ -6,9 +6,21 @@ Log your day in a few taps, then watch it add up: a small pixel valley grows fro
 
 ## Screenshots
 
-| Home | Valley | Insights | Phone |
-|---|---|---|---|
-| ![Home](screenshots/home.png) | ![Valley](screenshots/valley.png) | ![Insights](screenshots/insights.png) | ![Phone, today](screenshots/phone-today.png) |
+**Home:** your week at a glance: mood, habits and where your time goes.
+
+![Home](screenshots/home.png)
+
+**The Valley:** a pixel world that grows from your habits.
+
+![Valley](screenshots/valley.png)
+
+**Insights:** mood trends, habit rates and mood links.
+
+![Insights](screenshots/insights.png)
+
+**On your phone:** log today in a few taps.
+
+<p align="center"><img src="screenshots/phone-today.png" alt="Phone, today" width="320"></p>
 
 ## Features
 
