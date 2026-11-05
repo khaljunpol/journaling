@@ -2,7 +2,7 @@
 
 Log your day in a few taps, then watch it add up: a small pixel valley grows from your logs, and your data stays in your own Google Sheet.
 
-**Live demo:** <DEMO_URL>
+**Live demo:** [journaling-demo.vercel.app](https://journaling-demo.vercel.app/)
 
 ## Screenshots
 

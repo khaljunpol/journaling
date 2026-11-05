@@ -3,6 +3,7 @@ import LayoutGate from '@/components/LayoutGate';
 import Providers from '@/components/Providers';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import { isDemo } from '@/lib/demo';
+import { Analytics } from '@vercel/analytics/next';
 import type { ReactNode } from 'react';
 import { Geist, Geist_Mono, Pixelify_Sans } from 'next/font/google';
 // @ts-ignore: side-effect global CSS import for Next.js
@@ -45,6 +46,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                         <ConnectionGate>{children}</ConnectionGate>
                     </LayoutGate>
                 </Providers>
+                {/* Visit counts for the public demo only; a self-hosted app sends nothing. */}
+                {isDemo() && <Analytics />}
             </body>
         </html>
     );
